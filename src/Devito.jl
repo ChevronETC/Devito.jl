@@ -1,3 +1,12 @@
+#=
+1. setting earth model properties
+   i. get size information (including) halo from grid.
+   ii. get the size that includes the halo
+   iii. get localindices ??
+2. setting wavelets
+3. clean-up python Devito install
+=#
+
 module Devito
 
 using PyCall
@@ -39,6 +48,18 @@ end
 
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
+
+py"""
+def fill_function_from_array(x, value):
+    x.data[:] = value[:]
+"""
+Base.copy!(x::Function, value::AbstractArray) = py"fill_function_from_array"(x, value)
+
+py"""
+def fill_function_from_number(x, value):
+    x.data[:] = value
+"""
+Base.fill!(x::Function, value::AbstractArray) = py"fill_function_from_number"(x, value)
 
 struct Dimension # TODO .. what is the corresponding python type?
     o::PyObject
@@ -84,12 +105,14 @@ dx(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObje
 dy(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
 dz(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
+data(x::TimeFunction) = PyObject(x).data
+
 Base.:*(x::Function, y::PyObject) = PyObject(x)*y
 Base.:*(x::PyObject, y::Function) = x*PyObject(y)
 Base.:/(x::Function, y::PyObject) = PyObject(x)/y
 Base.:/(x::PyObject, y::Function) = x/PyObject(y)
 Base.:^(x::Function, y) = PyObject(x)^y
 
-export apply, backward, configuration, configuration!, dimensions, dx, dy, dz, forward, interpolate, inject, spacing, spacing_map, step
+export apply, backward, configuration, configuration!, data, dimensions, dx, dy, dz, forward, interpolate, inject, spacing, spacing_map, step
 
 end
