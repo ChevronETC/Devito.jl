@@ -4,7 +4,6 @@
    ii. get the size that includes the halo
    iii. get localindices ??
 2. setting wavelets
-3. clean-up python Devito install
 =#
 
 module Devito

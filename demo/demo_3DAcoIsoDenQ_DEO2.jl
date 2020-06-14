@@ -1,6 +1,6 @@
 using Revise
 
-using Devito, PyCall
+using Devito
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
@@ -17,8 +17,8 @@ v = Devito.Function(name="v", grid=grid, space_order=8)
 q = Devito.Function(name="woverq", grid=grid, space_order=8)
 
 copy!(b, ones(Float32,size(grid))) # alternative: fill!(b, 1)
-copy!(q, (1/1000)*ones(Float32,size(grid))) # alternative: fill!(q, 1)
 copy!(v, 1.5f0*ones(Float32,size(grid))) # alternative: fill!(v, 1.5)
+copy!(q, (1/1000)*ones(Float32,size(grid))) # alternative: fill!(q, 1)
 
 time_range = TimeAxis(start=0.0f0, stop=750.0f0, step=1.0f0)
 
@@ -27,7 +27,7 @@ t,x,y,z = dimensions(p)
 
 src = RickerSource(name="src", grid=grid, f0=0.01f0, npoint=1, time_range=time_range,
     coordinates=[10.0 605.0 605.0])
-src_term = inject(src; field=PyObject(p).forward, expr=src*spacing(t)^2*v^2/b)
+src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...
 rec_coords = zeros(nx,3)
@@ -59,7 +59,7 @@ op = Operator([stencil_p, src_term, rec_term], subs=smap, name="OpExampleIso")
 
 apply(op)
 
-using PyPlot, PyCall
+using PyPlot
 
 _p = data(p)
 extrema(_p)
