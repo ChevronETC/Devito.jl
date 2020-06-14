@@ -19,6 +19,14 @@ function __init__()
     copy!(numpy, pyimport("numpy"))
     copy!(devito, pyimport("devito"))
     copy!(seismic, pyimport("examples.seismic"))
+
+py"""
+def fill_function_from_array(x, value):
+    x.data[:] = value[:]
+
+def fill_function_from_number(x, value):
+    x.data[:] = value
+"""
 end
 
 # Devito configuration methods
@@ -32,7 +40,7 @@ configuration() = PyDict(devito."configuration")
 
 # Python <-> Julia type/struct mappings
 for (M,F) in (
-        (:devito,:Eq), (:devito,:Function), (:devito,:Grid), (:devito,:Injection), (:devito,:Operator), (:devito,:TimeFunction),
+        (:devito,:Constant), (:devito,:Eq), (:devito,:Function), (:devito,:Grid), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:TimeFunction),
         (:seismic, :Receiver), (:seismic,:RickerSource), (:seismic,:TimeAxis))
     @eval begin
         struct $F
@@ -48,17 +56,8 @@ end
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
 
-py"""
-def fill_function_from_array(x, value):
-    x.data[:] = value[:]
-"""
 Base.copy!(x::Function, value::AbstractArray) = py"fill_function_from_array"(x, value)
-
-py"""
-def fill_function_from_number(x, value):
-    x.data[:] = value
-"""
-Base.fill!(x::Function, value::AbstractArray) = py"fill_function_from_number"(x, value)
+Base.fill!(x::Function, value::Number) = py"fill_function_from_number"(x, value)
 
 struct Dimension # TODO .. what is the corresponding python type?
     o::PyObject
@@ -97,6 +96,7 @@ forward(x::TimeFunction) = PyObject(x).forward
 inject(x::RickerSource, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
 interpolate(x::Receiver; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
+data(x::Receiver) = PyObject(x).data
 
 apply(x::Operator, args...; kwargs...) = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
 
