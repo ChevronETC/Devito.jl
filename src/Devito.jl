@@ -16,7 +16,6 @@ const devito = PyNULL()
 const seismic = PyNULL()
 
 function __init__()
-    ENV["PYTHON_PATH"] = "/home/cvx/devito" # TODO
     copy!(numpy, pyimport("numpy"))
     copy!(devito, pyimport("devito"))
     copy!(seismic, pyimport("examples.seismic"))
