@@ -19,11 +19,9 @@ addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_p
         extent = (12000.0,12000.0,6000.0),
         dtype = Float32)
 
-    write(stdout, "HERE1\n")
     b = Devito.Function(name="b", grid=grid, space_order=8)
     v = Devito.Function(name="vel", grid=grid, space_order=8)
     q = Devito.Function(name="wOverQ", grid=grid, space_order=8)
-    write(stdout, "HERE2\n")
 
     copy!(b, ones(Float32,size(grid))) # alternative: fill!(b, 1)
     copy!(v, 1.5f0*ones(Float32,size(grid))) # alternative: fill!(v, 1.5)
@@ -77,4 +75,8 @@ addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_p
     data(p), data(rec)
 end
 
-p, d = model()
+p, d = remotecall_fetch(model, workers()[1])
+
+using PyPlot
+figure(); imshow(d); display(gcf())
+figure(); imshow(p[1,:,200,:]); display(gcf())
