@@ -8,7 +8,7 @@
 
 module Devito
 
-using PyCall
+using MPI, PyCall
 
 const numpy = PyNULL()
 const devito = PyNULL()
@@ -91,6 +91,7 @@ Base.step(x::TimeAxis) = PyObject(x).step
 
 backward(x::TimeFunction) = PyObject(x).backward
 forward(x::TimeFunction) = PyObject(x).forward
+grid(x::TimeFunction) = PyObject(x).grid
 
 inject(x::RickerSource, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
@@ -104,6 +105,24 @@ dy(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObje
 dz(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
 data(x::TimeFunction) = PyObject(x).data
+
+lindices(x::TimeFunction) = PyObject(x).local_indices
+
+function data(timefunction::TimeFunction)
+    MPI.Initialized() || MPI.Init()
+    comm = MPI.Comm_world()
+
+    indices = lindices(timefunction)
+    x = zeros(eltype(grid(timefunction)), size(grid(timefunction)))
+
+    # TODO ... generalize this
+    indices_x = indices[1].start+1:indices[1].stop
+    indices_y = indices[2].start+1:indices[2].stop
+    indices_z = indices[3].start+1:indices[3].stop
+
+    x[indices_x,indices_y,indices_z] = data(x)[1,:,:,:]
+    MPI.Reduce(x, +, 0, comm)
+end
 
 Base.:*(x::Function, y::PyObject) = PyObject(x)*y
 Base.:*(x::PyObject, y::Function) = x*PyObject(y)
