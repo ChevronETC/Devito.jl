@@ -108,20 +108,55 @@ data(x::TimeFunction) = PyObject(x).data
 
 lindices(x::TimeFunction) = PyObject(x).local_indices
 
-function data(timefunction::TimeFunction)
+data_nompi(timefunction::TimeFunction) = PyObject(timefunction).data
+
+function data_mpi_2D(timefunction::TimeFunction)
     MPI.Initialized() || MPI.Init()
-    comm = MPI.Comm_world()
+    comm = MPI.COMM_WORLD
 
     indices = lindices(timefunction)
-    x = zeros(eltype(grid(timefunction)), size(grid(timefunction)))
+    x = data(timefunction)
+    y = zeros(size(x,1), eltype(grid(timefunction)), size(grid(timefunction)))
+
+    indices_1 = indices[1].start+1:indices[1].stop
+    indices_2 = indices[2].start+1:indices[2].stop
+
+    y[:,indices_1,indices_2] .= x
+    MPI.Reduce(y, +, 0, comm)
+end
+
+function data_mpi_3D(timefunction::TimeFunction)
+    MPI.Initialized() || MPI.Init()
+    comm = MPI.COMM_WORLD
+
+    indices = lindices(timefunction)
+    x = data(timefunction)
+    y = zeros(size(x,1), eltype(grid(timefunction)), size(grid(timefunction)))
 
     # TODO ... generalize this
-    indices_x = indices[1].start+1:indices[1].stop
-    indices_y = indices[2].start+1:indices[2].stop
-    indices_z = indices[3].start+1:indices[3].stop
+    indices_1 = indices[1].start+1:indices[1].stop
+    indices_2 = indices[2].start+1:indices[2].stop
+    indices_3 = indices[3].start+1:indices[3].stop
 
-    x[indices_x,indices_y,indices_z] = data(x)[1,:,:,:]
-    MPI.Reduce(x, +, 0, comm)
+    y[:,indices_1,indices_2,indices_3] .= x
+    MPI.Reduce(y, +, 0, comm)
+end
+
+function data(timefunction::TimeFunction)
+    local d
+    if configuration("mpi") == 0
+        d = data_nompi(timefunction)
+    else
+        grd = grid(timefunction)
+        if ndims(grid(timefunction)) == 2
+            d = data_mpi_2D(timefunction)
+        elseif ndims(grid(timefunction)) == 3
+            d = data_mpi_3D(timefunction)
+        else
+            error("grid with MPI and ndims=$(ndims(grd)) is not supported.")
+        end
+    end
+    d
 end
 
 Base.:*(x::Function, y::PyObject) = PyObject(x)*y
