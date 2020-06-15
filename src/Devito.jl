@@ -104,8 +104,6 @@ dx(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObje
 dy(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
 dz(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
-data(x::TimeFunction) = PyObject(x).data
-
 lindices(x::TimeFunction) = PyObject(x).local_indices
 
 data_nompi(timefunction::TimeFunction) = PyObject(timefunction).data
