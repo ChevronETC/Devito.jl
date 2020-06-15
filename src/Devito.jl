@@ -140,6 +140,7 @@ function data_mpi_3D(timefunction::TimeFunction)
     MPI.Reduce(y, +, 0, comm)
 end
 
+# TODO: use parametric types for TimeFunction to make this type stable
 function data(timefunction::TimeFunction)
     local d
     if configuration("mpi") == 0
