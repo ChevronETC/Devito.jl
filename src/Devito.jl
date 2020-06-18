@@ -4,6 +4,10 @@
    ii. get the size that includes the halo
    iii. get localindices ??
 2. setting wavelets
+3. integration showing MPI and serial make the same result
+4. unit tests
+5. type stability
+6. use latest release of Devito or head of master
 =#
 
 module Devito
@@ -91,7 +95,8 @@ Base.step(x::TimeAxis) = PyObject(x).step
 
 backward(x::TimeFunction) = PyObject(x).backward
 forward(x::TimeFunction) = PyObject(x).forward
-grid(x::TimeFunction) = PyObject(x).grid
+grid(x::TimeFunction) = Grid(PyObject(x).grid)
+Base.ndims(grid::Grid) = length(PyObject(grid).shape)
 
 inject(x::RickerSource, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
@@ -113,13 +118,14 @@ function data_mpi_2D(timefunction::TimeFunction)
     comm = MPI.COMM_WORLD
 
     indices = lindices(timefunction)
-    x = data(timefunction)
-    y = zeros(size(x,1), eltype(grid(timefunction)), size(grid(timefunction)))
+    x = PyObject(timefunction).data
+    y = zeros(eltype(grid(timefunction)), size(x,1), size(grid(timefunction))...)
 
     indices_1 = indices[1].start+1:indices[1].stop
     indices_2 = indices[2].start+1:indices[2].stop
+    indices_3 = indices[3].start+1:indices[3].stop
 
-    y[:,indices_1,indices_2] .= x
+    y[indices_1,indices_2,indices_3] .= x
     MPI.Reduce(y, +, 0, comm)
 end
 
@@ -129,27 +135,27 @@ function data_mpi_3D(timefunction::TimeFunction)
 
     indices = lindices(timefunction)
     x = data(timefunction)
-    y = zeros(size(x,1), eltype(grid(timefunction)), size(grid(timefunction)))
+    y = zeros(eltype(grid(timefunction)), size(x,1), size(grid(timefunction))...)
 
-    # TODO ... generalize this
     indices_1 = indices[1].start+1:indices[1].stop
     indices_2 = indices[2].start+1:indices[2].stop
     indices_3 = indices[3].start+1:indices[3].stop
+    indices_4 = indices[4].start+1:indices[4].stop
 
-    y[:,indices_1,indices_2,indices_3] .= x
+    y[indices_1,indices_2,indices_3,indices_4] .= x
     MPI.Reduce(y, +, 0, comm)
 end
 
 # TODO: use parametric types for TimeFunction to make this type stable
 function data(timefunction::TimeFunction)
     local d
-    if configuration("mpi") == 0
+    if configuration("mpi") == false
         d = data_nompi(timefunction)
     else
         grd = grid(timefunction)
-        if ndims(grid(timefunction)) == 2
+        if ndims(grd) == 2
             d = data_mpi_2D(timefunction)
-        elseif ndims(grid(timefunction)) == 3
+        elseif ndims(grd) == 3
             d = data_mpi_3D(timefunction)
         else
             error("grid with MPI and ndims=$(ndims(grd)) is not supported.")
