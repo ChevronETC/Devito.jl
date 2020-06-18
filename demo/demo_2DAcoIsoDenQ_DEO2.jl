@@ -1,6 +1,6 @@
 using Revise
 
-using Devito, PyCall
+using Devito
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
@@ -60,7 +60,7 @@ op = Operator([stencil_p, src_term, rec_term], subs=smap, name="OpExampleIso")
 
 apply(op)
 
-using PyPlot, PyCall
+using PyPlot
 
 _p = data(p)
 extrema(_p)
