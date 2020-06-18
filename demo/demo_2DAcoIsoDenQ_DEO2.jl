@@ -4,7 +4,7 @@ using Devito
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
-configuration!("mpi", 0)
+configuration!("mpi", false)
 
 x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
@@ -31,7 +31,7 @@ t,x,z = dimensions(p)
 
 src = RickerSource(name="src", grid=grid, f0=0.01f0, npoint=1, time_range=time_range,
     coordinates=[1250.0 5.0])
-src_term = inject(src; field=PyObject(p).forward, expr=src*spacing(t)^2*v^2/b)
+src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,nx,δz,δx = size(grid)...,spacing(grid)...
 rec_coords = zeros(nx,2)
