@@ -22,15 +22,35 @@ function __init__()
     copy!(numpy, pyimport("numpy"))
     copy!(devito, pyimport("devito"))
     copy!(seismic, pyimport("examples.seismic"))
-
-py"""
-def fill_function_from_array(x, value):
-    x.data[:] = value[:]
-
-def fill_function_from_number(x, value):
-    x.data[:] = value
-"""
 end
+
+numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
+
+PyCall.PyObject(::Type{Float32}) = numpy.float32
+PyCall.PyObject(::Type{Float64}) = numpy.float64
+
+struct DevitoArray{T,N} <: AbstractArray{T,N}
+    o::PyObject
+    p::Array{T,N}
+end
+
+function DevitoArray{T,N}(o) where {T,N}
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
+    DevitoArray{T,N}(o, p)
+end
+
+function DevitoArray(o)
+    T = numpy_eltype(o.dtype)
+    N = length(o.shape)
+    DevitoArray{T,N}(o)
+end
+
+Base.size(x::DevitoArray{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+Base.parent(x::DevitoArray) = x.p
+
+Base.getindex(x::DevitoArray{T,N}, i) where {T,N} = getindex(parent(x), i)
+Base.setindex!(x::DevitoArray{T,N}, v, i) where {T,N} = setindex!(parent(x), v, i)
+Base.IndexStyle(::Type{<:DevitoArray}) = IndexLinear()
 
 # Devito configuration methods
 function configuration!(key, value)
@@ -41,9 +61,9 @@ end
 configuration(key) = PyDict(devito."configuration")[key]
 configuration() = PyDict(devito."configuration")
 
-# Python <-> Julia type/struct mappings
+# Python <-> Julia quick-and-dirty type/struct mappings
 for (M,F) in (
-        (:devito,:Constant), (:devito,:Eq), (:devito,:Function), (:devito,:Grid), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:TimeFunction),
+        (:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension),
         (:seismic, :Receiver), (:seismic,:RickerSource), (:seismic,:TimeAxis))
     @eval begin
         struct $F
@@ -56,120 +76,171 @@ for (M,F) in (
     end
 end
 
-PyCall.PyObject(::Type{Float32}) = numpy.float32
-PyCall.PyObject(::Type{Float64}) = numpy.float64
-
-Base.copy!(x::Function, value::AbstractArray) = py"fill_function_from_array"(x, value)
-Base.fill!(x::Function, value::Number) = py"fill_function_from_number"(x, value)
-
-struct Dimension # TODO .. what is the corresponding python type?
+#
+# Grid
+#
+struct Grid{T,N}
     o::PyObject
 end
-PyCall.PyObject(x::Dimension) = x.o
-Base.convert(::Type{Dimension}, o::PyObject) = Dimension(o)
 
-# convenience methods
-function dimensions(p::TimeFunction)
-    x = PyObject(p).dimensions
-    ntuple(i->convert(Dimension, x[i]), length(x))
+function Grid(args...; kwargs...)
+    o = pycall(devito.Grid, PyObject, args...; kwargs...)
+    T = numpy_eltype(o.dtype)
+    N = length(o.shape)
+    Grid{T,N}(o)
 end
-spacing(x::Dimension) = (o = PyObject(x); o.spacing)
 
-spacing_map(x::Grid) = PyDict(PyObject(x)."spacing_map")
-Base.size(x::Grid) = PyObject(x).shape
-Base.size(x::Grid, i) = PyObject(x).shape[i]
-function Base.eltype(x::Grid)
-    o = PyObject(x)
-    if o.dtype == numpy.float32
-        return Float32
-    elseif o.dtype == numpy.float64
-        return Float64
+PyCall.PyObject(x::Grid) = x.o
+
+Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
+Base.ndims(grid::Grid{T,N}) where {T,N} = N
+Base.eltype(grid::Grid{T}) where {T} = T
+
+spacing(x::Union{SpaceDimension,SteppingDimension}) = x.o.spacing
+spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
+spacing_map(x::Grid) = PyDict(x.o."spacing_map")
+
+#
+# Functions
+#
+abstract type DiscreteFunction{T,N} end
+
+struct Function{T,N} <: DiscreteFunction{T,N}
+    o::PyObject
+end
+
+function Function(args...; kwargs...)
+    o = pycall(devito.Function, PyObject, args...; kwargs...)
+    T = numpy_eltype(o.dtype)
+    N = length(o.shape)
+    Function{T,N}(o)
+end
+
+struct TimeFunction{T,N} <: DiscreteFunction{T,N}
+    o::PyObject
+end
+
+function TimeFunction(args...; kwargs...)
+    o = pycall(devito.TimeFunction, PyObject, args...; kwargs...)
+    T = numpy_eltype(o.dtype)
+    N = length(o.shape)
+    TimeFunction{T,N}(o)
+end
+
+PyCall.PyObject(x::DiscreteFunction) = x.o
+
+grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
+grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
+halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
+
+forward(x::TimeFunction) = x.o.forward
+backward(x::TimeFunction) = x.o.backward
+
+data_with_halo(x::DiscreteFunction{T,N}) where {T,N} = DevitoArray{T,N}(x.o."data_with_halo")
+
+function data(x::DiscreteFunction{T,N}) where {T,N}
+    h = halo(x)
+    y = data_with_halo(x)
+    rng = ntuple(i->(h[i][1]+1):(size(y,i)-h[i][2]), N)
+    @view y[rng...]
+end
+
+# TODO - make me type stable
+function data(x::Receiver)
+    T = numpy_eltype(x.o."data".dtype)
+    N = length(x.o."data".shape)
+    DevitoArray{T,N}(x.o."data")'
+end
+
+function Dimension(o)
+    if o.is_Space
+        return SpaceDimension(o)
+    elseif o.is_Stepping
+        return SteppingDimension(o)
     else
-        error("Grid element type is not recognized")
+        error("not implemented")
     end
 end
-spacing(x::Grid) = convert.(eltype(x), PyObject(x).spacing)
-spacing(x::Grid, i) = convert(eltype(x), PyObject(x).spacing[i])
 
-Base.step(x::TimeAxis) = PyObject(x).step
-
-backward(x::TimeFunction) = PyObject(x).backward
-forward(x::TimeFunction) = PyObject(x).forward
-grid(x::TimeFunction) = Grid(PyObject(x).grid)
-Base.ndims(grid::Grid) = length(PyObject(grid).shape)
+function dimensions(x::DiscreteFunction{T,N}) where {T,N}
+    ntuple(i->Dimension(x.o.dimensions[N-i+1]), N)
+end
 
 inject(x::RickerSource, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
 interpolate(x::Receiver; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
-data(x::Receiver) = PyObject(x).data
+
+Base.step(x::TimeAxis) = PyObject(x).step
 
 apply(x::Operator, args...; kwargs...) = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
 
-dx(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dx, PyObject, args...; kwargs...)
-dy(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
-dz(x::Union{Function,TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
+dx(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dx, PyObject, args...; kwargs...)
+dy(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
+dz(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
-lindices(x::TimeFunction) = PyObject(x).local_indices
+Base.:*(x::DiscreteFunction, y::PyObject) = x.o*y
+Base.:*(x::PyObject, y::DiscreteFunction) = x*y.o
+Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
+Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
+Base.:^(x::Function, y) = x.o^y
 
-data_nompi(timefunction::TimeFunction) = PyObject(timefunction).data
+export Grid, Function, SpaceDimension, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_with_halo, dx, dy, dz, interpolate, dimensions, forward, grid, inject, spacing, spacing_map, step
 
-function data_mpi_2D(timefunction::TimeFunction)
-    MPI.Initialized() || MPI.Init()
-    comm = MPI.COMM_WORLD
+# lindices(x::TimeFunction) = PyObject(x).local_indices
 
-    indices = lindices(timefunction)
-    x = PyObject(timefunction).data
-    y = zeros(eltype(grid(timefunction)), size(x,1), size(grid(timefunction))...)
+# data_nompi(timefunction::TimeFunction) = PyObject(timefunction).data
 
-    indices_1 = indices[1].start+1:indices[1].stop
-    indices_2 = indices[2].start+1:indices[2].stop
-    indices_3 = indices[3].start+1:indices[3].stop
+# function data_mpi_2D(timefunction::TimeFunction)
+#     MPI.Initialized() || MPI.Init()
 
-    y[indices_1,indices_2,indices_3] .= x
-    MPI.Reduce(y, +, 0, comm)
-end
+#     grd = grid(timefunction)
+#     indices = lindices(timefunction)
+#     x = PyObject(timefunction).data
+#     y = zeros(eltype(grd), size(x,1), size(grd)...)
 
-function data_mpi_3D(timefunction::TimeFunction)
-    MPI.Initialized() || MPI.Init()
-    comm = MPI.COMM_WORLD
+#     indices_1 = indices[1].start+1:indices[1].stop
+#     indices_2 = indices[2].start+1:indices[2].stop
+#     indices_3 = indices[3].start+1:indices[3].stop
 
-    indices = lindices(timefunction)
-    x = data(timefunction)
-    y = zeros(eltype(grid(timefunction)), size(x,1), size(grid(timefunction))...)
+#     y[indices_1,indices_2,indices_3] .= x
+#     MPI.Reduce(y, +, 0, MPI.COMM_WORLD)
+# end
 
-    indices_1 = indices[1].start+1:indices[1].stop
-    indices_2 = indices[2].start+1:indices[2].stop
-    indices_3 = indices[3].start+1:indices[3].stop
-    indices_4 = indices[4].start+1:indices[4].stop
+# function data_mpi_3D(timefunction::TimeFunction)
+#     MPI.Initialized() || MPI.Init()
 
-    y[indices_1,indices_2,indices_3,indices_4] .= x
-    MPI.Reduce(y, +, 0, comm)
-end
+#     grd = grid(timefunction)
+#     indices = lindices(timefunction)
+#     x = data(timefunction)
+#     y = zeros(eltype(grd), size(x,1), size(grd)...)
 
-# TODO: use parametric types for TimeFunction to make this type stable
-function data(timefunction::TimeFunction)
-    local d
-    if configuration("mpi") == false
-        d = data_nompi(timefunction)
-    else
-        grd = grid(timefunction)
-        if ndims(grd) == 2
-            d = data_mpi_2D(timefunction)
-        elseif ndims(grd) == 3
-            d = data_mpi_3D(timefunction)
-        else
-            error("grid with MPI and ndims=$(ndims(grd)) is not supported.")
-        end
-    end
-    d
-end
+#     indices_1 = indices[1].start+1:indices[1].stop
+#     indices_2 = indices[2].start+1:indices[2].stop
+#     indices_3 = indices[3].start+1:indices[3].stop
+#     indices_4 = indices[4].start+1:indices[4].stop
 
-Base.:*(x::Function, y::PyObject) = PyObject(x)*y
-Base.:*(x::PyObject, y::Function) = x*PyObject(y)
-Base.:/(x::Function, y::PyObject) = PyObject(x)/y
-Base.:/(x::PyObject, y::Function) = x/PyObject(y)
-Base.:^(x::Function, y) = PyObject(x)^y
+#     y[indices_1,indices_2,indices_3,indices_4] .= x
+#     MPI.Reduce(y, +, 0, MPI.COMM_WORLD)
+# end
 
-export apply, backward, configuration, configuration!, data, dimensions, dx, dy, dz, forward, interpolate, inject, spacing, spacing_map, step
+# # TODO: use parametric types for TimeFunction to make this type stable
+# function data(timefunction::TimeFunction)
+#     local d
+#     if configuration("mpi") == false
+#         d = data_nompi(timefunction)
+#     else
+#         grd = grid(timefunction)
+#         if ndims(grd) == 2
+#             d = data_mpi_2D(timefunction)
+#         elseif ndims(grd) == 3
+#             d = data_mpi_3D(timefunction)
+#         else
+#             error("grid with MPI and ndims=$(ndims(grd)) is not supported.")
+#         end
+#     end
+#     PermutedDimsArray(d, ndims(d):-1:1)
+# end
+
+
 
 end
