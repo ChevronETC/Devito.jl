@@ -9,7 +9,7 @@ addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_p
 
 @everywhere configuration!("log-level", "DEBUG")
 @everywhere configuration!("language", "openmp")
-@everywhere configuration!("mpi", 1)
+@everywhere configuration!("mpi", true)
 
 @everywhere function model()
     write(stdout, "inside model()\n")
@@ -23,14 +23,18 @@ addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_p
     v = Devito.Function(name="vel", grid=grid, space_order=8)
     q = Devito.Function(name="wOverQ", grid=grid, space_order=8)
 
-    copy!(b, ones(Float32,size(grid))) # alternative: fill!(b, 1)
-    copy!(v, 1.5f0*ones(Float32,size(grid))) # alternative: fill!(v, 1.5)
-    copy!(q, (1/1000)*ones(Float32,size(grid))) # alternative: fill!(q, 1)
+    b_data = data_with_halo(b)
+    v_data = data_with_halo(v)
+    q_data = data_with_halo(q)
+
+    copy!(b_data, ones(Float32,size(b_data))) # alternative: fill!(b, 1)
+    copy!(v_data, 1.5f0*ones(Float32,size(v_data))) # alternative: fill!(v, 1.5)
+    copy!(q_data, (1/1000)*ones(Float32,size(q_datsa))) # alternative: fill!(q, 1)
 
     time_range = TimeAxis(start=0.0f0, stop=250.0f0, step=1.0f0)
     
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
-    t, x, y, z = dimensions(p)
+    z,y,x,t = dimensions(p)
 
     src = RickerSource(name="src", grid=grid, f0=0.01f0, npoint=1, time_range=time_range,
         coordinates=[6500.0 6500.0 10.0])
@@ -72,7 +76,7 @@ addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_p
 
     write(stdout, "t_appy=$t_apply\n")
 
-    data(p), data(rec)
+    data_with_halo(p), data(rec)
 end
 
 p, d = remotecall_fetch(model, workers()[1])
