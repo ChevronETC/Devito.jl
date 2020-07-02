@@ -61,6 +61,63 @@ end
 configuration(key) = PyDict(devito."configuration")[key]
 configuration() = PyDict(devito."configuration")
 
+struct DevitoMPIArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
+    o::PyObject
+    p::A
+    local_indices::NTuple{N,UnitRange{Int}}
+end
+
+function DevitoMPIArray{T,N}(o, idxs) where {T,N}
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+    DevitoMPIArray{T,N,Array{T,N}}(o, p, idxs)
+end
+
+function Base.size(x::DevitoMPIArray{T,N}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+    n = ntuple(i->x.local_indices[i][end], N)
+    MPI.Allreduce(n, max, MPI.COMM_WORLD)
+end
+
+Base.parent(x::DevitoMPIArray) = x.p
+
+localsize(x::DevitoMPIArray{T,N}) where {T,N} = ntuple(i->x.local_indices[i][end]-x.local_indices[i][1]+1, N)
+
+localindices(x::DevitoMPIArray{T,N}) where {T,N} = x.local_indices
+
+function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
+    MPI.Initialized() || MPI.Init()
+    y = zeros(T, size(x))
+    y[localindices(x)...] .= parent(x)
+    MPI.Reduce!(y, +, 0, MPI.COMM_WORLD)
+    y
+end
+
+function Base.copy!(dst::DevitoMPIArray, src::AbstractArray)
+    MPI.Initialized() || MPI.Init()
+    parent(dst) .= src[localindices(dst)...]
+    MPI.Barrier(MPI.COMM_WORLD)
+    dst
+end
+
+function Base.fill!(x::DevitoMPIArray, v)
+    MPI.Initialized() || MPI.Init()
+    parent(x) .= v
+    MPI.Barrier(MPI.COMM_WORLD)
+    x
+end
+
+function Base.getindex(x::DevitoMPIArray{T,N}, I::Vararg{Int,N}) where {T,N}
+    if all(ntuple(idim->I[idim] ∈ x.local_indices[idim], N))
+        J = ntuple(idim->I[idim]-x.local_indices[idim]+1, N)
+        v = getindex(x.p, J...)
+    end
+    v
+end
+Base.setindex!(x::DevitoMPIArray{T,N}, v, i) where {T,N} = @warn "not implemented"
+Base.IndexStyle(::Type{<:DevitoMPIArray}) = IndexCartesian()
+
+# TODO -- need to implement broadcasting interface for DevitoMPIArray
+
 # Python <-> Julia quick-and-dirty type/struct mappings
 for (M,F) in (
         (:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension),
@@ -93,6 +150,8 @@ end
 PyCall.PyObject(x::Grid) = x.o
 
 Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
+size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->grid.o.shape[N-i+1] + h[i][1] + h[i][2], N)
+Base.size(grid::Grid, i) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
@@ -103,20 +162,27 @@ spacing_map(x::Grid) = PyDict(x.o."spacing_map")
 #
 # Functions
 #
-abstract type DiscreteFunction{T,N} end
+abstract type DevitoMPI end
+struct DevitoMPITrue <: DevitoMPI end
+struct DevitoMPIFalse <: DevitoMPI end
 
-struct Function{T,N} <: DiscreteFunction{T,N}
+abstract type DiscreteFunction{T,N,M} end
+
+struct Function{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
+
+ismpi_distributed(o::PyObject) = o._distributor.nprocs == 1 ? DevitoMPIFalse : DevitoMPITrue  # TODO - when should should o._distributed == None ??
 
 function Function(args...; kwargs...)
     o = pycall(devito.Function, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
-    Function{T,N}(o)
+    M = ismpi_distributed(o)
+    Function{T,N,M}(o)
 end
 
-struct TimeFunction{T,N} <: DiscreteFunction{T,N}
+struct TimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
 
@@ -124,7 +190,8 @@ function TimeFunction(args...; kwargs...)
     o = pycall(devito.TimeFunction, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
-    TimeFunction{T,N}(o)
+    M = ismpi_distributed(o)
+    TimeFunction{T,N,M}(o)
 end
 
 PyCall.PyObject(x::DiscreteFunction) = x.o
@@ -132,17 +199,68 @@ PyCall.PyObject(x::DiscreteFunction) = x.o
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
 grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
+Base.size(x::Function{T,N}) where {T,N} = size(grid(x))
+size_with_halo(x::Function{T,N}) where{T,N} = size_with_halo(grid(x), halo(x))
+Base.size(x::TimeFunction) = (size(grid(x))..., x.o.shape[1])
+size_with_halo(x::TimeFunction) = (size_with_halo(grid(x), halo(x))..., x.o.shape[1])
+
+localindices(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
+
+function localindices_with_halo(x::DiscreteFunction{T,N}) where {T,N}
+    i = localindices(x)
+    h = halo(x)
+    n = size(x)
+
+    ntuple(idim->begin
+        local start,stop
+        if i[idim][1] == 1
+            start = 1
+            stop = start + length(i[idim]) - 1 + h[idim][1]
+        else
+            start = i[idim][1] + h[idim][1]
+            stop = start + length(i[idim]) - 1
+        end
+        if i[idim][end] == n[idim]
+            stop += h[idim][2]
+        end
+        start:stop
+    end, N)
+end
 
 forward(x::TimeFunction) = x.o.forward
 backward(x::TimeFunction) = x.o.backward
 
-data_with_halo(x::DiscreteFunction{T,N}) where {T,N} = DevitoArray{T,N}(x.o."data_with_halo")
+data_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."data_with_halo")
 
-function data(x::DiscreteFunction{T,N}) where {T,N}
+function data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N}
     h = halo(x)
     y = data_with_halo(x)
     rng = ntuple(i->(h[i][1]+1):(size(y,i)-h[i][2]), N)
     @view y[rng...]
+end
+
+function data_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+    idxs = localindices_with_halo(x)
+    n = size(x)
+    DevitoMPIArray{T,N}(x.o."data_with_halo", idxs)
+end
+
+function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    idxs = localindices(x)
+    h = halo(x)
+
+    rng = ntuple(idim->begin
+        start = idxs[idim][1] == 1 ? h[idim][1] + 1 : 1
+        stop = start + length(idxs[idim]) - 1
+        start:stop
+    end, N)
+
+    pp = data_with_halo(x)
+
+    p = parent(data_with_halo(x))
+    _p = @view p[rng...]
+    DevitoMPIArray{T,N,typeof(_p)}(x.o."data_with_halo", _p, idxs)
 end
 
 # TODO - make me type stable
@@ -184,7 +302,7 @@ Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-export Grid, Function, SpaceDimension, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_with_halo, dx, dy, dz, interpolate, dimensions, forward, grid, inject, spacing, spacing_map, step
+export Grid, Function, SpaceDimension, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_with_halo, dimensions, dx, dy, dz, forward, grid, inject, interpolate, localindices, localsize, size_with_halo, spacing, spacing_map, step
 
 # lindices(x::TimeFunction) = PyObject(x).local_indices
 

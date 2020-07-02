@@ -12,7 +12,7 @@ z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
 grid = Grid(
     dimensions = (x,z),
     shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
-    origin = (0.0,0.0,0.0),
+    origin = (0.0,0.0),
     extent = (1250.0,2500.0),
     dtype = Float32)
 
