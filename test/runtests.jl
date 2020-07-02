@@ -58,3 +58,5 @@ end
     p_data_test = data(p)
     @test p_data ≈ p_data_test
 end
+
+run(`mpirun -n 2 julia $(joinpath(pkgdir(Devito),"test", "runtests_mpi.jl"))`)
