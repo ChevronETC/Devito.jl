@@ -30,8 +30,8 @@ PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
 
 struct DevitoArray{T,N} <: AbstractArray{T,N}
-    o::PyObject
-    p::Array{T,N}
+    o::PyObject # Python object for the numpy array
+    p::Array{T,N} # copy-free
 end
 
 function DevitoArray{T,N}(o) where {T,N}
@@ -118,6 +118,61 @@ Base.IndexStyle(::Type{<:DevitoMPIArray}) = IndexCartesian()
 
 # TODO -- need to implement broadcasting interface for DevitoMPIArray
 
+struct DevitoMPISparseArray{T,N,NM1} <: AbstractArray{T,N}
+    o::PyObject
+    p::Array
+    local_indices::Array{Int,NM1}
+end
+
+function DevitoMPISparseArray{T,N}(o, idxs) where {T,N}
+    local p
+    if length(idxs) == 0
+        p = Array{T,N}(undef, ntuple(_->0, N))
+    else
+        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
+    end
+    DevitoMPISparseArray{T,N,N-1}(o, p, idxs)
+end
+Base.IndexStyle(::Type{<:DevitoMPISparseArray}) = IndexCartesian()
+Base.getindex(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,N}) where {T,N} = error("not implemented")
+Base.setindex!(x::DevitoMPISparseArray{T,N}, v, I::Vararg{Int,N}) where {T,N} = error("not implemented")
+
+Base.parent(x::DevitoMPISparseArray) = x.p
+
+function Base.size(x::DevitoMPISparseArray{T,N}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+    n = MPI.Allreduce(x.o.shape[2], +, MPI.COMM_WORLD)
+    (n,x.o.shape[1])
+end
+
+function Base.convert(::Type{Array}, x::DevitoMPISparseArray{T,N}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+    y = zeros(T, size(x))
+    _x = parent(x)
+    n = x.o.shape[1]
+    for j = 1:n
+        for (i,idx) in enumerate(x.local_indices)
+            y[idx,j] = _x[i,j]
+        end
+    end
+    MPI.Reduce!(y, +, 0, MPI.COMM_WORLD)
+    y
+end
+
+function Base.copy!(dst::DevitoMPISparseArray, src::Array)
+    MPI.Initialized() || MPI.Init()
+    MPI.Bcast!(src, 0, MPI.COMM_WORLD)
+    n = size(src, 2)
+    dst_parent = parent(dst)
+    for (i,idx) in enumerate(dst.local_indices)
+        for j = 1:n
+            dst_parent[i,j] = src[idx,j]
+        end
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+    dst
+end
+
 # Python <-> Julia quick-and-dirty type/struct mappings
 for (M,F) in (
         (:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension),
@@ -194,6 +249,18 @@ function TimeFunction(args...; kwargs...)
     TimeFunction{T,N,M}(o)
 end
 
+struct SparseTimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
+    o::PyObject
+end
+
+function SparseTimeFunction(args...; kwargs...)
+    o = pycall(devito.SparseTimeFunction, PyObject, args...; kwargs...)
+    T = numpy_eltype(o.dtype)
+    N = length(o.shape)
+    M = ismpi_distributed(o)
+    SparseTimeFunction{T,N,M}(o)
+end
+
 PyCall.PyObject(x::DiscreteFunction) = x.o
 
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
@@ -204,7 +271,39 @@ size_with_halo(x::Function{T,N}) where{T,N} = size_with_halo(grid(x), halo(x))
 Base.size(x::TimeFunction) = (size(grid(x))..., x.o.shape[1])
 size_with_halo(x::TimeFunction) = (size_with_halo(grid(x), halo(x))..., x.o.shape[1])
 
-localindices(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
+Base.size(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+
+function Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+
+    _shape = zeros(Int, N)
+    if x.o._decomposition[1] == nothing
+        if reduce(*, x.o.shape) != 0
+            map(i->_shape[i] = x.o.shape[N-i+1], 1:N)
+            _shape[1] = x.o.shape[N]
+        end
+        MPI.Reduce!(_shape, +, 0, MPI.COMM_WORLD)
+    else
+        error("not implemented")
+    end
+    ntuple(i->_shape[i], N)
+end
+
+size_with_halo(x::SparseTimeFunction) = size(x)
+
+function localindices(x::DiscreteFunction{T,N}) where {T,N} 
+    local idxs
+    if x.o._decomposition[1] == nothing
+        if reduce(*, x.o.shape) == 0
+            idxs = ntuple(i->0:0, N)
+        else
+            idxs = ntuple(i->1:x.o.shape[N-i+1], N)
+        end
+    else
+        idxs = ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
+    end
+    idxs
+end
 
 function localindices_with_halo(x::DiscreteFunction{T,N}) where {T,N}
     i = localindices(x)
@@ -263,12 +362,16 @@ function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     DevitoMPIArray{T,N,typeof(_p)}(x.o."data_with_halo", _p, idxs)
 end
 
-# TODO - make me type stable
-function data(x::Receiver)
-    T = numpy_eltype(x.o."data".dtype)
-    N = length(x.o."data".shape)
-    DevitoArray{T,N}(x.o."data")'
+function data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    x.o._decomposition[1] == nothing || error("Sam does not know what he is doing!")
+    idxs = x.o._decomposition[2][rnk+1] .+ 1
+    d = DevitoMPISparseArray{T,N}(x.o."data_with_halo", idxs)
+    MPI.Barrier(MPI.COMM_WORLD)
+    d
 end
+data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_halo(x)
 
 function Dimension(o)
     if o.is_Space
@@ -284,11 +387,13 @@ function dimensions(x::DiscreteFunction{T,N}) where {T,N}
     ntuple(i->Dimension(x.o.dimensions[N-i+1]), N)
 end
 
-inject(x::RickerSource, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
+inject(x::SparseTimeFunction, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
-interpolate(x::Receiver; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
+interpolate(x::SparseTimeFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
 
 Base.step(x::TimeAxis) = PyObject(x).step
+Base.length(x::TimeAxis) = x.o.num
+data(x::TimeAxis) = DevitoArray{Float64,1}(x.o."time_values")
 
 apply(x::Operator, args...; kwargs...) = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
 
@@ -302,6 +407,6 @@ Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-export Grid, Function, SpaceDimension, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_with_halo, dimensions, dx, dy, dz, forward, grid, inject, interpolate, localindices, localsize, size_with_halo, spacing, spacing_map, step
+export Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_with_halo, dimensions, dx, dy, dz, forward, grid, inject, interpolate, localindices, localsize, size_with_halo, spacing, spacing_map, step
 
 end

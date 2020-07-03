@@ -6,6 +6,11 @@ configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
 configuration!("mpi", false)
 
+function ricker!(src, f, _t, t₀)
+    t = reshape(_t, size(src))
+    src .= (1.0 .- 2.0 * (pi * f * (t .- t₀)).^2) .* exp.(-(pi * f * (t .- t₀)).^2)
+end
+
 grid = Grid(
     shape = (121,121,121),
     origin = (0.0,0.0,0.0),
@@ -31,8 +36,9 @@ time_range = TimeAxis(start=0.0f0, stop=750.0f0, step=1.0f0)
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 z,y,x,t = dimensions(p)
 
-src = RickerSource(name="src", grid=grid, f0=0.01f0, npoint=1, time_range=time_range,
-    coordinates=[10.0 605.0 605.0])
+src = SparseTimeFunction(name="src", grid=grid, f0=0.01f0, npoint=1, nt=length(time_range), coordinates=[605.0 605.0 10.0])
+src_data = data(src)
+ricker!(src_data, 0.01, data(time_range), 125)
 src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...
@@ -40,7 +46,7 @@ rec_coords = zeros(nx,3)
 rec_coords[:,1] .= δx*[0:nx-1;]
 rec_coords[:,2] .= 605.0
 rec_coords[:,3] .= 20.0
-rec = Receiver(name="rec", grid=grid, npoint=nz, time_range=time_range, coordinates=rec_coords)
+rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range), coordinates=rec_coords)
 rec_term = interpolate(rec, expr=p)
 
 g1(field) = dx(field,x0=x+spacing(x)/2)
