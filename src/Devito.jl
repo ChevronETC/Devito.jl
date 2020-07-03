@@ -176,7 +176,7 @@ end
 # Python <-> Julia quick-and-dirty type/struct mappings
 for (M,F) in (
         (:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension),
-        (:seismic, :Receiver), (:seismic,:RickerSource), (:seismic,:TimeAxis))
+        (:seismic,:TimeAxis))
     @eval begin
         struct $F
             o::PyObject
