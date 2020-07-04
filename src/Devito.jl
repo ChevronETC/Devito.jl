@@ -1,15 +1,3 @@
-#=
-1. setting earth model properties
-   i. get size information (including) halo from grid.
-   ii. get the size that includes the halo
-   iii. get localindices ??
-2. setting wavelets
-3. integration showing MPI and serial make the same result
-4. unit tests
-5. type stability
-6. use latest release of Devito or head of master
-=#
-
 module Devito
 
 using MPI, PyCall
@@ -28,6 +16,15 @@ numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
 
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
+
+# Devito configuration methods
+function configuration!(key, value)
+    c = PyDict(devito."configuration")
+    c[key] = value
+    c[key]
+end
+configuration(key) = PyDict(devito."configuration")[key]
+configuration() = PyDict(devito."configuration")
 
 struct DevitoArray{T,N} <: AbstractArray{T,N}
     o::PyObject # Python object for the numpy array
@@ -51,15 +48,6 @@ Base.parent(x::DevitoArray) = x.p
 Base.getindex(x::DevitoArray{T,N}, i) where {T,N} = getindex(parent(x), i)
 Base.setindex!(x::DevitoArray{T,N}, v, i) where {T,N} = setindex!(parent(x), v, i)
 Base.IndexStyle(::Type{<:DevitoArray}) = IndexLinear()
-
-# Devito configuration methods
-function configuration!(key, value)
-    c = PyDict(devito."configuration")
-    c[key] = value
-    c[key]
-end
-configuration(key) = PyDict(devito."configuration")[key]
-configuration() = PyDict(devito."configuration")
 
 struct DevitoMPIArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     o::PyObject
@@ -371,6 +359,7 @@ function data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     MPI.Barrier(MPI.COMM_WORLD)
     d
 end
+
 data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_halo(x)
 
 function Dimension(o)
