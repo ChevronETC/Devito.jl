@@ -1,0 +1,53 @@
+pool:
+  vmImage: 'Ubuntu 18.04'
+
+variables:
+  - group: Wave
+
+steps:
+- task: DownloadSecureFile@1
+  inputs:
+    secureFile: id_rsa
+
+- task: DownloadSecureFile@1
+  inputs:
+    secureFile: id_rsa.pub
+
+- task: DownloadSecureFile@1
+  inputs:
+    secureFile: known_hosts
+
+- script: |
+    mkdir ~/.ssh
+    cp $(Agent.TempDirectory)/id_rsa ~/.ssh/id_rsa
+    cp $(Agent.TempDirectory)/id_rsa.pub ~/.ssh/id_rsa.pub
+    cp $(Agent.TempDirectory)/known_hosts ~/.ssh/known_hosts
+    chmod 600 ~/.ssh/id_rsa
+    chmod 644 ~/.ssh/id_rsa.pub
+    chmod 644 ~/.ssh/known_hosts
+
+    MYJULIA_VERSION_MINOR=`echo ${MYJULIA_VERSION} | sed 's/\.[^.]*$//'`
+
+    sudo wget https://julialang-s3.julialang.org/bin/linux/x64/${MYJULIA_VERSION_MINOR}/julia-${MYJULIA_VERSION}-linux-x86_64.tar.gz
+    sudo mkdir -p /opt/julia
+    sudo tar --strip-components=1 -xzvf julia-${MYJULIA_VERSION}-linux-x86_64.tar.gz -C /opt/julia
+
+    mkdir -p $(HOME)/.julia/dev
+
+    cp -r ${BUILD_SOURCESDIRECTORY} $(HOME)/.julia/dev/Devito
+
+    /opt/julia/bin/julia -e 'using Pkg; pkg"instantiate"'
+    git clone -b tqff/ssh chevron@vs-ssh.visualstudio.com:v3/chevron/ETC-ESD-PkgRegistry.jl/PkgRegistry.jl $(HOME)/.julia/registries/ChevronETC
+
+    /opt/julia/bin/julia -e 'using Pkg; pkg"dev --local $(HOME)/.julia/dev/Devito"'
+    /opt/julia/bin/julia -e 'using Pkg; pkg"build Devito"'
+    /opt/julia/bin/julia -e 'using Pkg; pkg"precompile"'
+  env:
+    MYJULIA_VERSION: $(JULIA_VERSION)
+  displayName: 'Install system'
+
+- script: |
+    export PATH="${PATH}:/opt/julia/bin"
+    julia -e 'using Pkg; Pkg.status()'
+    julia -e 'using Pkg; pkg"test Devito"'
+  displayName: 'Run unit-tests'
