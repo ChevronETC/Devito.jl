@@ -82,6 +82,7 @@ end
 
 function Base.copy!(dst::DevitoMPIArray, src::AbstractArray)
     MPI.Initialized() || MPI.Init()
+    MPI.Bcast!(src, 0, MPI.COMM_WORLD)
     parent(dst) .= src[localindices(dst)...]
     MPI.Barrier(MPI.COMM_WORLD)
     dst
@@ -254,13 +255,10 @@ PyCall.PyObject(x::DiscreteFunction) = x.o
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
 grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
-Base.size(x::Function{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{Int,N}
-size_with_halo(x::Function{T,N}) where{T,N} = reverse(x.o.shape_with_halo)::NTuple{Int,N}
-size_with_inhalo(x::Function{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{Int,N}
-Base.size(x::TimeFunction) = (size(grid(x))..., x.o.shape[1])
-size_with_halo(x::TimeFunction) = (size_with_halo(grid(x), halo(x))..., x.o.shape[1])
-
-Base.size(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._size_inhalo)::NTuple{N,Tuple{Int,Int}}
+Base.size(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{Int,N}
+size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(x.o.shape_with_halo)::NTuple{N,Int}
+size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
 function Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     MPI.Initialized() || MPI.Init()
@@ -280,9 +278,9 @@ end
 
 size_with_halo(x::SparseTimeFunction) = size(x)
 
-localmask(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_domain[N-i+1].start)+1:convert(Int,x.o.mask_domain[N-i+1].stop), N)::NTuple{UnitRange{Int},N}
-localmask_with_halo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_outhalo[N-i+1].start)+1:convert(Int,x.o.mask_outhalo[N-i+1].stop), N)::NTuple{UnitRange{Int},N}
-localmask_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_inhalo[N-i+1].start)+1:convert(Int,x.o.mask_inhalo[N-i+1].stop), N)::NTuple{UnitRange{Int},N}
+localmask(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_domain[N-i+1].start)+1:convert(Int,x.o._mask_domain[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
+localmask_with_halo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_outhalo[N-i+1].start)+1:convert(Int,x.o._mask_outhalo[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
+localmask_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_inhalo[N-i+1].start)+1:convert(Int,x.o._mask_inhalo[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
 
 localindices(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask(x)
 localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_halo(x)
@@ -291,61 +289,105 @@ localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = 
 forward(x::TimeFunction) = x.o.forward
 backward(x::TimeFunction) = x.o.backward
 
-data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x))
-data_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_halo(x))
-data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_inhalo(x))
+data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x)...)
+data_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_halo(x)...)
+data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_inhalo(x)...)
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
+function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    local idxs
+    if x.o._decomposition[1] == nothing
+        if reduce(*, x.o.shape) == 0
+            idxs = ntuple(i->0:0, N)
+        else
+            idxs = ntuple(i->1:x.o.shape[N-i+1], N)
+        end
+    else
+        idxs = ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
+    end
+    idxs
+end
+
+topology(x::DiscreteFunction) = reverse(x.o._distributor.topology)
+mycoords(x::DiscreteFunction) = reverse(x.o._distributor.mycoords) .+ 1
+decomposition(x::DiscreteFunction) = reverse(x.o._decomposition)
+
+function localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    h = inhalo(x)
+    localidxs = localindices(x)
+    n = size_with_inhalo(x)
+
+    _mycoords = mycoords(x)
+    _decomposition = decomposition(x)
+
+    ntuple(idim->begin
+            local strt,stop
+            if _decomposition[idim] == nothing
+                strt = 1
+                stop = n[idim]
+            else
+                strt = localidxs[idim][1] + (_mycoords[idim]-1)*(h[idim][1] + h[idim][2])
+                stop = strt + length(localidxs[idim]) - 1 + h[idim][1] + h[idim][2]
+            end
+            strt:stop
+        end, N)
+end
+
+function localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    h = halo(x)
+    localidxs = localindices(x)
+    n = size_with_halo(x)
+
+    _mycoords = mycoords(x)
+    _topology = topology(x)
+    _decomposition = decomposition(x)
+
+    ntuple(idim->begin
+            local strt,stop
+            if _decomposition[idim] == nothing
+                strt = 1
+                stop = n[idim]
+            else
+                strt = _mycoords[idim] == 1 ? localidxs[idim][1] : localidxs[idim][1] + h[idim][1]
+                stop = _mycoords[idim] == _topology[idim] ? localidxs[idim][end] + h[idim][1] + h[idim][2] : localidxs[idim][end] + h[idim][1]
+            end
+            strt:stop
+        end, N)
+end
+
 function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    p = view(parent(data_allocated(x)), localmask(x))
+    p = view(parent(data_allocated(x)), localmask(x)...)
     DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices(x))
 end
 
 function data_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    idxs_inner = localindices_with_halo(x)
-    idxs_outer = localindices_with_inhalo(x)
-
-    rng = ntuple(i->(idxs_inner[i][1] - idxs_outer[i][1] + 1):(idxs_inner[i][1] + length(idxs_inner) - 1), N)
-    p = parent(data_allocated(x))
-    _p = view(p, rng)
-    DevitoMPIArray{T,N,typeof(_p)}(x.o."_data_allocated", view(p, rng), idxs_inner)
+    p = view(parent(data_allocated(x)), localmask_with_halo(x)...)
+    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_halo(x))
 end
 
 function data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    p = view(parent(data_allocated(x)), localmask_with_inhalo(x)...)
+    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_inhalo(x))
 end
 
-function data_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_halo(x))
-
-
-data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x))
-data_allocated(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x))
-data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o."_data_allocated", view(), localindices(x))
-
-function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    idxs = localindices(x)
-    h = halo(x)
-
-    rng = ntuple(idim->begin
-        start = idxs[idim][1] == 1 ? h[idim][1] + 1 : 1
-        stop = start + length(idxs[idim]) - 1
-        start:stop
-    end, N)
-
-    p = parent(data_allocated(x))
-    DevitoMPIArray{T,N,typeof(_p)}(x.o."data_with_halo", view(p, rng), idxs)
+function data_allocated(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x))
 end
 
-function data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
+# TODO - needed? <--
+function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     MPI.Initialized() || MPI.Init()
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
     x.o._decomposition[1] == nothing || error("Sam does not know what he is doing!")
     idxs = x.o._decomposition[2][rnk+1] .+ 1
-    d = DevitoMPISparseArray{T,N}(x.o."data_with_halo", idxs)
+    d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", idxs)
     MPI.Barrier(MPI.COMM_WORLD)
     d
 end
 
-data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_halo(x)
+data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
+data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
+# -->
 
 function Dimension(o)
     if o.is_Space
@@ -381,6 +423,6 @@ Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-export Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_with_halo, dimensions, dx, dy, dz, forward, grid, inject, interpolate, localindices, localsize, size_with_halo, spacing, spacing_map, step
+export Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
 
 end
