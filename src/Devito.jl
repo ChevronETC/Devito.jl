@@ -257,7 +257,7 @@ grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
 inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._size_inhalo)::NTuple{N,Tuple{Int,Int}}
 Base.size(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
-size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(x.o.shape_with_halo)::NTuple{N,Int}
+size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(convert.(Int, x.o.shape_with_halo))::NTuple{N,Int}
 size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
 function Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
