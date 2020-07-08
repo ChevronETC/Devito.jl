@@ -1,10 +1,8 @@
 using Revise
-using Distributed, MPIClusterManagers
+using Distributed, AzManagers
 
-manager = MPIManager(np=30)
-addprocs(manager)
-
-@everywhere ENV["OMP_NUM_THREADS"] = 4
+ENV["OMP_NUM_THREADS"] = 4
+addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_per_worker=16)
 
 @everywhere using Revise
 @everywhere using Devito
@@ -86,6 +84,8 @@ end
     bx,by = 19,8
     t_apply = @elapsed apply(op; x0_blk0_size=bx, y0_blk0_size=by)
 
+    
+
     write(stdout, "t_appy=$t_apply\n")
 
     _p = data_with_halo(p)
@@ -93,18 +93,10 @@ end
 
     __d = convert(Array, _d)
 
-    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        write("d.bin", __d)
-    end
-    MPI.Barrier(MPI.COMM_WORLD)
-    MPI.Finalize()
-
-    nothing
+    _d
 end
 
-@mpi_do manager model()
-
-d = read!("d.bin", Array{Float32}(undef,1201,251))
+d = remotecall_fetch(model, workers()[1])
 
 using PyPlot
 figure(); imshow(d); display(gcf())
