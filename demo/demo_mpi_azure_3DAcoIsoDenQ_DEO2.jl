@@ -93,7 +93,7 @@ end
 
     __d = convert(Array, _d)
 
-    _d
+    __d
 end
 
 d = remotecall_fetch(model, workers()[1])
