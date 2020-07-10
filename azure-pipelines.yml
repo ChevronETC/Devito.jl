@@ -43,7 +43,6 @@ steps:
 
     export PYTHON=""
     /opt/julia/bin/julia -e 'using Pkg; pkg"add PyCall Conda"'
-    /opt/julia/bin/julia -e 'using Conda; Conda.add("numpy")'
     /opt/julia/bin/julia -e 'using Pkg; pkg"dev --local $(HOME)/.julia/dev/Devito"'
     /opt/julia/bin/julia -e 'using Pkg; pkg"build Devito"'
     /opt/julia/bin/julia -e 'using Pkg; pkg"precompile"'
