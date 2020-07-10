@@ -361,17 +361,17 @@ function localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T
 end
 
 function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    p = view(parent(data_allocated(x)), localmask(x)...)
+    p = sview(parent(data_allocated(x)), localmask(x)...)
     DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices(x))
 end
 
 function data_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    p = view(parent(data_allocated(x)), localmask_with_halo(x)...)
+    p = sview(parent(data_allocated(x)), localmask_with_halo(x)...)
     DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_halo(x))
 end
 
 function data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    p = view(parent(data_allocated(x)), localmask_with_inhalo(x)...)
+    p = sview(parent(data_allocated(x)), localmask_with_inhalo(x)...)
     DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_inhalo(x))
 end
 
