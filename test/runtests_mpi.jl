@@ -21,7 +21,7 @@ configuration!("mpi", true)
     for rnk in 0:1
         if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
             @test parent(b_data) ≈ 3.14*ones(Float32, 9, 4)
-            @test isa(parent(b_data), Array)
+            @test isa(parent(b_data), SubArray)
         end
         MPI.Barrier(MPI.COMM_WORLD)
     end
@@ -64,7 +64,7 @@ end
             if rnk == 1
                 @test parent(b_data) ≈ b_data_test[:,5:8]
             end
-            @test isa(parent(b_data), Array)
+            @test isa(parent(b_data), SubArray)
         end
         MPI.Barrier(MPI.COMM_WORLD)
     end
@@ -132,6 +132,8 @@ end
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
     p_data = data_with_halo(p)
 
+    @show size(p_data)
+    @show p_data.local_indices
     p_data_test = reshape([1:216;], (9,8,3))
     copy!(p_data, p_data_test)
 
