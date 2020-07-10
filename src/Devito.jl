@@ -1,6 +1,6 @@
 module Devito
 
-using MPI, PyCall
+using MPI, PyCall, Strided
 
 const numpy = PyNULL()
 const devito = PyNULL()
@@ -26,14 +26,14 @@ end
 configuration(key) = PyDict(devito."configuration")[key]
 configuration() = PyDict(devito."configuration")
 
-struct DevitoArray{T,N} <: AbstractArray{T,N}
+struct DevitoArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     o::PyObject # Python object for the numpy array
-    p::Array{T,N} # copy-free
+    p::A # copy-free
 end
 
 function DevitoArray{T,N}(o) where {T,N}
     p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
-    DevitoArray{T,N}(o, p)
+    DevitoArray{T,N,Array{T,N}}(o, p)
 end
 
 function DevitoArray(o)
@@ -42,12 +42,17 @@ function DevitoArray(o)
     DevitoArray{T,N}(o)
 end
 
-Base.size(x::DevitoArray{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+Base.size(x::DevitoArray{T,N}) where {T,N} = size(x.p)
 Base.parent(x::DevitoArray) = x.p
 
-Base.getindex(x::DevitoArray{T,N}, i) where {T,N} = getindex(parent(x), i)
-Base.setindex!(x::DevitoArray{T,N}, v, i) where {T,N} = setindex!(parent(x), v, i)
-Base.IndexStyle(::Type{<:DevitoArray}) = IndexLinear()
+Base.getindex(x::DevitoArray{T,N,A}, i) where {T,N,A<:Array} = getindex(parent(x), i)
+Base.getindex(x::DevitoArray{T,N,A}, I::Vararg{Int,N}) where {T,N,A<:StridedView} = getindex(parent(x), I...)
+Base.setindex!(x::DevitoArray{T,N,A}, v, i) where {T,N,A<:Array} = setindex!(parent(x), v, i)
+Base.setindex!(x::DevitoArray{T,N,A}, v, I::Vararg{Int,N}) where {T,N,A<:StridedView} = setindex!(parent(x), v, I...)
+Base.IndexStyle(::Type{<:DevitoArray{<:Any,<:Any,<:Array}}) = IndexLinear()
+Base.IndexStyle(::Type{<:DevitoArray{<:Any,<:Any,<:StridedView}}) = IndexCartesian()
+
+Base.view(x::DevitoArray{T,N,Array{T,N}}, I::Vararg{Any}) where {T,N} = DevitoArray(x.o, sview(x.p, I...))
 
 struct DevitoMPIArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     o::PyObject
@@ -295,17 +300,7 @@ data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(Dev
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    local idxs
-    if x.o._decomposition[1] == nothing
-        if reduce(*, x.o.shape) == 0
-            idxs = ntuple(i->0:0, N)
-        else
-            idxs = ntuple(i->1:x.o.shape[N-i+1], N)
-        end
-    else
-        idxs = ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
-    end
-    idxs
+    ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
 end
 
 topology(x::DiscreteFunction) = reverse(x.o._distributor.topology)
@@ -341,6 +336,16 @@ function localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T
     _mycoords = mycoords(x)
     _topology = topology(x)
     _decomposition = decomposition(x)
+
+    MPI.Initialized() || MPI.Init()
+    for irnk = 0:1
+        if irnk == MPI.Comm_rank(MPI.COMM_WORLD)
+            @info "rnk=$irnk"
+            @info "localidxs=$localidxs"
+            @info "x.o.local_indices=$(x.o.local_indices)"
+        end
+        MPI.Barrier(MPI.COMM_WORLD)
+    end
 
     ntuple(idim->begin
             local strt,stop

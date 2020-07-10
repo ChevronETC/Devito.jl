@@ -6,11 +6,18 @@ version = "0.1.0"
 [deps]
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
+Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 
 [extras]
 Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+MPIClusterManagers = "e7922434-ae4b-11e9-05c5-9780451d2c66"
+PkgBenchmark = "32113eaa-f34f-5b0d-bd6c-c81e245fc73d"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
+benchmark = ["PkgBenchmark"]
 build = ["Conda"]
-test = ["Test"]
+demo = ["MPIClusterManagers"]
+test = ["Distributed", "MPIClusterManagers", "Random", "Test"]
