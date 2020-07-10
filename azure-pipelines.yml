@@ -32,6 +32,8 @@ steps:
     sudo mkdir -p /opt/julia
     sudo tar --strip-components=1 -xzvf julia-${MYJULIA_VERSION}-linux-x86_64.tar.gz -C /opt/julia
 
+    sudo apt-get -y install mpich
+
     mkdir -p $(HOME)/.julia/dev
 
     cp -r ${BUILD_SOURCESDIRECTORY} $(HOME)/.julia/dev/Devito
