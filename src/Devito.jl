@@ -168,9 +168,7 @@ function Base.copy!(dst::DevitoMPISparseArray, src::Array)
 end
 
 # Python <-> Julia quick-and-dirty type/struct mappings
-for (M,F) in (
-        (:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension),
-        (:seismic,:TimeAxis))
+for (M,F) in ((:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension))
     @eval begin
         struct $F
             o::PyObject
@@ -411,10 +409,6 @@ end
 inject(x::SparseTimeFunction, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
 interpolate(x::SparseTimeFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
-
-Base.step(x::TimeAxis) = PyObject(x).step
-Base.length(x::TimeAxis) = x.o.num
-data(x::TimeAxis) = DevitoArray{Float64,1}(x.o."time_values")
 
 function apply(x::Operator, args...; kwargs...)
     _summary = pycall(PyObject(x).apply, PyObject, args...; kwargs...)

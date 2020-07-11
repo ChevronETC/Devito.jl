@@ -39,14 +39,14 @@ end
     v_data .= 1.5
     q_data .= 1/1000
 
-    time_range = TimeAxis(start=0.0f0, stop=250.0f0, step=1.0f0)
+    time_range = 0.0f0:1.0f0:250.0f0
 
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
     z,y,x,t = dimensions(p)
     
     src = SparseTimeFunction(name="src", grid=grid, f0=0.01f0, npoint=1, nt=length(time_range), coordinates=[6500.0 6500.0 10.0])
     src_data = data(src)
-    w = ricker(0.01, data(time_range), 125)
+    w = ricker(0.01, collect(time_range), 125)
     copy!(src_data, w)
     src_term = inject(src; field=forward(p), expr=src * spacing(t)^2 * v^2 / b)
 
@@ -83,8 +83,6 @@ end
     
     bx,by = 19,8
     t_apply = @elapsed apply(op; x0_blk0_size=bx, y0_blk0_size=by)
-
-    
 
     write(stdout, "t_appy=$t_apply\n")
 

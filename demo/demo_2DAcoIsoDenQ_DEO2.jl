@@ -33,14 +33,14 @@ b_data .= 1
 v_data .= 1.5
 q_data .= 1/1000
 
-time_range = TimeAxis(start=0.0f0, stop=1000.0f0, step=0.5f0)
+time_range = 0.0f0:0.5f0:1000.0f0
 
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 z,x,t = dimensions(p)
 
 src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range), coordinates=[625.0 5.0])
 src_data = data(src)
-ricker!(src_data, 0.01, data(time_range), 125)
+ricker!(src_data, 0.01, collect(time_range), 125)
 src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,nx,δz,δx = size(grid)...,spacing(grid)...
