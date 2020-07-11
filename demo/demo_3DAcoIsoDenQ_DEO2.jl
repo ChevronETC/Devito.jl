@@ -69,7 +69,7 @@ smap[spacing(t)] = dt
 
 op = Operator([stencil_p, src_term, rec_term], subs=smap, name="OpExampleIso")
 
-apply(op)
+summary = apply(op)
 
 using PyPlot
 

@@ -1,4 +1,4 @@
-using Devito, Random, PyCall, Test
+using Devito, Random, PyCall, Strided, Test
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
@@ -62,7 +62,7 @@ using Distributed, MPIClusterManagers
 manager = MPIManager(;np=2)
 addprocs(manager)
 
-@everywhere using Devito, MPI, Random, Test
+@everywhere using Devito, MPI, Random, Strided, Test
 
 @mpi_do manager begin
     configuration!("log-level", "DEBUG")
@@ -80,7 +80,7 @@ addprocs(manager)
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
                 @test parent(b_data) ≈ 3.14*ones(Float32, 9, 4)
-                @test isa(parent(b_data), SubArray)
+                @test isa(parent(b_data), StridedView)
             end
             MPI.Barrier(MPI.COMM_WORLD)
         end
@@ -99,7 +99,7 @@ addprocs(manager)
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
                 @test parent(b_data_test) ≈ 3.14*ones(Float32, 5, 2)
-                @test isa(parent(b_data_test), SubArray)
+                @test isa(parent(b_data_test), StridedView)
             end
             MPI.Barrier(MPI.COMM_WORLD)
         end
@@ -123,7 +123,7 @@ addprocs(manager)
                 if rnk == 1
                     @test parent(b_data) ≈ b_data_test[:,5:8]
                 end
-                @test isa(parent(b_data), SubArray)
+                @test isa(parent(b_data), StridedView)
             end
             MPI.Barrier(MPI.COMM_WORLD)
         end
@@ -144,11 +144,11 @@ addprocs(manager)
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
                 if rnk == 0
                     @test parent(_b_data) ≈ b_data_test[:,1:2]
-                    @test isa(parent(_b_data), SubArray)
+                    @test isa(parent(_b_data), StridedView)
                 end
                 if rnk == 1
                     @test parent(_b_data) ≈ b_data_test[:,3:4]
-                    @test isa(parent(_b_data), SubArray)
+                    @test isa(parent(_b_data), StridedView)
                 end
             end
             MPI.Barrier(MPI.COMM_WORLD)

@@ -416,7 +416,28 @@ Base.step(x::TimeAxis) = PyObject(x).step
 Base.length(x::TimeAxis) = x.o.num
 data(x::TimeAxis) = DevitoArray{Float64,1}(x.o."time_values")
 
-apply(x::Operator, args...; kwargs...) = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
+function apply(x::Operator, args...; kwargs...)
+    _summary = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
+    summary = Dict()
+    for (k,v) in _summary.items()
+        summary[k] = Dict(
+            "time"=>v[1],
+            "gflopss"=>v[2],
+            "gpointss"=>v[3],
+            "oi"=>v[4],
+            "ops"=>v[5],
+            "itershape"=>v[6])
+    end
+
+    summary["globals"] = Dict(
+        "time"=>_summary.globals["fdlike"][1],
+        "gflopss"=>_summary.globals["fdlike"][2],
+        "gpointss"=>_summary.globals["fdlike"][3],
+        "oi"=>_summary.globals["fdlike"][4],
+        "ops"=>_summary.globals["fdlike"][5],
+        "itershape"=>_summary.globals["fdlike"][6])
+    summary
+end
 
 dx(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dx, PyObject, args...; kwargs...)
 dy(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)

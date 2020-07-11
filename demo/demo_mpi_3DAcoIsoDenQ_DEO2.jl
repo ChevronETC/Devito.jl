@@ -1,7 +1,7 @@
 using Revise
 using Distributed, MPIClusterManagers
 
-manager = MPIManager(np=30)
+manager = MPIManager(np=4)
 addprocs(manager)
 
 @everywhere ENV["OMP_NUM_THREADS"] = 4
@@ -84,7 +84,9 @@ end
     op = Operator([stencil_p, src_term, rec_term], subs=smap, name="OpExampleIso")
     
     bx,by = 19,8
-    t_apply = @elapsed apply(op; x0_blk0_size=bx, y0_blk0_size=by)
+    t_apply = @elapsed begin
+        summary = apply(op; x0_blk0_size=bx, y0_blk0_size=by)
+    end
 
     write(stdout, "t_appy=$t_apply\n")
 
