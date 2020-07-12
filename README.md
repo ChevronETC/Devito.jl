@@ -27,6 +27,22 @@ In the above code listing:
 * `d_with_halo` is a view that includes Devito's exterior halo padding, but excludes its interior halo padding
 * `d_with_inhalo` is a view that includes Divito's exterior and interior halo padding
 
+If we are running with MPi turned on, then the `data`, `data_with_halo` and `data_with_inhalo` methods return
+a view to an MPI domain distributed array.  This array can be gathered to the rank 0 MPI rank with the convert
+method:
+```julia
+using Devito
+
+configuration!("language", "openmpi")
+configuration!("mpi", true)
+
+g = Grid(shape=(10,20,30))
+f = Devito.Function(name="f", grid=g, space_order=8)
+d = data(f)
+p = parent(d) # array local to this MPI rank
+_d = convert(Array, d) # _d is an Array on MPI rank 0 gathered from `d` which is decomposed accross all MPI ranks
+```
+
 Please see the examples folder in this package for more details.
 
 ## Notes:
