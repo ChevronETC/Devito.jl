@@ -412,6 +412,7 @@ interpolate(x::SparseTimeFunction; kwargs...) = pycall(PyObject(x).interpolate, 
 
 function apply(x::Operator, args...; kwargs...)
     _summary = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
+
     summary = Dict()
     for (k,v) in _summary.items()
         summary[k] = Dict(
@@ -423,13 +424,26 @@ function apply(x::Operator, args...; kwargs...)
             "itershape"=>v[6])
     end
 
-    summary["globals"] = Dict(
-        "time"=>_summary.globals["fdlike"][1],
-        "gflopss"=>_summary.globals["fdlike"][2],
-        "gpointss"=>_summary.globals["fdlike"][3],
-        "oi"=>_summary.globals["fdlike"][4],
-        "ops"=>_summary.globals["fdlike"][5],
-        "itershape"=>_summary.globals["fdlike"][6])
+    summary["globals"] = Dict()
+    if haskey(_summary.globals, "fdlike")
+        summary["globals"]["fdlike"] = Dict(
+            "time"=>_summary.globals["fdlike"][1],
+            "gflopss"=>_summary.globals["fdlike"][2],
+            "gpointss"=>_summary.globals["fdlike"][3],
+            "oi"=>_summary.globals["fdlike"][4],
+            "ops"=>_summary.globals["fdlike"][5],
+            "itershape"=>_summary.globals["fdlike"][6])
+    end
+
+    if haskey(_summary.globals, "vanilla")
+        summary["globals"]["vanilla"] = Dict(
+            "time"=>_summary.globals["vanilla"][1],
+            "gflopss"=>_summary.globals["vanilla"][2],
+            "gpointss"=>_summary.globals["vanilla"][3],
+            "oi"=>_summary.globals["vanilla"][4],
+            "ops"=>_summary.globals["vanilla"][5],
+            "itershape"=>_summary.globals["vanilla"][6])
+    end
     summary
 end
 
