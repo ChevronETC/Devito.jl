@@ -197,6 +197,7 @@ end
 PyCall.PyObject(x::Grid) = x.o
 
 Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
+extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,T})
 size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->grid.o.shape[N-i+1] + h[i][1] + h[i][2], N)
 Base.size(grid::Grid, i) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N
@@ -260,6 +261,7 @@ grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
 inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._size_inhalo)::NTuple{N,Tuple{Int,Int}}
 Base.size(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+Base.ndims(x::DiscreteFunction{T,N}) where {T,N} = N
 size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(convert.(Int, x.o.shape_with_halo))::NTuple{N,Int}
 size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
@@ -402,7 +404,7 @@ function Dimension(o)
     end
 end
 
-function dimensions(x::DiscreteFunction{T,N}) where {T,N}
+function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N}}) where {T,N}
     ntuple(i->Dimension(x.o.dimensions[N-i+1]), N)
 end
 
@@ -457,6 +459,6 @@ Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-export Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
 
 end
