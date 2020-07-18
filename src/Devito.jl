@@ -394,6 +394,8 @@ data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with
 data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
 # -->
 
+coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o.coordinates."_data_allocated")
+
 function Dimension(o)
     if o.is_Space
         return SpaceDimension(o)
@@ -453,14 +455,14 @@ dx(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x)
 dy(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
 dz(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
-Base.:*(x::Real,y::DiscreteFunction)=PyObject(x)*PyObject(y)
-Base.:*(x::DiscreteFunction, y::DiscreteFunction)=PyObject(x)*PyObject(y)
+Base.:*(x::Real,y::DiscreteFunction) = PyObject(x)*PyObject(y)
+Base.:*(x::DiscreteFunction, y::DiscreteFunction) = PyObject(x)*PyObject(y)
 Base.:*(x::DiscreteFunction, y::PyObject) = x.o*y
 Base.:*(x::PyObject, y::DiscreteFunction) = x*y.o
 Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
 
 end
