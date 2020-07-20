@@ -20,11 +20,9 @@ addprocs(manager)
 end
 
 @everywhere function model()
-    MPI.Initialized() || MPI.Init()
-
     write(stdout, "inside model()\n")
     grid = Grid(
-        shape = (1201,1201,601),
+        shape = (601,601,301),
         origin = (0.0,0.0,0.0),
         extent = (12000.0,12000.0,6000.0),
         dtype = Float32)
@@ -53,11 +51,13 @@ end
     src_term = inject(src; field=forward(p), expr=src * spacing(t)^2 * v^2 / b)
 
     nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...
-    rec_coords = zeros(nx,3)
-    rec_coords[:,1] .= δx*[0:nx-1;]
-    rec_coords[:,2] .= 6500.0
-    rec_coords[:,3] .= 20.0
-    rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range), coordinates=rec_coords)
+    rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
+    rec_coords = coordinates(rec)
+    _rec_coords = zeros(Float32, length(time_range), nx)
+    _rec_coords[1,:] .= δx*(0:nx-1)
+    _rec_coords[2,:] .= 6500
+    _rec_coords[3,:] .= 20
+    copy!(rec_coords, _rec_coords)
     rec_term = interpolate(rec, expr=p)
 
     g1(field) = dx(field,x0=x+spacing(x)/2)
@@ -99,7 +99,6 @@ end
         write("d.bin", __d)
     end
     MPI.Barrier(MPI.COMM_WORLD)
-    MPI.Finalize()
 
     nothing
 end

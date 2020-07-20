@@ -230,6 +230,10 @@ function Function(args...; kwargs...)
     Function{T,N,M}(o)
 end
 
+struct SubFunction{T,N,M} <: DiscreteFunction{T,N,M}
+    o::PyObject
+end
+
 struct TimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
@@ -337,16 +341,6 @@ function localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T
     _topology = topology(x)
     _decomposition = decomposition(x)
 
-    MPI.Initialized() || MPI.Init()
-    for irnk = 0:1
-        if irnk == MPI.Comm_rank(MPI.COMM_WORLD)
-            @info "rnk=$irnk"
-            @info "localidxs=$localidxs"
-            @info "x.o.local_indices=$(x.o.local_indices)"
-        end
-        MPI.Barrier(MPI.COMM_WORLD)
-    end
-
     ntuple(idim->begin
             local strt,stop
             if _decomposition[idim] == nothing
@@ -395,6 +389,7 @@ data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
 # -->
 
 coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o.coordinates."_data_allocated")
+coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 
 function Dimension(o)
     if o.is_Space
