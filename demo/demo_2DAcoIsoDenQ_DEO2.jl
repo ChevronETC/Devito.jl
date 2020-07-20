@@ -38,16 +38,19 @@ time_range = 0.0f0:0.5f0:1000.0f0
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 z,x,t = dimensions(p)
 
-src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range), coordinates=[625.0 5.0])
+src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
+src_coords = coordinates(src)
+src_coords .= [625.0; 5.0]
 src_data = data(src)
 ricker!(src_data, 0.01, collect(time_range), 125)
 src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,nx,δz,δx = size(grid)...,spacing(grid)...
-rec_coords = zeros(nx,2)
-rec_coords[:,1] .= δx*[0:nx-1;]
-rec_coords[:,2] .= 10.0
-rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range), coordinates=rec_coords)
+rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
+rec_coords = coordinates(rec)
+rec_coords[1,:] .= δx*(0:nx-1)
+rec_coords[2,:] .= 10.0
+
 rec_term = interpolate(rec, expr=p)
 
 g1(field) = dx(field,x0=x+spacing(x)/2)

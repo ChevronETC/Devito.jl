@@ -42,11 +42,11 @@ ricker!(src_data, 0.01, collect(time_range), 125)
 src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...
-rec_coords = zeros(nx,3)
-rec_coords[:,1] .= δx*[0:nx-1;]
-rec_coords[:,2] .= 605.0
-rec_coords[:,3] .= 20.0
-rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range), coordinates=rec_coords)
+rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
+rec_coords = coordinates(rec)
+rec_coords[1,:] .= δx*(0:nx-1)
+rec_coords[2,:] .= 605
+rec_coords[3,:] .= 20
 rec_term = interpolate(rec, expr=p)
 
 g1(field) = dx(field,x0=x+spacing(x)/2)

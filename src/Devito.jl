@@ -230,6 +230,10 @@ function Function(args...; kwargs...)
     Function{T,N,M}(o)
 end
 
+struct SubFunction{T,N,M} <: DiscreteFunction{T,N,M}
+    o::PyObject
+end
+
 struct TimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
@@ -337,16 +341,6 @@ function localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T
     _topology = topology(x)
     _decomposition = decomposition(x)
 
-    MPI.Initialized() || MPI.Init()
-    for irnk = 0:1
-        if irnk == MPI.Comm_rank(MPI.COMM_WORLD)
-            @info "rnk=$irnk"
-            @info "localidxs=$localidxs"
-            @info "x.o.local_indices=$(x.o.local_indices)"
-        end
-        MPI.Barrier(MPI.COMM_WORLD)
-    end
-
     ntuple(idim->begin
             local strt,stop
             if _decomposition[idim] == nothing
@@ -393,6 +387,9 @@ end
 data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
 data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
 # -->
+
+coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o.coordinates."_data_allocated")
+coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 
 function Dimension(o)
     if o.is_Space
@@ -453,14 +450,14 @@ dx(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x)
 dy(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
 dz(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
-Base.:*(x::Real,y::DiscreteFunction)=PyObject(x)*PyObject(y)
-Base.:*(x::DiscreteFunction, y::DiscreteFunction)=PyObject(x)*PyObject(y)
+Base.:*(x::Real,y::DiscreteFunction) = PyObject(x)*PyObject(y)
+Base.:*(x::DiscreteFunction, y::DiscreteFunction) = PyObject(x)*PyObject(y)
 Base.:*(x::DiscreteFunction, y::PyObject) = x.o*y
 Base.:*(x::PyObject, y::DiscreteFunction) = x*y.o
 Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
 
 end
