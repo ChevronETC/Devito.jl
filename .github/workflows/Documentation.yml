@@ -15,8 +15,9 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: '1.5'
-      - name: Install dependencies
+      - name: Install mpich
         run: apt-get install mpich libmpich-dev
+      - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("Devito")'
       - name: Build and deploy
         env:
