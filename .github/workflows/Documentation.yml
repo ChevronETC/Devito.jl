@@ -15,10 +15,8 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: '1.5'
-      - name: Install mpich
-        run: apt-get install mpich libmpich-dev
       - name: Install dependencies
-        run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("Devito")'
+        run: apt-get install mpich libmpich-dev; julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("Devito")'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
