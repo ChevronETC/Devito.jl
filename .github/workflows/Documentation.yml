@@ -16,7 +16,7 @@ jobs:
         with:
           version: '1.5'
       - name: Install dependencies
-        run: apt-get install mpich libmpich-dev; julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate(); Pkg.build("Devito")'
+        run: julia --project=docs/ -e 'using Pkg; Pkg.add("MPI"); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # For authentication with GitHub Actions token
