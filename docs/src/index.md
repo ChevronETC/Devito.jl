@@ -30,21 +30,21 @@ z=SpaceDimension(name="z",spacing=spacez)
 grid=Grid(extent=extent, shape=shpe, origin=origin, dimensions=(x,z), time_dimension=t)
 ```
 
-  Note that he dimensions are passed in column-major order, in alignment with the Devito Python implementation. For all other tuples involving dimensions in Julia, the ordering is row-major.
+Note that he dimensions are passed in column-major order, in alignment with the Devito Python implementation. For all other tuples involving dimensions in Julia, the ordering is row-major.
 
-  2. Construction of time and space functions
+2. Construction of time and space functions
 
 Parameters on the grid are specified using Function objects, while time dependent fields are specified using TimeFunction objects, 
 as in this 2D elastic example:
 
 ```julia
 so=4
-bx=Function(name= "bx" ,grid=grid, staggered=x,     space_order=so)
-bz=Function(name= "bz" ,grid=grid, staggered=z,     space_order=so)
-c11=Function(name="c11",grid=grid, space_order=so)
-c33=Function(name="c33",grid=grid, space_order=so)
-c55=Function(name="c55",grid=grid, staggered=(x,z), space_order=so)
-c13=Function(name="c13",grid=grid, space_order=so)
+bx=Devito.Function(name= "bx" ,grid=grid, staggered=x,     space_order=so)
+bz=Devito.Function(name= "bz" ,grid=grid, staggered=z,     space_order=so)
+c11=Devito.Function(name="c11",grid=grid, space_order=so)
+c33=Devito.Function(name="c33",grid=grid, space_order=so)
+c55=Devito.Function(name="c55",grid=grid, staggered=(x,z), space_order=so)
+c13=Devito.Function(name="c13",grid=grid, space_order=so)
 data(bx).=mp[:,:,1]
 data(bz).=mp[:,:,2]
 data(c11).=mp[:,:,3]
