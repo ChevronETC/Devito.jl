@@ -1,3 +1,5 @@
+ENV["PYCALL_JL_RUNTIME_PYTHON"] = Sys.which("python")
+
 using Devito, Random, PyCall, Strided, Test
 
 configuration!("log-level", "DEBUG")
