@@ -7,7 +7,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        julia-version: [1.0, 1.5]
+        julia-version: [1.5]
         os: [ubuntu-latest]
     steps:
       - uses: actions/checkout@v1.0.0
@@ -19,8 +19,8 @@ jobs:
       - uses: julia-actions/julia-buildpkg@master
       - run: ls /home/runner/.julia/conda/3/bin
       - run: source /home/runner/.julia/conda/3/bin/activate
-      - name: Setup Debug Session
-        uses: csexton/debugger-action@master
+      - name: Setup tmate session
+        uses: mxschmitt/action-tmate@v3
       - uses: julia-actions/julia-runtest@master
         env:
           PYTHON: /home/runner/.julia/conda/3
