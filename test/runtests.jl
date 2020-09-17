@@ -1,5 +1,5 @@
 using Pkg;
-Pkf.build("PyCall")
+Pkg.build("PyCall")
 
 using Devito, Random, PyCall, Strided, Test
 
