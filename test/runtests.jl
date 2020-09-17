@@ -1,3 +1,6 @@
+using Pkg;
+Pkf.build("PyCall")
+
 using Devito, Random, PyCall, Strided, Test
 
 configuration!("log-level", "DEBUG")
