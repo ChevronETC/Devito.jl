@@ -15,6 +15,18 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: '1.5'
+      - name: install mpi
+        run: sudo apt-get install -y mpich
+      - name: download miniconda manually
+        run: wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+      - name: run install
+        run: bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda
+      - name: run path export
+        run: export PATH=~/miniconda/bin:${PATH}
+      - run: julia --color=yes --project -e 'using Pkg; if VERSION >= v"1.1.0-rc1"; Pkg.build(verbose=true); else Pkg.build(); end'
+        shell: bash
+        env:
+          PYTHON: '~/miniconda/bin/python3'
       - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - name: Build and deploy
