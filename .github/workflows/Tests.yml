@@ -19,7 +19,8 @@ jobs:
       - uses: julia-actions/julia-buildpkg@master
       - run: ls /home/runner/.julia/conda/3/bin
       - run: export PATH=/home/runner/.julia/conda/3/bin/:/home/runner/.julia/conda/3/condabin:$PATH
-      - uses: julia-actions/julia-runtest@master
+      - run: julia --color=yes --check-bounds=yes --inline=${{ inputs.inline }} --project -e 'using Pkg; Pkg.test(coverage=true)'
+        shell: bash
         env:
           PYTHON: /home/runner/.julia/conda/3/bin/python3
       - uses: julia-actions/julia-processcoverage@v1
