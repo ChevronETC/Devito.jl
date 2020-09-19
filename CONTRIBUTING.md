@@ -8,9 +8,10 @@ which may already cover your suggestion.
 
 ## Contributing
 We try to follow GitHub flow (https://guides.github.com/introduction/flow/) for
-making changes to Devito.jl.  Contributors retain copyright on their
-contributions, and the Eclipse public license
-(https://www.eclipse.org/legal/epl-v10.html) applies to the contribution.
+making changes to Devito.jl.
+
+Contributors retain copyright on their contributions, and the MIT license
+(https://opensource.org/licenses/MIT) applies to the contribution.
 
 The basic steps to making a contribution are as follows, and assume some knowledge of
 git:
@@ -18,7 +19,7 @@ git:
   2. create an appropriately titled branch for your contribution
   3. if applicable, add a unit-test to ensure the functionality of your contribution
   (see the `test` subfolder).
-  4. run `]test Devito`
+  4. run `]test Devito` in the `test` folder
   5. make a pull-request
   6. have fun
 
