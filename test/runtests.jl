@@ -4,11 +4,24 @@ configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
 configuration!("mpi", false)
 
+@testset "configuration" begin
+    configuration!("log-level", "INFO")
+    @test configuration("log-level") == "INFO"
+    configuration!("log-level", "DEBUG")
+    c = configuration()
+    @test c["log-level"] == "DEBUG"
+end
+
 @testset "Grid" begin
     grid = Grid(shape = (4,5), extent=(40.0,50.0), dtype = Float32)
     @test size(grid) == (5,4)
     @test ndims(grid) == 2
     @test eltype(grid) == Float32
+end
+
+@testset "Grid, Float64" begin
+    grid = Grid(shape = (4,5), extent=(40.0,50.0), dtype = Float64)
+    @test eltype(grid) == Float64
 end
 
 @testset "Function, data_with_halo" begin
