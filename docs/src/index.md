@@ -15,7 +15,7 @@ The procedure for constructing a stencil operator consists of five parts:
 
 Following this the operator may be executed. An example of these five steps is detailed below
 
-1. Definition of the Grid object
+1\. Definition of the Grid object
 
 The `Grid` object is specified by initializing extent, spacing, and origin tuples in the constructor. Dimension objects contain the 
 abstract spacing variables used by SymPy in specifying abstract equations in the stencil definition
@@ -37,7 +37,7 @@ grid=Grid(extent=extent, shape=shpe, origin=origin, dimensions=(x,z), time_dimen
 
 Note that he dimensions are passed in column-major order, in alignment with the Devito Python implementation. For all other tuples involving dimensions in Julia, the ordering is row-major.
 
-2. Construction of time and space functions
+2\. Construction of time and space functions
 
 Parameters on the grid are specified using Function objects, while time dependent fields are specified using TimeFunction objects, 
 as in this 2D elastic example:
@@ -65,7 +65,7 @@ tauxz=TimeFunction(name="tauxz",grid=grid,space_order=so, staggered=(x,z), time_
   
 In this example, the `data()` function returns a view to the Function's internal data, which is then initialized from an externally defined arrays mp and mu.
 
-3. Construction of  SparseTimeFunctions
+3\. Construction of  SparseTimeFunctions
 
 `SparseTimeFunctions` are used to inject source and retrieve receiver information during the stencil operations
 
@@ -81,7 +81,7 @@ src_term = inject(src; field=forward(tauxx), expr=src)
 In this example, the source is created with an external function `ricker()`, which is then used to initialize the SparseTimeFunction data that will be injected into the
 time function `forward(tauxx)`
 
-4. Construction of  stencil equations
+4\. Construction of  stencil equations
 
 Stencil equations are created using the Eqn constructor 
 
@@ -92,7 +92,7 @@ eqvz = Eq(forward(vz), vz + dt*bz*dx(tauxz, x0=x) + dt*bz*dz(tauzz) - dt*damp*vz
 
 In this particular fragment from an elastic 2D example, damp is an externally defined array for damping at the boundaries, vx and vz are particle velocities, and the tau variables are the stresses 
 
-5. Construction of the operator
+5\. Construction of the operator
 
 Construction of the operator requires a list containing all objects created using the `inject()`, `interpolate()`, and `Eq()` functions:
 
@@ -164,5 +164,3 @@ If this caused too much confusion, we can, in the future, intercept the `shape` 
 In general, the wrapping of Devito functionality uses the same function and argument names as in the original Python implementation, with 
 python class members being accessed in Julia through functions having the same name as the member, and taking the class object as the first argument.
 For more details, please refer to the Devito website https://github.com/devitocodes/devito.
-
-
