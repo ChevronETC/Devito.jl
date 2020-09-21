@@ -17,7 +17,16 @@ numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
 
-# Devito configuration methods
+"""
+    configuration!(key, value)
+
+Configure Devito.  Examples include
+```julia
+configuration!("log-level", "DEBUG")
+configuration!("language", "openmp")
+configuration!("mpi", false)
+```
+"""
 function configuration!(key, value)
     c = PyDict(devito."configuration")
     c[key] = value
@@ -180,6 +189,35 @@ for (M,F) in ((:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito
     end
 end
 
+function SpaceDimension end
+"""
+    SpaceDimension(;kwargs...)
+
+Construct a space dimension that defines the extend of a physical grid.
+
+See https://www.devitoproject.org/devito/dimension.html?highlight=spacedimension#devito.types.dimension.SpaceDimension.
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+````
+"""
+
+function Operator end
+"""
+    Opertor(expressions; kwargs...)
+
+Generate, JIT-compile and run C code starting from an ordered sequence of symbolic expressions.
+
+See: https://www.devitoproject.org/devito/operator.html?highlight=operator#devito.operator.operator.Operator""
+
+# Example
+Assuming that one has constructed the following Devito expressions: `stencil_p`, `src_term` and `rec_term`,
+```julia
+op = Operator([stencil_p, src_term, rec_term]; name="opIso")
+```
+"""
+
 #
 # Grid
 #
@@ -187,6 +225,25 @@ struct Grid{T,N}
     o::PyObject
 end
 
+"""
+    Grid(; shape[, optional key-word arguments...])
+
+Construct a grid that can be used in the construction of a Devito Functions.
+
+See: https://www.devitoproject.org/devito/grid.html?highlight=grid#devito.types.Grid
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z), # z is fast (row-major)
+    shape = (251,501),
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+```
+"""
 function Grid(args...; kwargs...)
     o = pycall(devito.Grid, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
@@ -222,6 +279,27 @@ end
 
 ismpi_distributed(o::PyObject) = o._distributor.nprocs == 1 ? DevitoMPIFalse : DevitoMPITrue  # TODO - when should should o._distributed == None ??
 
+"""
+    Devito.Function(; kwargs...)
+
+Tensor symbol representing a discrete function in symbolic equations.
+
+See: https://www.devitoproject.org/devito/function.html?highlight=function#devito.types.Function
+
+# Example
+```
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z),
+    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+
+b = Devito.Function(name="b", grid=grid, space_order=8)
+```
+"""
 function Function(args...; kwargs...)
     o = pycall(devito.Function, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
@@ -238,6 +316,27 @@ struct TimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
 
+"""
+    TimeFunction(; kwargs...)
+
+Tensor symbol representing a discrete function in symbolic equations.
+
+See https://www.devitoproject.org/devito/timefunction.html?highlight=timefunction#devito.types.TimeFunction.
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z),
+    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+
+p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
+```
+"""
 function TimeFunction(args...; kwargs...)
     o = pycall(devito.TimeFunction, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
@@ -250,6 +349,28 @@ struct SparseTimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
 
+"""
+    SparseTimeFunction(; kwargs...)
+
+Tensor symbol representing a space- and time-varying sparse array in symbolic equations.
+
+See: https://www.devitoproject.org/devito/sparsetimefunction.html?highlight=sparsetimefunction
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z),
+    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+
+time_range = 0.0f0:0.5f0:1000.0f0
+src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
+```
+"""
 function SparseTimeFunction(args...; kwargs...)
     o = pycall(devito.SparseTimeFunction, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
@@ -260,13 +381,55 @@ end
 
 PyCall.PyObject(x::DiscreteFunction) = x.o
 
+"""
+    grid(f::DiscreteFunction)
+
+Return the grid corresponding to the discrete function `f`.
+"""
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
 grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
+
+"""
+    halo(x::DiscreteFunction)
+
+Return the Devito "outer" halo size corresponding to the discrete function `f`.
+"""
 halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
+
+"""
+    inhalo(x::DiscreteFunction)
+
+Return the Devito "inner" halo size used for domain decomposition, and corresponding to
+the discrete function `f`.
+"""
 inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._size_inhalo)::NTuple{N,Tuple{Int,Int}}
+
+"""
+    size(x::DiscreteFunction)
+
+Return the shape of the grid for the discrete function `x`.
+"""
 Base.size(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+
+"""
+    ndims(x::DiscreteFunction)
+
+Return the number of dimensions corresponding to the discrete function `x`.
+"""
 Base.ndims(x::DiscreteFunction{T,N}) where {T,N} = N
+
+"""
+    size_with_halo(x::DiscreteFunction)
+
+Return the size of the grid associated with `x`, inclusive of the Devito "outer" halo.
+"""
 size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(convert.(Int, x.o.shape_with_halo))::NTuple{N,Int}
+
+"""
+    size_with_inhalo(x::DiscreteFunction)
+
+Return the size of the grid associated with `z`, inclusive the the Devito "inner" and "outer" halos.
+"""
 size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
 function Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
@@ -295,12 +458,72 @@ localindices(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask(x)
 localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_halo(x)
 localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_inhalo(x)
 
+"""
+    forward(x::TimeFunction)
+
+Returns the symbol for the time-forward state of the `TimeFunction`.
+
+See: https://www.devitoproject.org/devito/timefunction.html?highlight=forward#devito.types.TimeFunction.forward
+"""
 forward(x::TimeFunction) = x.o.forward
+
+"""
+    backward(x::TimeFunction)
+
+Returns the symbol for the time-backward state of the `TimeFunction`.
+
+See: https://www.devitoproject.org/devito/timefunction.html?highlight=forward#devito.types.TimeFunction.backward
+"""
 backward(x::TimeFunction) = x.o.backward
 
+"""
+    data(x::DiscreteFunction)
+
+Return the data associated with the grid that corresponds to the discrete function `x`.  This is the
+portion of the grid that excludes the halo.  In the case of non-MPI Devito, this returns an array
+of type `DevitoArray`.  In the case of the MPI Devito, this returns an array of type `DevitoMPIArray`.
+
+The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
+this also *collects* the data onto MPI rank 0.
+"""
 data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x)...)
+
+"""
+    data_with_halo(x::DiscreteFunction)
+
+Return the data associated with the grid that corresponds to the discrete function `x`.  This is the
+portion of the grid that excludes the inner halo and includes the outer halo.  In the case of non-MPI
+Devito, this returns an array of type `DevitoArray`.  In the case of the MPI Devito, this returns an
+array of type `DevitoMPIArray`.
+
+The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
+this also *collects* the data onto MPI rank 0.
+"""
 data_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_halo(x)...)
+
+"""
+    data_with_inhalo(x::DiscreteFunction)
+
+Return the data associated with the grid that corresponds to the discrete function `x`.  This is the
+portion of the grid that includes the inner halo and includes the outer halo.  In the case of non-MPI
+Devito, this returns an array of type `DevitoArray`.  In the case of the MPI Devito, this returns an
+array of type `DevitoMPIArray`.
+
+The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
+this also *collects* the data onto MPI rank 0.
+"""
 data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_inhalo(x)...)
+
+"""
+    data_allocated(x::DiscreteFunction)
+
+Return the data associated with the grid that corresponds to the discrete function `x`.  This is the
+portion of the grid that includes the inner halo and includes the outer halo.  We expect this to be
+equivalent to `data_with_inhalo`.
+
+The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
+this also *collects* the data onto MPI rank 0.
+"""
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
@@ -401,14 +624,82 @@ function Dimension(o)
     end
 end
 
+"""
+    dimensions(x::Union{Grid,DiscreteFunction})
+
+Returns a tuple with the dimensions associated with the Devito grid.
+"""
 function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N}}) where {T,N}
     ntuple(i->Dimension(x.o.dimensions[N-i+1]), N)
 end
 
+"""
+    inject(x::SparseTimeFunction; kwargs...)
+
+Generate equations injecting an arbitrary expression into a field.
+
+See: Generate equations injecting an arbitrary expression into a field.
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z),
+    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+
+time_range = 0.0f0:0.5f0:1000.0f0
+src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
+src_term = inject(src; field=forward(p), expr=2*src)
+```
+"""
 inject(x::SparseTimeFunction, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
+"""
+    interpolate(x::SparseTimeFunction; kwargs...)
+
+Generate equations interpolating an arbitrary expression into self.
+
+See: https://www.devitoproject.org/devito/sparsetimefunction.html#devito.types.SparseTimeFunction.interpolate
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z),
+    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+
+p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
+
+time_range = 0.0f0:0.5f0:1000.0f0
+nz,nx,δz,δx = size(grid)...,spacing(grid)...
+rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
+rec_coords = coordinates(rec)
+rec_coords[1,:] .= δx*(0:nx-1)
+rec_coords[2,:] .= 10.0
+
+rec_term = interpolate(rec, expr=p)
+```
+"""
 interpolate(x::SparseTimeFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
 
+"""
+    apply(operator::Operator; kwargs...)
+
+Execute the Devito operator, `Operator`.
+
+See: https://www.devitoproject.org/devito/operator.html?highlight=apply#devito.operator.operator.Operator.apply
+
+Note that this returns a `summary::Dict` of the action of applying the operator.  This contains information
+such as the number of floating point operations executed per second.
+"""
 function apply(x::Operator, args...; kwargs...)
     _summary = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
 
@@ -446,8 +737,25 @@ function apply(x::Operator, args...; kwargs...)
     summary
 end
 
+"""
+    dx(f::DiscreteFunction)
+
+Returns the symbol for the first derivative with respect to x.
+"""
 dx(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dx, PyObject, args...; kwargs...)
+
+"""
+    dy(f::DiscreteFunction)
+
+Returns the symbol for the first derivative with respect to y.
+"""
 dy(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
+
+"""
+    dz(f::DiscreteFunction)
+
+Returns the symbol for the first derivative with respect to z.
+"""
 dz(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
 Base.:*(x::Real,y::DiscreteFunction) = PyObject(x)*PyObject(y)
@@ -467,7 +775,6 @@ def indexobj(x,*args):
 function Base.getindex(x::Union{TimeFunction,Function},args...)
    return py"indexobj"(x,reverse(args)...)
 end
-
 
 export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
 
