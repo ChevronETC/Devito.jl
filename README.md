@@ -5,7 +5,7 @@
 |:---:|:---:|
 | [![][docs-dev-img]][docs-dev-url] [![][docs-stable-img]][docs-stable-url] | [![][doc-build-status-img]][doc-build-status-url] [![][build-status-img]][build-status-url] [![][code-coverage-img]][code-coverage-results] |
 
-Devito.jl is a Julia API supporting a sub-set of [devitoproject.org](https://www.devitoproject.org/).  it provides support for Devito `Grid`'s, `Function`'s, `TimeFunction`'s and `SparseTimeFunction`'s for both their serial and domain decomposed MPI variants.
+Devito.jl is a Julia API supporting a sub-set of [devitoproject.org](https://www.devitoproject.org/).  It provides support for Devito `Grid`'s, `Function`'s, `TimeFunction`'s and `SparseTimeFunction`'s for both their serial and domain decomposed MPI variants.
 
 [docs-dev-img]: https://img.shields.io/badge/docs-dev-blue.svg
 [docs-dev-url]: https://chevronetc.github.io/Devito.jl/dev/
