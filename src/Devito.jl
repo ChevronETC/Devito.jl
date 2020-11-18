@@ -634,12 +634,14 @@ function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N}}) where {T,N}
 end
 
 """
-    left(x::SpaceDimension; name=name, thickness=thickness) 
+    left(name=n, parent=p thickness=t) 
+Return the Python object for the left side SubDimension with parent `p`, name `n`, and thickness `t`. 
 """
 left(;kwargs...) = pycall(devito.SubDimension.left, PyObject; kwargs...)
 
 """
-    right(x::SpaceDimension; name=name, thickness=thickness) 
+    right(name=n, parent=p, thickness=t) 
+Return the Python object for the right side SubDimension with parent `p`, name `n`, and thickness `t`. 
 """
 right(;kwargs...) = pycall(devito.SubDimension.right, PyObject; kwargs...)
 
