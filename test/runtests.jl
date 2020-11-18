@@ -46,6 +46,38 @@ end
     @test b_data ≈ b_data_test
 end
 
+@testset "SubDimension, left and right" begin
+    size = 11
+    npad = 3
+    grid = Grid(shape = (size,), dtype = Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    x = dimensions(b)[1]
+    l = left(name="lft", parent=x, thickness=npad)
+    r = right(name="rgt", parent=x, thickness=npad)
+    eqs = [Eq(b, 2)]
+    push!(eqs,Eq(b.o.subs(Dict(:x => l)), 1))
+    push!(eqs,Eq(b.o.subs(Dict(:x => r)), 3))
+    op = Operator(eqs, name="btest")
+    apply(op)
+    @test data(b)[1:npad] ≈ 1 .* ones(npad)
+    @test data(b)[npad+1:end-npad] ≈ 2 .* ones(size-2*npad)
+    @test data(b)[end-npad+1:end] ≈ 3 .* ones(npad)
+end
+
+import numpy as np
+from sympy import Abs, Min
+from devito import Function, SubDimension, Grid, Eq, Operator
+grid = Grid(shape = (11,), dtype = np.float32)
+b = Function(name="b", grid=grid, space_order=2)
+x = b.dimensions[0]
+l = SubDimension.left(name="lft", parent=x, thickness=5)
+pos = Abs(l - x.symbolic_min) / float(5)
+eqs = [Eq(b, 1)]
+eqs.append(Eq(b.subs({x: l}), 2))
+op = Operator(eqs, name="op")
+op()
+
+
 @testset "TimeFunction, data with halo" begin
     grid = Grid(shape = (4,5), dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
