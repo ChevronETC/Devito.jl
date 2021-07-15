@@ -766,13 +766,11 @@ Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-
-py"""
-def indexobj(x,*args):
-    return x[args]
-"""
-
 function Base.getindex(x::Union{TimeFunction,Function},args...)
+    py"""
+    def indexobj(x,*args):
+        return x[args]
+    """
    return py"indexobj"(x,reverse(args)...)
 end
 
