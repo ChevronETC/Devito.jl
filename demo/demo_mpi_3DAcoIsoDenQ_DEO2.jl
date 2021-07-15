@@ -95,6 +95,8 @@ end
 
     __d = convert(Array, _d)
 
+    @show size(__d)
+
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         write("d.bin", __d)
     end
@@ -105,7 +107,7 @@ end
 
 @mpi_do manager model()
 
-d = read!("d.bin", Array{Float32}(undef,1201,251))
+d = read!("d.bin", Array{Float32}(undef,601,251))
 
 using PyPlot
 figure(); imshow(d); display(gcf())
