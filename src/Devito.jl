@@ -634,6 +634,18 @@ function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N}}) where {T,N}
 end
 
 """
+    left(name=n, parent=p thickness=t) 
+Return the Python object for the left side SubDimension with parent `p`, name `n`, and thickness `t`. 
+"""
+left(;kwargs...) = pycall(devito.SubDimension.left, PyObject; kwargs...)
+
+"""
+    right(name=n, parent=p, thickness=t) 
+Return the Python object for the right side SubDimension with parent `p`, name `n`, and thickness `t`. 
+"""
+right(;kwargs...) = pycall(devito.SubDimension.right, PyObject; kwargs...)
+
+"""
     inject(x::SparseTimeFunction; kwargs...)
 
 Generate equations injecting an arbitrary expression into a field.
@@ -766,7 +778,6 @@ Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 
-
 py"""
 def indexobj(x,*args):
     return x[args]
@@ -776,6 +787,6 @@ function Base.getindex(x::Union{TimeFunction,Function},args...)
    return py"indexobj"(x,reverse(args)...)
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, left, localindices, localindices_with_halo, localindices_with_inhalo, localsize, right, size_with_halo, spacing, spacing_map, step
 
 end
