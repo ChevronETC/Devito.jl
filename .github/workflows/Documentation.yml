@@ -16,7 +16,8 @@ jobs:
         with:
           version: '1.5'
       - name: install mpi
-        run: sudo apt-get install -y mpich
+        run: sudo apt-get update
+      - run: sudo apt-get install -y mpich
       - name: download miniconda manually
         run: wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
       - name: run install

@@ -82,6 +82,16 @@ end
     @test _stf_coords ≈ x
 end
 
+@testset "Set Index Writing" begin
+    grid = Grid(shape=(11,), dtype=Float32)
+    f = Devito.Function(name="f", grid=grid)
+    d = data(f)
+    d .= 1.0
+    op = Operator([Eq(f[1],2.0)],name="indexwrite")
+    apply(op)
+    @test data(f)[2] == 2.0
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)
