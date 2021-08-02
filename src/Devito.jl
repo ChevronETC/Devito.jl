@@ -807,6 +807,79 @@ function subdomain(name::String, instructions...)
     return subdom(name,instructions)    
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, subdomain,TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+"""
+Function to create subdomains corresponding to boundaries or wave propagation. Returns a dictionary with keys:
+"abc" subdomains intended for absorbing boundary conditions
+"fs"  subdomains for use with free surface
+"wp"  subdomains for wave propagation
+"all" all subdomains
+
+Example:
+
+abcpads = (25,25)
+freesurfbool = true
+fssize = 4 (make space order / 2 if using)
+pmlbool = false
+bcdomains(abcpads,freesurfbool,fssize,pmlbool)
+
+"""
+
+function bcsubdomains(pads::Tuple,freesurfbool::Bool, fssize::Int, pmlbool::Bool)
+    # define domain arrays
+    alldomains  = [] # all subdomains
+    fsdomains   = [] # free surface subdomains
+    abcdomains  = [] # absorbing bc domains
+    wpdomains = [] # domains with waveprop
+    # how many dimensions are we working with?
+    ndim = length(pads)
+    # make abc domains
+    for i in 1:ndim
+        # instructions for right abc 
+        instr = [j != i ? ("middle",0,0) : ("right",pads[i]) for j in 1:ndim]
+        abcr = subdomain("abcdomain_right_"*string(i),instr...)
+        push!(abcdomains,abcr)
+        # instructions for left abc
+        if ~freesurfbool || i != 1 
+            # instructions for right abc 
+            instr = [j != i ? ("middle",0,0) : ("left",pads[i]) for j in 1:ndim]
+            abcl = subdomain("abcdomain_left_"*string(i),instr...)
+            push!(abcdomains,abcl)
+        end
+    end
+    # are we making a free surface?
+    if freesurfbool
+        # instructions for free surface
+        instr = [j != 1 ? ("middle",0,0) : ("left",fssize) for j in 1:ndim]
+        fs = subdomain("fsdomain",instr...)
+        push!(fsdomains,fs)
+    end
+    # make wave propagation domain
+    if freesurfbool && pmlbool
+        instr = [("middle",fssize,pads[1])]
+    elseif freesurfbool
+        instr = [("middle",fssize,0)]
+    else
+        instr = [("middle",0,0)]
+    end
+    # fill out rest
+    for i in 2:ndim
+        push!(instr, pmlbool ? ("middle",pads[i],pads[i]) : ("middle",0,0))
+    end
+    # make the subdomain
+    push!(wpdomains,subdomain("wpdomain",instr...))
+    # make alldomains
+    for subdomains in (fsdomains,abcdomains,wpdomains)
+        push!(alldomains,subdomains...)
+    end
+    # create dictionary for storing the domains on return
+    domaindict = Dict()
+    domaindict["fs"]   = tuple(fsdomains...)
+    domaindict["abc"]  = tuple(abcdomains...)
+    domaindict["wp"]   = tuple(wpdomains...)
+    domaindict["all"]  = tuple(alldomains...)
+    return domaindict 
+end
+
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, bcsubdomains, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step, subdomain
 
 end

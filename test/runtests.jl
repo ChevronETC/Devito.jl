@@ -107,6 +107,28 @@ end
     end
 end
 
+@testset "BC Subdomain Construction" begin
+    pads = (25,25)
+    fssize = 4
+    for pads in [(25,),(25,25),(25,25,25)]
+        ndim = length(pads)
+        for freesurfbool in [true,false]
+            for pmlbool in [true,false]
+                d = bcsubdomains(pads,freesurfbool, fssize, pmlbool)
+                @test length(d["all"]) == 2*ndim+1
+                @test length(d["wp"])  == 1
+                if freesurfbool
+                    @test length(d["fs"]) == 1
+                    @test length(d["abc"]) == 2*ndim-1
+                else
+                    @test length(d["fs"]) == 0
+                    @test length(d["abc"]) == 2*ndim
+                end
+            end
+        end
+    end
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)
