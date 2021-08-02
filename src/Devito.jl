@@ -778,25 +778,35 @@ end
 
 """
 Create a subdomain by passing a list of instructions for each dimension
-Example:
-instructions = [("left",2),("middle",3,3)]
-SubDomin("subdomainName",instructions)
+Examples:
+instructions = ("left",2),("middle",3,3)
+subdomain("subdomain_name",instructions)
+or 
+instructions = [("right",4),("middle",1,2)]
+subdomain("subdomain_name",instructions)
+or
+subdomain("subdomain_name",("right",2),("left",1))
 """
-function SubDomain(name, instructions)
+subdomain(name::String, instructions::Vector) = subdomain(name, instructions...)
+subdomain(name::String, instructions::Tuple{Vararg{Tuple}}) = subdomain(name, instructions...)
+function subdomain(name::String, instructions...)
     instructions = reverse(instructions)
-    @pydef mutable struct subdomain <: devito.SubDomain
-        function __init__(self, name, instructions )
+    @pydef mutable struct subdom <: devito.SubDomain
+        function __init__(self, name, instructions)
             self.name = name
             self.instructions = instructions
         end
         function define(self, dimensions)
-            dim =  Dict(dimensions[1] => self.instructions[1] , dimensions[2] => self.instructions[2])
-            return dim
+            dims = Dict()
+            for idim = 1:length(dimensions)
+                dims[dimensions[idim]] = self.instructions[idim]
+            end
+            return dims
         end
     end
-    return subdomain(name,instructions)    
+    return subdom(name,instructions)    
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, SubDomain,TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, subdomain,TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
 
 end
