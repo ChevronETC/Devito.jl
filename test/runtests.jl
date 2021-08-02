@@ -92,6 +92,21 @@ end
     @test data(f)[2] == 2.0
 end
 
+@testset "Subdomain" begin
+    subdoms = (subdomain("subdom0",[("left",2),("middle",0,0)]),subdomain("subdom1",(("left",2),("middle",0,0))),subdomain("subdom2",("left",2),("middle",0,0)))
+    for dom in subdoms
+        grid = Grid(shape=(11,11), dtype=Float32, subdomains=dom)
+        f = Devito.Function(name="f", grid=grid)
+        d = data(f)
+        d .= 1.0
+        op = Operator([Eq(f,2.0,subdomain=dom)],name="write"*dom.name)
+        apply(op)
+        data(f)
+        @test data(f)[1,5] == 2.
+        @test data(f)[end,5] == 1.
+    end
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)
