@@ -274,6 +274,15 @@ struct SubDomain{N}
     o::PyObject
 end
 
+"""
+    name(subdomain)
+
+returns the name of the subdomain
+"""
+function name(x::SubDomain)
+    x.o.name
+end
+
 PyCall.PyObject(x::SubDomain) = x.o
 
 """
@@ -803,7 +812,7 @@ end
 
 
 """
-    subdomain(name, instructions)
+    SubDomain(name, instructions)
 
 Create a subdomain by passing a list of instructions for each dimension.
 Using an instruction with (nothing,) implies that the whole dimension should be used for that subdomain, as will ("middle",0,0)
@@ -811,23 +820,24 @@ Using an instruction with (nothing,) implies that the whole dimension should be 
 Examples:
 ```julia
 instructions = ("left",2),("middle",3,3)
-subdomain("subdomain_name",instructions)
+SubDomain("subdomain_name",instructions)
 ```
 or 
 ```julia
 instructions = [("right",4),("middle",1,2)]
-subdomain("subdomain_name",instructions)
+SubDomain("subdomain_name",instructions)
 ```
 or
 ```julia
-subdomain("subdomain_name",("right",2),("left",1))
+SubDomain("subdomain_name",("right",2),("left",1))
 ```
 """
-subdomain(name::String, instructions::Vector) = subdomain(name, instructions...)
-subdomain(name::String, instructions::Tuple{Vararg{Tuple}}) = subdomain(name, instructions...)
-function subdomain(name::String, instructions...)
+SubDomain(name::String, instructions::Vector) = SubDomain(name, instructions...)
+SubDomain(name::String, instructions::Tuple{Vararg{Tuple}}) = SubDomain(name, instructions...)
+function SubDomain(name::String, instructions...)
     # copy and reverse instructions
     instructions = reverse(instructions)
+    N = length(instructions)
     @pydef mutable struct subdom <: devito.SubDomain
         function __init__(self, name, instructions)
             self.name = name
@@ -841,9 +851,9 @@ function subdomain(name::String, instructions...)
             return dims
         end
     end
-    return subdom(name,instructions)    
+    return SubDomain{N}(subdom(name,instructions))    
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step, subdomain, subdomains
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SubDomain, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
 
 end

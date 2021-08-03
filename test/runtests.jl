@@ -93,20 +93,20 @@ end
 end
 
 @testset "Subdomain" begin
-    subdoms = (subdomain("subdom0",[("left",2),("middle",0,0)]),subdomain("subdom1",(("left",2),("middle",0,0))),subdomain("subdom2",("left",2),("middle",0,0)),subdomain("subdom3",[("left",2),(nothing,)]))
+    subdoms = (SubDomain("subdom0",[("left",2),("middle",0,0)]),SubDomain("subdom1",(("left",2),("middle",0,0))),SubDomain("subdom2",("left",2),("middle",0,0)),SubDomain("subdom3",[("left",2),(nothing,)]))
     for dom in subdoms
         grid = Grid(shape=(11,11), dtype=Float32, subdomains=dom)
         f = Devito.Function(name="f", grid=grid)
         d = data(f)
         d .= 1.0
-        op = Operator([Eq(f,2.0,subdomain=dom)],name="write"*dom.name)
+        op = Operator([Eq(f,2.0,subdomain=dom)],name="write"*name(dom))
         apply(op)
         data(f)
         @test data(f)[1,5] == 2.
         @test data(f)[end,5] == 1.
         # get dimensions, reverse subdomain dimsbecause python object was returned
         griddim = dimensions(grid)
-        subdim  = dimensions(subdomains(grid)[dom.name])
+        subdim  = dimensions(subdomains(grid)[name(dom)])
         # test that a new subdimension created on first axis
         @test griddim[1] != subdim[1]
         # test that the complete second axis is same dimension
