@@ -203,6 +203,8 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 ````
 """
 
+Base.:(==)(x::SpaceDimension,y::SpaceDimension) = x.o == y.o
+
 function Operator end
 """
     Opertor(expressions; kwargs...)
@@ -263,6 +265,30 @@ Base.eltype(grid::Grid{T}) where {T} = T
 spacing(x::Union{SpaceDimension,SteppingDimension}) = x.o.spacing
 spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
 spacing_map(x::Grid) = PyDict(x.o."spacing_map")
+
+#
+# SubDomain
+#
+
+struct SubDomain{N}
+    o::PyObject
+end
+
+PyCall.PyObject(x::SubDomain) = x.o
+
+"""
+    subdomains(grid)
+
+returns subdomains associated with a Devito grid
+"""
+function subdomains(x::Grid{T,N}) where {T,N}
+    dictpre =  PyDict(x.o."subdomains")
+    dict = Dict()
+    for key in keys(dictpre)
+        dict[key] = SubDomain{N}(dictpre[key])
+    end
+    return dict
+end
 
 #
 # Functions
@@ -629,7 +655,7 @@ end
 
 Returns a tuple with the dimensions associated with the Devito grid.
 """
-function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N}}) where {T,N}
+function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N},SubDomain{N}}) where {T,N}
     ntuple(i->Dimension(x.o.dimensions[N-i+1]), N)
 end
 
@@ -777,19 +803,30 @@ end
 
 
 """
-Create a subdomain by passing a list of instructions for each dimension
+    subdomain(name, instructions)
+
+Create a subdomain by passing a list of instructions for each dimension.
+Using an instruction with (nothing,) implies that the whole dimension should be used for that subdomain, as will ("middle",0,0)
+
 Examples:
+```julia
 instructions = ("left",2),("middle",3,3)
 subdomain("subdomain_name",instructions)
+```
 or 
+```julia
 instructions = [("right",4),("middle",1,2)]
 subdomain("subdomain_name",instructions)
+```
 or
+```julia
 subdomain("subdomain_name",("right",2),("left",1))
+```
 """
 subdomain(name::String, instructions::Vector) = subdomain(name, instructions...)
 subdomain(name::String, instructions::Tuple{Vararg{Tuple}}) = subdomain(name, instructions...)
 function subdomain(name::String, instructions...)
+    # copy and reverse instructions
     instructions = reverse(instructions)
     @pydef mutable struct subdom <: devito.SubDomain
         function __init__(self, name, instructions)
@@ -797,9 +834,9 @@ function subdomain(name::String, instructions...)
             self.instructions = instructions
         end
         function define(self, dimensions)
-            dims = Dict()
+            dims = PyDict()
             for idim = 1:length(dimensions)
-                dims[dimensions[idim]] = self.instructions[idim]
+                dims[dimensions[idim]] = self.instructions[idim] in ((nothing,),("middle",0,0)) ? dimensions[idim] : self.instructions[idim]
             end
             return dims
         end
@@ -807,6 +844,6 @@ function subdomain(name::String, instructions...)
     return subdom(name,instructions)    
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, subdomain,TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, size_with_halo, spacing, spacing_map, step, subdomain, subdomains
 
 end
