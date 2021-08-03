@@ -22,9 +22,9 @@ end
 @everywhere function model()
     write(stdout, "inside model()\n")
     grid = Grid(
-        shape = (601,601,301),
+        shape = (301,601,601),
         origin = (0.0,0.0,0.0),
-        extent = (12000.0,12000.0,6000.0),
+        extent = (6000.0,12000.0,12000.0),
         dtype = Float32)
 
     b = Devito.Function(name="b", grid=grid, space_order=8)

@@ -2,8 +2,8 @@ using Devito, BenchmarkTools
 
 const SUITE = BenchmarkGroup()
 
-nx,ny,nz = 100,101,102
-grd = Grid(shape=(nx,ny,nz))
+nz,ny,nx = 102,101,100
+grd = Grid(shape=(nz,ny,nx))
 f = Devito.Function(name="f", grid=grd, space_order=8)
 d = data(f)
 dhalo = data_with_halo(f)
