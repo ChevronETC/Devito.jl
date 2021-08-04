@@ -14,14 +14,18 @@ end
 
 @testset "Grid" begin
     grid = Grid(shape = (4,5), extent=(40.0,50.0), dtype = Float32)
-    @test size(grid) == (5,4)
+    @test size(grid) == (4,5)
     @test ndims(grid) == 2
     @test eltype(grid) == Float32
+    @test extent(grid) == (40.0,50.0)
 end
 
 @testset "Grid, Float64" begin
     grid = Grid(shape = (4,5), extent=(40.0,50.0), dtype = Float64)
     @test eltype(grid) == Float64
+    @test extent(grid) == (40.0,50.0)
+    @test size(grid) == (4,5)
+    @test ndims(grid) == 2
 end
 
 @testset "Function, data_with_halo" begin
@@ -127,7 +131,7 @@ addprocs(manager)
     configuration!("mpi", true)
 
     @testset "DevitoMPIArray, fill!, with halo" begin
-        grid = Grid(shape=(4,5), dtype=Float32)
+        grid = Grid(shape=(5,4), dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
         @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
@@ -144,7 +148,7 @@ addprocs(manager)
     end
 
     @testset "DevitoMPIArray, fill!, no halo" begin
-        grid = Grid(shape=(4,5), dtype=Float32)
+        grid = Grid(shape=(5,4), dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
         @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
@@ -163,7 +167,7 @@ addprocs(manager)
     end
 
     @testset "DevitoMPIArray, copy!, halo" begin
-        grid = Grid(shape=(4,5), dtype=Float32)
+        grid = Grid(shape=(5,4), dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
         @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
@@ -187,7 +191,7 @@ addprocs(manager)
     end
 
     @testset "DevitoMPIArray, copy!, no halo" begin
-        grid = Grid(shape=(4,5), dtype=Float32)
+        grid = Grid(shape=(5,4), dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
         @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
@@ -213,7 +217,7 @@ addprocs(manager)
     end
 
     @testset "DevitoMPIArray, convert to Array, halo" begin
-        grid = Grid(shape=(4,5), dtype=Float32)
+        grid = Grid(shape=(5,4), dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
 
@@ -228,7 +232,7 @@ addprocs(manager)
     end
 
     @testset "DevitoMPIArray, convert to Array, no halo" begin
-        grid = Grid(shape=(4,5), dtype=Float32)
+        grid = Grid(shape=(5,4), dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
 
@@ -243,7 +247,7 @@ addprocs(manager)
     end
 
     @testset "TimeFunction, data with halo" begin
-        grid = Grid(shape = (4,5), dtype = Float32)
+        grid = Grid(shape = (5,4), dtype = Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
         p_data = data_with_halo(p)
@@ -261,7 +265,7 @@ addprocs(manager)
     end
 
     @testset "TimeFunction, data with no halo" begin
-        grid = Grid(shape = (4,5), dtype = Float32)
+        grid = Grid(shape = (5,4), dtype = Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
         p_data = data(p)
@@ -277,7 +281,7 @@ addprocs(manager)
     end
 
     @testset "Sparse time function coordinates" begin
-        grid = Grid(shape=(10,11), dtype=Float32)
+        grid = Grid(shape=(11,10), dtype=Float32)
         stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
         stf_coords = coordinates(stf)
         @test isa(stf_coords, Devito.DevitoMPIArray)

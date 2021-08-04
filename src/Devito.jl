@@ -35,6 +35,17 @@ end
 configuration(key) = PyDict(devito."configuration")[key]
 configuration() = PyDict(devito."configuration")
 
+
+_reverse(argument::Tuple) = reverse(argument)
+_reverse(argument) = argument
+
+function reversedims(arguments)
+    _arguments = collect(arguments)
+    keys = first.(_arguments)
+    values = @. _reverse(last(_arguments))    
+    (; zip(keys, values)...)
+ end
+
 struct DevitoArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
     o::PyObject # Python object for the numpy array
     p::A # copy-free
@@ -247,7 +258,7 @@ grid = Grid(
 ```
 """
 function Grid(args...; kwargs...)
-    o = pycall(devito.Grid, PyObject, args...; kwargs...)
+    o = pycall(devito.Grid, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     Grid{T,N}(o)
@@ -256,7 +267,7 @@ end
 PyCall.PyObject(x::Grid) = x.o
 
 Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
-extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,T})
+extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,Float64})
 size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->grid.o.shape[N-i+1] + h[i][1] + h[i][2], N)
 Base.size(grid::Grid, i) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N

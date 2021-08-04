@@ -2,7 +2,7 @@ using Revise
 using Distributed, AzManagers
 
 ENV["OMP_NUM_THREADS"] = 4
-addprocs("cbox120", 1; group="tqff-devito7", logname="tqff-devito7", mpi_ranks_per_worker=16)
+addprocs("cbox120", 1; group="tqff-devito7", mpi_ranks_per_worker=16)
 
 @everywhere using Revise
 @everywhere using Devito
@@ -22,9 +22,9 @@ end
 
     write(stdout, "inside model()\n")
     grid = Grid(
-        shape = (1201,1201,601),
+        shape = (601,1201,1201),
         origin = (0.0,0.0,0.0),
-        extent = (12000.0,12000.0,6000.0),
+        extent = (6000.0,12000.0,12000.0),
         dtype = Float32)
 
     b = Devito.Function(name="b", grid=grid, space_order=8)
@@ -98,3 +98,5 @@ d = remotecall_fetch(model, workers()[1])
 
 using PyPlot
 figure(); imshow(d); display(gcf())
+
+rmprocs(workers())

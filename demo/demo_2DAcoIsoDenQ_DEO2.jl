@@ -15,10 +15,10 @@ function ricker!(src, f, _t, t₀)
 end
 
 grid = Grid(
-    dimensions = (x,z),
-    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    dimensions = (z,x),
+    shape = (501,251),
     origin = (0.0,0.0),
-    extent = (1250.0,2500.0),
+    extent = (2500.0,1250.0),
     dtype = Float32)
 
 b = Devito.Function(name="b", grid=grid, space_order=8)

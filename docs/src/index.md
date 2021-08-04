@@ -35,7 +35,7 @@ z=SpaceDimension(name="z",spacing=spacez)
 grid=Grid(extent=extent, shape=shpe, origin=origin, dimensions=(x,z), time_dimension=t)
 ```
 
-Note that he dimensions are passed in column-major order, in alignment with the Devito Python implementation. For all other tuples involving dimensions in Julia, the ordering is row-major.
+Note that unlike with the Devito Python implementation, which is column-major, all tuples involving dimensions are passed in row-major ordering. This row-major ordering convention is consistent throughout Devito.jl
 
 2\. Construction of time and space functions
 
@@ -144,22 +144,6 @@ _d = convert(Array, d) # _d is an Array on MPI rank 0 gathered from `d` which is
 ```
 
 Please see the `demo` folder in this package for more details.
-
-## Notes:
-1. The Julia arrays returned by the `data`, `data_with_halo` and `data_with_inhalo` methods
-are in the expected Julia/Fortran column major order (i.e. the first dimension is fast).
-However, the tuples and arrays passed to the Devito Function, TimeFunction and SparseTimeFunction
-methods are given in Python/C row major order.  This can cause some confusion at first.  Consider
-the following example:
-
-```julia
-using Devito
-g = Grid(shape=(10,11,12)) # 10 size of the slow dimension, and 12 is the size of the fast dimension.
-f = Devito.Function(name="f", grid=g, space_order=8)
-d = data(g) # size(d) is (12,11,10) where, as before, 10 is the size of the slow dimension, and 12 is the size of the fast dimension
-```
-
-If this caused too much confusion, we can, in the future, intercept the `shape` argument and reverse the direction of the tuple.
 
 In general, the wrapping of Devito functionality uses the same function and argument names as in the original Python implementation, with 
 python class members being accessed in Julia through functions having the same name as the member, and taking the class object as the first argument.
