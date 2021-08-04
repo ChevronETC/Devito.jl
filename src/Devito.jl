@@ -266,6 +266,7 @@ end
 
 PyCall.PyObject(x::Grid) = x.o
 
+Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = x.o == y.o
 Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
 extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,Float64})
 size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->grid.o.shape[N-i+1] + h[i][1] + h[i][2], N)
@@ -865,6 +866,6 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(subdom(name,instructions))    
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SubDomain, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
+export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SubDomain, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
 
 end
