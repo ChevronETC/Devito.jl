@@ -39,6 +39,26 @@ end
     @test b_data ≈ b_data_test
 end
 
+@testset "Function, grid" begin
+    grid = Grid(shape = (4,5), dtype = Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    @test grid == Devito.grid(b)
+end
+
+@testset "Function, halo" begin
+    grid = Grid(shape = (4,5), dtype = Float32)
+    so = 2
+    b = Devito.Function(name="b", grid=grid, space_order=so)
+    @test ((so,so),(so,so)) == halo(b)
+end
+
+@testset "Function, ndims" begin
+    grid = Grid(shape = (4,5), dtype = Float32)
+    so = 2
+    b = Devito.Function(name="b", grid=grid, space_order=so)
+    @test 2 == ndims(b)
+end
+
 @testset "Function, data" begin
     grid = Grid(shape = (4,5), dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
@@ -72,6 +92,26 @@ end
 
     p_data_test = data(p)
     @test p_data ≈ p_data_test
+end
+
+@testset "TimeFunction, grid" begin
+    grid = Grid(shape = (4,5), dtype = Float32)
+    p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
+    @test grid == Devito.grid(p)
+end
+
+@testset "TimeFunction, halo" begin
+    grid = Grid(shape = (4,5), dtype = Float32)
+    so = 2
+    p = Devito.TimeFunction(name="p", grid=grid, time_order=2, space_order=so)
+    @test ((so,so),(so,so),(0,0)) == halo(p)
+end
+
+@testset "TimeFunction, ndims" begin
+    grid = Grid(shape = (4,5), dtype = Float32)
+    so = 2
+    p = Devito.TimeFunction(name="p", grid=grid, time_order=2, space_order=so)
+    @test 3 == ndims(p)
 end
 
 @testset "Sparse time function coordinates" begin
