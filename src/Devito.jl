@@ -826,7 +826,12 @@ Base.:*(x::Real,y::DiscreteFunction) = PyObject(x)*PyObject(y)
 Base.:*(x::DiscreteFunction, y::DiscreteFunction) = PyObject(x)*PyObject(y)
 Base.:*(x::DiscreteFunction, y::PyObject) = x.o*y
 Base.:*(x::PyObject, y::DiscreteFunction) = x*y.o
+Base.:*(x::DiscreteFunction, y::Real) = PyObject(x)*PyObject(y)
+
 Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
+Base.:/(x::DiscreteFunction, y::DiscreteFunction) = PyObject(x)/PyObject(y)
+Base.:/(x::Real, y::DiscreteFunction) = PyObject(x)/PyObject(y)
+Base.:/(x::DiscreteFunction, y::Real) = PyObject(x)/PyObject(y)
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
 

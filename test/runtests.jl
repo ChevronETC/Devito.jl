@@ -264,6 +264,34 @@ end
     end  
 end
 
+@testset "Multiply and Divide" begin
+    x = SpaceDimension(name="x")
+    grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
+    g1 = Devito.Function(name="g1", grid=grid)
+    g2 = Devito.Function(name="g2", grid=grid)
+    f1 = Devito.Function(name="f1", grid=grid)
+    f2 = Devito.Function(name="f2", grid=grid)
+    f3 = Devito.Function(name="f3", grid=grid)
+    f4 = Devito.Function(name="f4", grid=grid)
+    f5 = Devito.Function(name="f5", grid=grid)
+    ffuncs = (f1,f2,f3,f4,f5)
+    scalar = 5
+    data(g2) .= 5
+    data(g1) .= 2
+    muleqns = [Eq(f1,g1*g2),Eq(f2,scalar*g1),Eq(f3,g1*scalar),Eq(f4,g1*symbolic_size(x)),Eq(f5,symbolic_size(x)*g1)]
+    op = Operator(muleqns,name="Multiplier")
+    apply(op)
+    for func in ffuncs
+        @test data(func)[2] == 10.
+    end
+    diveqns = [Eq(f1,g1/g2),Eq(f2,scalar/g1),Eq(f3,g1/scalar),Eq(f4,g1/symbolic_size(x)),Eq(f5,symbolic_size(x)/g1)]
+    op = Operator(diveqns,name="Divider")
+    apply(op)
+    for (func,answer) in zip(ffuncs,(2/5,5/2,2/5,2/5,5/2))
+        @test data(func)[2] ≈ answer
+    end
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)
