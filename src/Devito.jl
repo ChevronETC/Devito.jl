@@ -187,8 +187,26 @@ function Base.copy!(dst::DevitoMPISparseArray, src::Array)
     dst
 end
 
+#
+# Dimension
+#
+abstract type Dimension end
+
+# Python <-> Julia quick-and-dirty type/struct for dimensions 
+for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension))
+    @eval begin
+        struct $F <: Dimension
+            o::PyObject
+        end
+        PyCall.PyObject(x::$F) = x.o
+        Base.convert(::Type{$F}, x::PyObject) = $F(x)
+        $F(args...; kwargs...) = pycall($M.$F, $F, args...; kwargs...)
+        export $F
+    end
+end
+
 # Python <-> Julia quick-and-dirty type/struct mappings
-for (M,F) in ((:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator), (:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension))
+for (M,F) in ((:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
     @eval begin
         struct $F
             o::PyObject
@@ -274,7 +292,6 @@ Base.size(grid::Grid, i) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
-spacing(x::Union{SpaceDimension,SteppingDimension}) = x.o.spacing
 spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
 spacing_map(x::Grid) = PyDict(x.o."spacing_map")
 
@@ -812,6 +829,76 @@ Base.:*(x::PyObject, y::DiscreteFunction) = x*y.o
 Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
 Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
 Base.:^(x::Function, y) = x.o^y
+
+# metaprogramming for symbolic operations on Devito dimensions
+for F in (:symbolic_min, :symbolic_max, :spacing, :is_Derived, :symbolic_size)
+    @eval begin
+        $F(x::Dimension) = PyObject(x).$F
+        export $F
+    end
+end
+
+"""
+    symbolic_min(x::Dimension)
+Symbol defining the minimum point of the Dimension
+"""
+function symbolic_min end
+
+"""
+    symbolic_max(x::Dimension)
+Symbol defining the maximum point of the Dimension
+"""
+function symbolic_max end
+
+"""
+    spacing(x::Dimension)
+Symbol representing the physical spacing along the Dimension.
+"""
+function spacing end
+
+"""
+    is_Derived(x::Dimension)
+Returns true when dimension is derived, false when it is not
+"""
+function is_Derived end
+
+"""
+    symbolic_size(x::Dimension)
+Symbol defining the size of the Dimension
+"""
+function symbolic_size end
+
+# metaprograming for Devito functions taking variable number of arguments
+for (M,F) in ((:devito,:Min), (:devito,:Max))
+    @eval begin
+        $F(args...) = $M.$F((PyObject.(args))...)
+        export $F
+    end
+end
+
+"""
+    Min(args...)
+
+Can be used in a Devito.Eq to return the minimum of a collection of arguments
+Example:
+```julia
+    eqmin = Eq(f,Min(g,1))
+```
+Is equivalent to f = Min(g,1) for Devito functions f,g
+"""
+function Min end
+
+"""
+    Max(args...)
+
+Can be used in a Devito.Eq to return the minimum of a collection of arguments
+Example:
+```julia
+    eqmax = Eq(f,Max(g,1))
+```
+Is equivalent to f = Max(g,1) for Devito functions f,g
+"""
+function Max end
 
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)

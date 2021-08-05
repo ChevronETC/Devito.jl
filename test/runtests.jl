@@ -153,9 +153,52 @@ end
         subdim  = dimensions(subdomains(grid)[name(dom)])
         # test that a new subdimension created on first axis
         @test griddim[1] != subdim[1]
+        # and that it is is derived 
+        @test is_Derived(subdim[1]) == true 
+        # and that the griddim not derived 
+        @test is_Derived(griddim[1]) == false 
         # test that the complete second axis is same dimension
         @test griddim[2] == subdim[2]
+
     end
+end
+
+@testset "Symbolic Min, Max, Size, and Spacing" begin
+    x = SpaceDimension(name="x")
+    y = SpaceDimension(name="y")
+    grid = Grid(shape=(6,11), dtype=Float64, dimensions=(x,y))
+    f = Devito.Function(name="f", grid=grid)
+    g = Devito.Function(name="g", grid=grid)
+    h = Devito.Function(name="h", grid=grid)
+    k = Devito.Function(name="k", grid=grid)
+    op = Operator([Eq(f,symbolic_max(x)),Eq(g,symbolic_min(y)),Eq(h,symbolic_size(x)),Eq(k,spacing(x))],name="SymMinMax")
+    apply(op)
+    @test data(f)[1,1] == 5.
+    @test data(g)[1,1] == 0.
+    @test data(h)[1,1] == 6.
+    @test data(k)[1,1] ≈ 1.0/5.0
+end
+
+@testset "Min & Max" begin
+    grid = Grid(shape=(11,11), dtype=Float64)
+    mx = Devito.Function(name="mx", grid=grid)
+    mn = Devito.Function(name="mn", grid=grid)
+    f = Devito.Function(name="f", grid=grid)
+    df = data(f)
+    df .= -1.0
+    g = Devito.Function(name="g", grid=grid)
+    dg = data(g)
+    dg .= 1.0
+    h = Devito.Function(name="h", grid=grid)
+    dh = data(h)
+    dh .= 2.0
+    k = Devito.Function(name="k", grid=grid)
+    dh = data(h)
+    dh .= 3.0
+    op = Operator([Eq(mn,Min(g,f,h,k,4)),Eq(mx,Max(g,f,h,k,4))],name="minmax")
+    apply(op)
+    @test data(mn)[5,5] == -1.0
+    @test data(mx)[5,5] ==  4
 end
 
 using Distributed, MPIClusterManagers
