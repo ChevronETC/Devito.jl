@@ -900,6 +900,39 @@ Is equivalent to f = Max(g,1) for Devito functions f,g
 """
 function Max end
 
+# metaprograming for Devito mathematical operations ( more exist and may be added as required, find them at https://github.com/devitocodes/devito/blob/a8a33dc55ac3be008644c58a76b671028625679a/devito/finite_differences/elementary.py )
+
+# these are broken out into four groups to help keep track of how they behave for unit testing
+
+# functions defined on real numbers with equivalent in base
+for F in (:cos, :sin, :tan, :sinh, :cosh, :tanh, :exp, :floor)
+    @eval begin
+        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        export $F
+    end
+end
+# functions defined on real numbers who are written differently in base
+for F in (:Abs,:ceiling)
+    @eval begin
+        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        export $F
+    end
+end
+# functions defined on positive numbers with equivalent in base
+for F in (:sqrt,)
+    @eval begin
+        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        export $F
+    end
+end
+# functions defined on positive numbers who are written differently in base
+for F in (:ln,)
+    @eval begin
+        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        export $F
+    end
+end
+
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)
     py"""

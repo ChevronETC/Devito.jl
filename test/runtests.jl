@@ -201,6 +201,69 @@ end
     @test data(mx)[5,5] ==  4
 end
 
+@testset "Devito Mathematical Oparations" begin
+    # positive only block with equivalent functions in base
+    for F in (:sqrt,)
+        @eval begin
+            vals = (1., 2, 10, 100)
+            gr = Grid(shape=(length(vals),), dtype=Float64)
+            f = Devito.Function(name="f", grid=gr)
+            g = Devito.Function(name="g", grid=gr)
+            op = Operator([Eq(g,Devito.$F(f))],name="MathTest")
+            data(f) .= vals
+            apply(op)
+            for i in 1:length(vals)
+                @test data(g)[i] ≈ Base.$F(vals[i])
+            end
+        end
+    end
+    # positive functions needing base pair specified
+    for (F,B) in ((:ln,:log),(:ceiling,:ceil))
+        @eval begin
+            vals = (1., 2, 10, 100)
+            gr = Grid(shape=(length(vals),), dtype=Float64)
+            f = Devito.Function(name="f", grid=gr)
+            g = Devito.Function(name="g", grid=gr)
+            op = Operator([Eq(g,Devito.$F(f))],name="MathTest")
+            data(f) .= vals
+            apply(op)
+            for i in 1:length(vals)
+                @test data(g)[i] ≈ Base.$B(vals[i])
+            end
+        end
+    end
+    # positive and negative
+    for F in (:cos, :sin, :tan, :sinh, :cosh, :tanh, :exp, :floor)
+        @eval begin
+            vals = (-10, -1, 0, 1., 2, pi, 10)
+            gr = Grid(shape=(length(vals),), dtype=Float64)
+            f = Devito.Function(name="f", grid=gr)
+            g = Devito.Function(name="g", grid=gr)
+            op = Operator([Eq(g,Devito.$F(f))],name="MathTest")
+            data(f) .= vals
+            apply(op)
+            for i in 1:length(vals)
+                @test data(g)[i] ≈ Base.$F(vals[i])
+            end
+        end
+    end
+    # functions needing their own equivalent in base to be specified
+    for (F,B) in ((:Abs,:abs),)
+        @eval begin
+            vals = (-10, -1, 0, 1., 2, pi, 10)
+            gr = Grid(shape=(length(vals),), dtype=Float64)
+            f = Devito.Function(name="f", grid=gr)
+            g = Devito.Function(name="g", grid=gr)
+            op = Operator([Eq(g,Devito.$F(f))],name="MathTest")
+            data(f) .= vals
+            apply(op)
+            for i in 1:length(vals)
+                @test data(g)[i] ≈ Base.$B(vals[i])
+            end
+        end
+    end  
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)
