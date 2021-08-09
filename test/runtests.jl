@@ -292,6 +292,31 @@ end
     end
 end
 
+@testset "Sparse Inject" begin
+    dt = 0.01
+    nt = 101
+    time_range = 0.0f0:dt:dt*(nt-1)
+
+    grid = Grid(shape=(5,5),origin=(0.,0.),extent=(1.,1.))
+
+    p = TimeFunction(grid=grid,space_order=8,time_order=2,name="p")
+    y,x,t = dimensions(p)
+    dt = step(time_range)
+    smap = spacing_map(grid)
+    smap[spacing(t)] = dt
+
+    src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=nt)
+    src_coords = coordinates(src)
+    src_coords .= [0.5; 0.5]
+    src_data = data(src)
+    src_data .= reshape(1e3*Base.sin.(time_range .* (3*pi/2)),1,:)
+    pupdate = Eq(forward(p),1+p)
+    src_term = inject(src; field=forward(p), expr=src*spacing(t)^2)
+    op = Operator([pupdate,src_term],name="SparseInject", subs=smap)
+    apply(op)
+    @test data(p)[3,3,end-1] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)
