@@ -822,18 +822,16 @@ Returns the symbol for the first derivative with respect to z.
 """
 dz(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
 
-Base.:*(x::Real,y::DiscreteFunction) = PyObject(x)*PyObject(y)
-Base.:*(x::DiscreteFunction, y::DiscreteFunction) = PyObject(x)*PyObject(y)
-Base.:*(x::DiscreteFunction, y::PyObject) = x.o*y
-Base.:*(x::PyObject, y::DiscreteFunction) = x*y.o
-Base.:*(x::DiscreteFunction, y::Real) = PyObject(x)*PyObject(y)
-
-Base.:/(x::DiscreteFunction, y::PyObject) = x.o/y
-Base.:/(x::DiscreteFunction, y::DiscreteFunction) = PyObject(x)/PyObject(y)
-Base.:/(x::Real, y::DiscreteFunction) = PyObject(x)/PyObject(y)
-Base.:/(x::DiscreteFunction, y::Real) = PyObject(x)/PyObject(y)
-Base.:/(x::PyObject, y::DiscreteFunction) = x/y.o
-Base.:^(x::Function, y) = x.o^y
+# metaprogramming for basic operations
+for F in ( :+, :-, :*, :/, :^)
+    @eval begin
+        Base.$F(x::Real,y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::DiscreteFunction, y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::DiscreteFunction, y::PyObject) = $F(x.o,y)
+        Base.$F(x::PyObject, y::DiscreteFunction) = $F(x,y.o)
+        Base.$F(x::DiscreteFunction, y::Real) = $F(PyObject(x),PyObject(y))
+    end
+end
 
 # metaprogramming for symbolic operations on Devito dimensions
 for F in (:symbolic_min, :symbolic_max, :spacing, :is_Derived, :symbolic_size)
