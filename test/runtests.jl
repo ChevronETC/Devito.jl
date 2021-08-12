@@ -317,6 +317,24 @@ end
     @test data(p)[3,3,end-1] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
 end
 
+@testset "Left and Right Derivatives" begin
+    grid = Grid(shape=(5),origin=(0.),extent=(1.))
+    f = Devito.Function(grid=grid,name="f")
+    g1 = Devito.Function(grid=grid,name="g1")
+    g2 = Devito.Function(grid=grid,name="g2")
+    data(f)[3] = 1.
+    eq1 = Eq(g1,dxl(f))
+    eq2 = Eq(g2,dxr(f))
+    op = Operator([eq1,eq2],name="Derivatives")
+    apply(op)
+    @test data(g1)[2] == 0.
+    @test data(g2)[2] == 4.
+    @test data(g1)[3] == 4.
+    @test data(g2)[3] == -4.
+    @test data(g1)[4] == -4.
+    @test data(g2)[4] == 0.
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)

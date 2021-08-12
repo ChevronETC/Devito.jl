@@ -801,26 +801,33 @@ function apply(x::Operator, args...; kwargs...)
     summary
 end
 
+# metaprograming for various derivatives
+for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl)
+    @eval begin
+        $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).$F, PyObject, args...; kwargs...)
+        export $F
+    end
+end
 """
     dx(f::DiscreteFunction)
 
 Returns the symbol for the first derivative with respect to x.
 """
-dx(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dx, PyObject, args...; kwargs...)
+function dx end
 
 """
     dy(f::DiscreteFunction)
 
 Returns the symbol for the first derivative with respect to y.
 """
-dy(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dy, PyObject, args...; kwargs...)
+function dy end
 
 """
     dz(f::DiscreteFunction)
 
 Returns the symbol for the first derivative with respect to z.
 """
-dz(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).dz, PyObject, args...; kwargs...)
+function dz end
 
 # metaprogramming for basic operations
 for F in ( :+, :-, :*, :/, :^)
