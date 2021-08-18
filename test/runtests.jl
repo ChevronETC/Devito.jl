@@ -292,6 +292,37 @@ end
     end
 end
 
+@testset "Math on Dimensions" begin
+    x = SpaceDimension(name="x")
+    grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
+    g1 = Devito.Function(name="g1", grid=grid)
+    f1 = Devito.Function(name="f1", grid=grid)
+    f2 = Devito.Function(name="f2", grid=grid)
+    f3 = Devito.Function(name="f3", grid=grid)
+    f4 = Devito.Function(name="f4", grid=grid)
+    f5 = Devito.Function(name="f5", grid=grid)
+    f6 = Devito.Function(name="f6", grid=grid)
+    data(g1) .= 1.0
+
+    eq1 = Eq(f1,x+1)
+    eq2 = Eq(f2,1+x)
+    eq3 = Eq(f3,x+g1)
+    eq4 = Eq(f4,g1+x)
+    eq5 = Eq(f5,x+1.0*g1)
+    eq6 = Eq(f6,1.0*g1+x)
+    opl = Operator([eq1,eq3,eq5],name="Left")
+    opr = Operator([eq2,eq4,eq6],name="Right")
+    apply(opl)
+    apply(opr)
+
+    for f in (f1,f2,f3,f4,f5,f6)
+        df = data(f)
+        for i in 1:length(df)
+            @test df[i] == i
+        end
+    end
+end
+
 @testset "Sparse Inject" begin
     dt = 0.01
     nt = 101
@@ -333,6 +364,48 @@ end
     @test data(g2)[3] == -4.
     @test data(g1)[4] == -4.
     @test data(g2)[4] == 0.
+end
+
+@testset "Conditional Dimension Subsampling" begin
+    size, factr = 17, 4
+    i = Devito.SpaceDimension(name="i")
+    grd = Grid(shape=(size,),dimensions=(i,))
+    ci = ConditionalDimension(name="ci", parent=i, factor=factr)
+    @test factor(ci) == factr
+    @test parent(ci) == i
+    g = Devito.Function(name="g", grid=grd, shape=(size,), dimensions=(i,))
+    f = Devito.Function(name="f", grid=grd, shape=(div(size,factr),), dimensions=(ci,))
+    op = Operator([Eq(g, i), Eq(f, g)],name="Conditional")
+    apply(op)
+    for j in 1:div(size,factr)
+        @test data(f)[j] == data(g)[(j-1)*factr+1]
+    end
+end
+
+@testset "Conditional Dimension Honor Condition" begin
+    x = Devito.SpaceDimension(name="x")
+    y = Devito.SpaceDimension(name="y")
+    grd = Grid(shape=(5,5),dimensions=(y,x))
+    f = Devito.Function(name="f", grid=grd)
+    g = Devito.Function(name="g", grid=grd)
+    data(f) .= 1.0
+    data(g)[:,3:end] .= 1.0
+    ci = ConditionalDimension(name="ci", parent=y, condition=And(Ne(g, 0), Lt(y, 2)))
+    # Note, the order of dimensions feeding into parent seems to matter.  
+    # If the grid dimensions were (x,y) 
+    # the above conditional dimension would cause a compilation error on the operator at runtime.
+    eq = Eq(f, f + g, implicit_dims=ci)
+    op = Operator([eq],name="Implicit")
+    apply(op)
+    @test data(f)[1,1] == 1.0
+    @test data(f)[1,3] == 2.0
+    @test data(f)[1,5] == 2.0
+    @test data(f)[2,2] == 1.0
+    @test data(f)[2,3] == 2.0
+    @test data(f)[3,3] == 1.0
+    @test data(f)[5,1] == 1.0
+    @test data(f)[5,3] == 1.0
+    @test data(f)[5,5] == 1.0
 end
 
 using Distributed, MPIClusterManagers
