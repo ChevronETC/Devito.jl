@@ -408,6 +408,15 @@ end
     @test data(f)[5,5] == 1.0
 end
 
+@testset "Retrieve time_dim" begin
+    g = Grid(shape=(5,5))
+    @test time_dim(g) == g.o.time_dim
+    t = TimeDimension(name="t")
+    f = TimeFunction(name="f",time_dim=t,grid=g)
+    @test time_dim(f) == t
+    @test time_dim(f) == dimensions(f)[end]
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)

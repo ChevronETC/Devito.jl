@@ -567,6 +567,14 @@ See: https://www.devitoproject.org/devito/timefunction.html?highlight=forward#de
 backward(x::TimeFunction) = x.o.backward
 
 """
+    time_dim(x::Union{Grid,TimeFunction})
+
+Returns the time dimension for the associated object.
+"""
+time_dim(x::Union{Grid,TimeFunction}) = x.o.time_dim
+export time_dim
+
+"""
     data(x::DiscreteFunction)
 
 Return the data associated with the grid that corresponds to the discrete function `x`.  This is the
@@ -709,6 +717,8 @@ function Dimension(o)
         return SpaceDimension(o)
     elseif o.is_Stepping
         return SteppingDimension(o)
+    elseif o.is_Time
+        return TimeDimension(o)
     else
         error("not implemented")
     end
