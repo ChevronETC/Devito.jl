@@ -3,11 +3,13 @@ module Devito
 using MPI, PyCall, Strided
 
 const numpy = PyNULL()
+const sympy = PyNULL()
 const devito = PyNULL()
 const seismic = PyNULL()
 
 function __init__()
     copy!(numpy, pyimport("numpy"))
+    copy!(sympy, pyimport("sympy"))
     copy!(devito, pyimport("devito"))
     copy!(seismic, pyimport("examples.seismic"))
 end
@@ -193,7 +195,7 @@ end
 abstract type Dimension end
 
 # Python <-> Julia quick-and-dirty type/struct for dimensions 
-for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension))
+for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension), (:devito,:ConditionalDimension))
     @eval begin
         struct $F <: Dimension
             o::PyObject
@@ -248,6 +250,30 @@ Assuming that one has constructed the following Devito expressions: `stencil_p`,
 op = Operator([stencil_p, src_term, rec_term]; name="opIso")
 ```
 """
+
+function ConditionalDimension end
+"""
+    ConditionalDimension(;kwargs)
+
+Symbol defining a non-convex iteration sub-space derived from a parent Dimension, implemented by the compiler generating conditional “if-then” code within the parent Dimension’s iteration space.
+
+See: https://www.devitoproject.org/devito/dimension.html?highlight=conditional#devito.types.dimension.ConditionalDimension
+
+# Example 
+```julia
+size, factor = 16, 4
+i  = SpaceDimension(name="i")
+grid = Grid(shape=(size,),dimensions=(i,))
+ci = ConditionalDimension(name="ci", parent=i, factor=factor)
+g  = Devito.Function(name="g", grid=grid, shape=(size,), dimensions=(i,))
+f  = Devito.Function(name="f", grid=grid, shape=(div(size,factor),), dimensions=(ci,))
+op = Operator([Eq(g, 1), Eq(f, g)],name="Cond")
+```
+"""
+
+factor(x::ConditionalDimension) = x.o.factor
+export factor
+Base.parent(x::ConditionalDimension) = x.o.parent
 
 #
 # Grid
@@ -837,6 +863,20 @@ for F in ( :+, :-, :*, :/, :^)
         Base.$F(x::DiscreteFunction, y::PyObject) = $F(x.o,y)
         Base.$F(x::PyObject, y::DiscreteFunction) = $F(x,y.o)
         Base.$F(x::DiscreteFunction, y::Real) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Dimension, y::Real) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Real, y::Dimension) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Dimension, y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::DiscreteFunction, y::Dimension) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Dimension, y::PyObject) = $F(PyObject(x),y)
+        Base.$F(x::PyObject, y::Dimension) = $F(x,PyObject(y))
+    end
+end
+
+# metaprogramming for devito conditionals
+for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Lt))
+    @eval begin
+        $F(x::Union{Real,DiscreteFunction,PyObject,Dimension},y::Union{Real,DiscreteFunction,PyObject,Dimension}) = $M.$F(PyObject(x),PyObject(y))
+        export $F
     end
 end
 
@@ -879,7 +919,7 @@ Symbol defining the size of the Dimension
 function symbolic_size end
 
 # metaprograming for Devito functions taking variable number of arguments
-for (M,F) in ((:devito,:Min), (:devito,:Max))
+for (M,F) in ((:devito,:Min), (:devito,:Max),(:sympy,:And))
     @eval begin
         $F(args...) = $M.$F((PyObject.(args))...)
         export $F
