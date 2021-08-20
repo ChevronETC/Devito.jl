@@ -323,6 +323,24 @@ end
     end
 end
 
+@testset "Devito Dimension Constructors" begin
+    attribtes = (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Derived, :is_NonlinearDerived, :is_Sub, :is_Conditional, :is_Stepping, :is_Modulo, :is_Incr)
+    a = Dimension(name="a")
+    b = SpaceDimension(name="b")
+    c = TimeDimension(name="c")
+    d = SteppingDimension(name="d",parent=c)
+    @test parent(d) == c
+    e = DefaultDimension(name="e")
+    f = ConditionalDimension(name="f", parent=c, factor=2)
+    @test parent(f) == c
+    @test factor(f) == 2
+    for (dim,attribute) in ((_dim,_attribute) for _dim in (a,b,c,d,e,f) for _attribute in attribtes)
+        @eval begin
+            @test $attribute($dim) == $dim.o.$attribute
+        end
+    end
+end
+
 @testset "Sparse Inject" begin
     dt = 0.01
     nt = 101
@@ -337,6 +355,8 @@ end
     smap[spacing(t)] = dt
 
     src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=nt)
+    @test typeof(dimensions(src)[1]) == Dimension
+
     src_coords = coordinates(src)
     src_coords .= [0.5; 0.5]
     src_data = data(src)
@@ -410,7 +430,7 @@ end
 
 @testset "Retrieve time_dim" begin
     g = Grid(shape=(5,5))
-    @test time_dim(g) == g.o.time_dim
+    @test time_dim(g) == dimension(g.o.time_dim)
     t = TimeDimension(name="t")
     f = TimeFunction(name="f",time_dim=t,grid=g)
     @test time_dim(f) == t
