@@ -192,12 +192,15 @@ end
 #
 # Dimension
 #
-abstract type Dimension end
+abstract type AbstractDimension end
+
+# here is Devito's dimension type hierarchy:
+# https://github.com/devitocodes/devito/blob/02bbefb7e380d299a2508fef2923c1a4fbd5c59d/devito/types/dimension.py
 
 # Python <-> Julia quick-and-dirty type/struct for dimensions 
-for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension), (:devito,:ConditionalDimension))
+for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension), (:devito,:ConditionalDimension),(:devito,:Dimension),(:devito,:DefaultDimension))
     @eval begin
-        struct $F <: Dimension
+        struct $F <: AbstractDimension
             o::PyObject
         end
         PyCall.PyObject(x::$F) = x.o
@@ -234,7 +237,7 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 ````
 """
 
-Base.:(==)(x::SpaceDimension,y::SpaceDimension) = x.o == y.o
+Base.:(==)(x::AbstractDimension,y::AbstractDimension) = x.o == y.o
 
 function Operator end
 """
@@ -273,7 +276,7 @@ op = Operator([Eq(g, 1), Eq(f, g)],name="Cond")
 
 factor(x::ConditionalDimension) = x.o.factor
 export factor
-Base.parent(x::ConditionalDimension) = x.o.parent
+Base.parent(x::Union{ConditionalDimension,SteppingDimension}) = x.o.parent
 
 #
 # Grid
@@ -571,7 +574,7 @@ backward(x::TimeFunction) = x.o.backward
 
 Returns the time dimension for the associated object.
 """
-time_dim(x::Union{Grid,TimeFunction}) = x.o.time_dim
+time_dim(x::Union{Grid,TimeFunction}) = dimension(x.o.time_dim)
 export time_dim
 
 """
@@ -712,13 +715,19 @@ data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
 coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o.coordinates."_data_allocated")
 coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 
-function Dimension(o)
-    if o.is_Space
-        return SpaceDimension(o)
+function dimension(o::PyObject)
+    if o.is_Conditional
+        return ConditionalDimension(o)
     elseif o.is_Stepping
         return SteppingDimension(o)
+    elseif o.is_Space
+        return SpaceDimension(o)
     elseif o.is_Time
         return TimeDimension(o)
+    elseif o.is_Default
+        return DefaultDimension(o)
+    elseif o.is_Dimension
+        return Dimension(o)
     else
         error("not implemented")
     end
@@ -730,7 +739,7 @@ end
 Returns a tuple with the dimensions associated with the Devito grid.
 """
 function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N},SubDomain{N}}) where {T,N}
-    ntuple(i->Dimension(x.o.dimensions[N-i+1]), N)
+    ntuple(i->dimension(x.o.dimensions[N-i+1]), N)
 end
 
 """
@@ -873,27 +882,34 @@ for F in ( :+, :-, :*, :/, :^)
         Base.$F(x::DiscreteFunction, y::PyObject) = $F(x.o,y)
         Base.$F(x::PyObject, y::DiscreteFunction) = $F(x,y.o)
         Base.$F(x::DiscreteFunction, y::Real) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Dimension, y::Real) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Real, y::Dimension) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Dimension, y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::DiscreteFunction, y::Dimension) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Dimension, y::PyObject) = $F(PyObject(x),y)
-        Base.$F(x::PyObject, y::Dimension) = $F(x,PyObject(y))
+        Base.$F(x::AbstractDimension, y::Real) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Real, y::AbstractDimension) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::AbstractDimension, y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::DiscreteFunction, y::AbstractDimension) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::AbstractDimension, y::PyObject) = $F(PyObject(x),y)
+        Base.$F(x::PyObject, y::AbstractDimension) = $F(x,PyObject(y))
     end
 end
 
+# metaprogramming to access Devito dimension boolean attributes
+for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Derived, :is_NonlinearDerived, :is_Sub, :is_Conditional, :is_Stepping, :is_Modulo, :is_Incr)
+    @eval begin
+        $F(x::AbstractDimension) = x.o.$F::Bool
+        export $F
+    end
+end
 # metaprogramming for devito conditionals
 for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Lt))
     @eval begin
-        $F(x::Union{Real,DiscreteFunction,PyObject,Dimension},y::Union{Real,DiscreteFunction,PyObject,Dimension}) = $M.$F(PyObject(x),PyObject(y))
+        $F(x::Union{Real,DiscreteFunction,PyObject,AbstractDimension},y::Union{Real,DiscreteFunction,PyObject,AbstractDimension}) = $M.$F(PyObject(x),PyObject(y))
         export $F
     end
 end
 
 # metaprogramming for symbolic operations on Devito dimensions
-for F in (:symbolic_min, :symbolic_max, :spacing, :is_Derived, :symbolic_size)
+for F in (:symbolic_min, :symbolic_max, :spacing, :symbolic_size)
     @eval begin
-        $F(x::Dimension) = PyObject(x).$F
+        $F(x::AbstractDimension) = PyObject(x).$F
         export $F
     end
 end
@@ -1046,6 +1062,6 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(subdom(name,instructions))    
 end
 
-export DiscreteFunction, Grid, Function, SpaceDimension, SparseTimeFunction, SubDomain, SteppingDimension, TimeDimension, TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
+export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
 
 end
