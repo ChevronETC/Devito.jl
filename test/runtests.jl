@@ -264,6 +264,18 @@ end
     end  
 end
 
+@testset "Mod on Dimensions" begin
+    x = SpaceDimension(name="x")
+    grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
+    g = Devito.Function(name="g1", grid=grid)
+    eq = Eq(g[x],Mod(x,2))
+    op = Operator([eq],name="Mod")
+    apply(op)
+    for i in 1:5
+        @test data(g)[i] == (i-1)%2
+    end
+end
+
 @testset "Multiply and Divide" begin
     x = SpaceDimension(name="x")
     grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))

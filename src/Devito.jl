@@ -983,31 +983,38 @@ function Max end
 # functions defined on real numbers with equivalent in base
 for F in (:cos, :sin, :tan, :sinh, :cosh, :tanh, :exp, :floor)
     @eval begin
-        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
         export $F
     end
 end
 # functions defined on real numbers who are written differently in base
 for F in (:Abs,:ceiling)
     @eval begin
-        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
         export $F
     end
 end
 # functions defined on positive numbers with equivalent in base
 for F in (:sqrt,)
     @eval begin
-        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
         export $F
     end
 end
 # functions defined on positive numbers who are written differently in base
 for F in (:ln,)
     @eval begin
-        $F(x::Union{DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
         export $F
     end
 end
+
+""" 
+    Mod(x::AbstractDimension,y::Int)
+Perform Modular division on a dimension
+"""
+Mod(x::AbstractDimension,y::Int) = sympy.Mod(PyObject(x),PyObject(y))
+export Mod
 
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)
