@@ -705,16 +705,21 @@ function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     idxs = x.o._decomposition[2][rnk+1] .+ 1
     d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", idxs)
     MPI.Barrier(MPI.COMM_WORLD)
-    d
+    transpose(d)
 end
 
-data_with_halo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
-data(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = data_with_inhalo(x)
+function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
+    d = DevitoArray{T,N}(x.o."_data_allocated")
+    transpose(d)
+end
+
+data_with_halo(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
+data(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 # -->
 
-coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o.coordinates."_data_allocated")
+coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"),N:-1:1,localindices(x)[1])
 coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
-
+export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
     if o.is_Conditional
         return ConditionalDimension(o)
@@ -779,10 +784,10 @@ See: https://www.devitoproject.org/devito/sparsetimefunction.html#devito.types.S
 x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
 grid = Grid(
-    dimensions = (x,z),
-    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    dimensions = (z,x),
+    shape = (501,251), # assume z is first, x is second
     origin = (0.0,0.0),
-    extent = (1250.0,2500.0),
+    extent = (2500.0,1250.0),
     dtype = Float32)
 
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
@@ -791,8 +796,9 @@ time_range = 0.0f0:0.5f0:1000.0f0
 nz,nx,δz,δx = size(grid)...,spacing(grid)...
 rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
 rec_coords = coordinates(rec)
-rec_coords[1,:] .= δx*(0:nx-1)
-rec_coords[2,:] .= 10.0
+rec_coords[1,:] .= 10.0
+rec_coords[2,:] .= δx*(0:nx-1)
+
 
 rec_term = interpolate(rec, expr=p)
 ```
