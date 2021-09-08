@@ -458,6 +458,24 @@ end
     @test time_dim(f) == dimensions(f)[end]
 end
 
+@testset "Time Derivatives" begin
+    grd = Grid(shape=(5,5))
+    t = TimeDimension(name="t")
+    f1 = TimeFunction(name="f1",grid=grd,time_order=2,time_dim=t)
+    f2 = TimeFunction(name="f2",grid=grd,time_order=2,time_dim=t)
+    f3 = TimeFunction(name="f3",grid=grd,time_order=2,time_dim=t)
+    data(f1)[:,:,1] .= 0
+    data(f1)[:,:,2] .= 1
+    data(f1)[:,:,3] .= 4
+    smap = spacing_map(grd)
+    t_spacing = 0.5
+    smap[spacing(t)] = t_spacing
+    op = Operator([Eq(f2,dt(f1)),Eq(f3,dt2(f1))],name="DerivTest",subs=smap)
+    apply(op)
+    @test data(f2)[3,3,2] == (data(f1)[3,3,3] - data(f1)[3,3,2])/t_spacing
+    @test data(f3)[3,3,2] == (data(f1)[3,3,3] - 2*data(f1)[3,3,2] + data(f1)[3,3,1] )/t_spacing^2
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)

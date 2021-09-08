@@ -860,25 +860,88 @@ for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl)
     end
 end
 """
-    dx(f::DiscreteFunction)
+    dx(f::DiscreteFunction, args...; kwargs...)
 
 Returns the symbol for the first derivative with respect to x.
 """
 function dx end
 
 """
-    dy(f::DiscreteFunction)
+    dy(f::DiscreteFunction, args...; kwargs...)
 
 Returns the symbol for the first derivative with respect to y.
 """
 function dy end
 
 """
-    dz(f::DiscreteFunction)
+    dz(f::DiscreteFunction, args...; kwargs...)
 
 Returns the symbol for the first derivative with respect to z.
 """
+
 function dz end
+
+"""
+    dxl(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the first backward one-sided derivative with respect to x.
+"""
+function dxl end
+
+"""
+    dyl(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the first backward one-sided derivative with respect to y.
+"""
+function dyl end
+
+"""
+    dzl(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the first backward one-sided derivative with respect to z.
+"""
+function dzl end
+
+"""
+    dxr(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the first forward one-sided derivative with respect to x.
+"""
+function dxr end
+
+"""
+    dyr(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the first forward one-sided derivative with respect to y.
+"""
+function dyr end
+
+"""
+    dzr(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the first forward one-sided derivative with respect to z.
+"""
+function dz end
+
+# metaprograming for various derivatives
+for F in (:dt,:dt2)
+    @eval begin
+        $F(x::Union{TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).$F, PyObject, args...; kwargs...)
+        export $F
+    end
+end
+
+"""
+    dt(f::TimeFunction, args...; kwargs...)
+Returns the symbol for the first time derivative of a time function
+"""
+function dt end
+
+"""
+    dt2(f::TimeFunction, args...; kwargs...)
+Returns the symbol for the second time derivative of a time function
+"""
+function dt2 end
 
 # metaprogramming for basic operations
 for F in ( :+, :-, :*, :/, :^)
