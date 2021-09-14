@@ -427,26 +427,44 @@ end
     x = Devito.SpaceDimension(name="x")
     y = Devito.SpaceDimension(name="y")
     grd = Grid(shape=(5,5),dimensions=(y,x))
-    f = Devito.Function(name="f", grid=grd)
+    f1 = Devito.Function(name="f1", grid=grd)
+    f2 = Devito.Function(name="f2", grid=grd)
+    f3 = Devito.Function(name="f3", grid=grd)
     g = Devito.Function(name="g", grid=grd)
-    data(f) .= 1.0
+    data(f1) .= 1.0
+    data(f2) .= 1.0
     data(g)[:,3:end] .= 1.0
-    ci = ConditionalDimension(name="ci", parent=y, condition=And(Ne(g, 0), Lt(y, 2)))
+    ci1 = ConditionalDimension(name="ci1", parent=y, condition=And(Ne(g, 0), Lt(y, 2)))
+    ci2 = ConditionalDimension(name="ci2", parent=y, condition=And(Ne(g, 0), Le(y, 2)))
     # Note, the order of dimensions feeding into parent seems to matter.  
     # If the grid dimensions were (x,y) 
     # the above conditional dimension would cause a compilation error on the operator at runtime.
-    eq = Eq(f, f + g, implicit_dims=ci)
-    op = Operator([eq],name="Implicit")
+    eq1 = Eq(f1, f1 + g, implicit_dims=ci1)
+    eq2 = Eq(f2, f2 + g, implicit_dims=ci2)
+    eq3 = Eq(f3, f2-f1)
+    op = Operator([eq1,eq2,eq3],name="Implicit")
     apply(op)
-    @test data(f)[1,1] == 1.0
-    @test data(f)[1,3] == 2.0
-    @test data(f)[1,5] == 2.0
-    @test data(f)[2,2] == 1.0
-    @test data(f)[2,3] == 2.0
-    @test data(f)[3,3] == 1.0
-    @test data(f)[5,1] == 1.0
-    @test data(f)[5,3] == 1.0
-    @test data(f)[5,5] == 1.0
+    @test data(f1)[1,1] == 1.0
+    @test data(f1)[1,3] == 2.0
+    @test data(f1)[1,5] == 2.0
+    @test data(f1)[2,2] == 1.0
+    @test data(f1)[2,3] == 2.0
+    @test data(f1)[3,3] == 1.0
+    @test data(f1)[5,1] == 1.0
+    @test data(f1)[5,3] == 1.0
+    @test data(f1)[5,5] == 1.0
+    @test data(f3)[1,1] == 0.0
+    @test data(f3)[3,1] == 0.0
+    @test data(f3)[3,2] == 0.0
+    @test data(f3)[3,3] == 1.0
+    @test data(f3)[3,4] == 1.0
+    @test data(f3)[3,5] == 1.0
+    @test data(f3)[2,3] == 0.0
+    @test data(f3)[2,4] == 0.0
+    @test data(f3)[2,5] == 0.0
+    @test data(f3)[4,3] == 0.0
+    @test data(f3)[4,4] == 0.0
+    @test data(f3)[4,5] == 0.0
 end
 
 @testset "Retrieve time_dim" begin

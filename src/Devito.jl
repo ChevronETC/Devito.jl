@@ -968,7 +968,7 @@ for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Deriv
     end
 end
 # metaprogramming for devito conditionals
-for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Lt))
+for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Ge),(:devito,:Lt),(:devito,:Le))
     @eval begin
         $F(x::Union{Real,DiscreteFunction,PyObject,AbstractDimension},y::Union{Real,DiscreteFunction,PyObject,AbstractDimension}) = $M.$F(PyObject(x),PyObject(y))
         export $F
