@@ -494,6 +494,17 @@ end
     @test data(f3)[3,3,2] == (data(f1)[3,3,3] - 2*data(f1)[3,3,2] + data(f1)[3,3,1] )/t_spacing^2
 end
 
+@testset "ccode" begin
+    grd = Grid(shape=(5,5))
+    f = Devito.Function(grid=grd, name="f")
+    op = Operator(Eq(f,1),name="ccode")
+    @test ccode(op) === nothing
+    ccode(op; filename="/tmp/ccode.cc")
+    code = open(f->read(f, String),"/tmp/ccode.cc")
+    @test typeof(code) == String
+    @test code != ""
+end
+
 using Distributed, MPIClusterManagers
 
 manager = MPIManager(;np=2)

@@ -806,7 +806,7 @@ rec_term = interpolate(rec, expr=p)
 interpolate(x::SparseTimeFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
 
 """
-    apply(operator::Operator; kwargs...)
+apply(    operator::Operator; kwargs...)
 
 Execute the Devito operator, `Operator`.
 
@@ -1094,6 +1094,25 @@ function Base.getindex(x::Union{TimeFunction,Function},args...)
    return py"indexobj"(x,reverse(args)...)
 end
 
+"""
+    ```
+    ccode(x::Operator; filename="")
+    ```
+Print the ccode associated with a devito operator.  
+If filename is provided, writes ccode to disk using that filename
+"""
+function ccode(x::Operator; filename="")
+    py"""
+    def ccode(x, filename):
+        if filename is "":
+            return print(x)
+        else:
+            with open(filename, 'w') as f:
+                print(x,file=f)
+    """
+   py"ccode"(x.o,filename)
+   return nothing
+end
 
 """
     SubDomain(name, instructions)
@@ -1138,6 +1157,6 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(subdom(name,instructions))    
 end
 
-export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
+export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, size_with_halo, spacing, spacing_map, step, subdomains
 
 end
