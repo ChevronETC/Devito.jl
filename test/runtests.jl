@@ -1,4 +1,4 @@
-using Devito, Random, PyCall, Strided, Test
+using Devito, LinearAlgebra, Random, PyCall, Strided, Test
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
@@ -510,7 +510,7 @@ using Distributed, MPIClusterManagers
 manager = MPIManager(;np=2)
 addprocs(manager)
 
-@everywhere using Devito, MPI, Random, Strided, Test
+@everywhere using Devito, LinearAlgebra, MPI, Random, Strided, Test
 
 @mpi_do manager begin
     configuration!("log-level", "DEBUG")
@@ -678,6 +678,18 @@ addprocs(manager)
         _stf_coords = convert(Array,coordinates(stf))
         if MPI.Comm_rank(MPI.COMM_WORLD) == 0
             @test _stf_coords ≈ x
+        end
+    end
+
+    @testset "DevitoMPISparseArray, copy! and convert, transposed" begin
+        grid = Grid(shape=(11,10), dtype=Float32)
+        stf = SparseTimeFunction(name="stf", grid=grid, npoint=1, nt=100)
+        x = rand(Float32,100,1)
+        copy!(data(stf), x)
+        @test isa(data(stf), Transpose)
+        _x = convert(Array, data(stf))
+        if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+            @test x ≈ _x
         end
     end
 end
