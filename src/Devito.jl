@@ -1052,8 +1052,7 @@ function Max end
 # functions defined on real numbers with equivalent in base
 for F in (:cos, :sin, :tan, :sinh, :cosh, :tanh, :exp, :floor)
     @eval begin
-        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
-        export $F
+        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
     end
 end
 # functions defined on real numbers who are written differently in base
@@ -1066,8 +1065,7 @@ end
 # functions defined on positive numbers with equivalent in base
 for F in (:sqrt,)
     @eval begin
-        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
-        export $F
+        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
     end
 end
 # functions defined on positive numbers who are written differently in base
