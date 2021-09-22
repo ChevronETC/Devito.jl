@@ -1,6 +1,6 @@
 module Devito
 
-using MPI, PyCall, Strided
+using LinearAlgebra, MPI, PyCall, Strided
 
 const numpy = PyNULL()
 const sympy = PyNULL()
@@ -174,20 +174,22 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseArray{T,N}) where {T,N}
     MPI.Reduce!(y, +, 0, MPI.COMM_WORLD)
     y
 end
+Base.convert(::Type{Array}, x::Transpose{T, <:DevitoMPISparseArray{T,2}}) where {T} = (convert(Array, parent(x)))'
 
-function Base.copy!(dst::DevitoMPISparseArray, src::Array)
+function Base.copy!(dst::DevitoMPISparseArray, src::Array, transposeflag = false)
     MPI.Initialized() || MPI.Init()
     MPI.Bcast!(src, 0, MPI.COMM_WORLD)
-    n = size(src, 2)
+    n = transposeflag ? size(src, 1) : size(src, 2)
     dst_parent = parent(dst)
     for (i,idx) in enumerate(dst.local_indices)
         for j = 1:n
-            dst_parent[i,j] = src[idx,j]
+            dst_parent[i,j] = transposeflag ? src[j,idx] : src[idx,j]
         end
     end
     MPI.Barrier(MPI.COMM_WORLD)
     dst
 end
+Base.copy!(dst::Transpose{T, <:DevitoMPISparseArray{T,2}}, src::Matrix) where {T} = copy!(parent(dst), src, true)
 
 #
 # Dimension
