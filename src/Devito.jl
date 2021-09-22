@@ -484,6 +484,11 @@ Return the grid corresponding to the discrete function `f`.
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
 grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 
+function grid(x::SparseTimeFunction{T}) where {T}
+    N = length(x.o.grid.shape)
+    Grid{T,N}(x.o.grid)
+end
+
 """
     halo(x::DiscreteFunction)
 
@@ -719,7 +724,10 @@ data_with_halo(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 data(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 # -->
 
-coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"),N:-1:1,localindices(x)[1])
+function coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
+    n = ndims(grid(x))
+    view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"), n:-1:1, :)
+end
 coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
