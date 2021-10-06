@@ -12,12 +12,13 @@ configuration!("mpi", false)
     @test c["log-level"] == "DEBUG"
 end
 
-@testset "Grid, n=$n, T=$T" for (n,ex) in ( ( (4,5),(40.0,50.0) ), ( (4,5,6),(40.0,50.0,60.0) ) ), T in (Float32, Float64)
-    grid = Grid(shape = n, extent=ex, dtype = T)
+@testset "Grid, n=$n, T=$T" for (n,ex,ori) in ( ( (4,5),(40.0,50.0), (10.0,-10.0) ), ( (4,5,6),(40.0,50.0,60.0),(10.0,0.0,-10.0) ) ), T in (Float32, Float64)
+    grid = Grid(shape = n, extent=ex, origin=ori, dtype = T)
     @test size(grid) == n
     @test ndims(grid) == length(n)
     @test eltype(grid) == T
     @test extent(grid) == ex
+    @test origin(grid) == ori
 end
 
 @testset "Function, data_with_halo n=$n" for n in ( (4,5), (4,5,6) )
