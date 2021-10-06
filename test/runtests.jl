@@ -12,26 +12,19 @@ configuration!("mpi", false)
     @test c["log-level"] == "DEBUG"
 end
 
-@testset "Grid" begin
-    grid = Grid(shape = (4,5), extent=(40.0,50.0), dtype = Float32)
-    @test size(grid) == (4,5)
-    @test ndims(grid) == 2
-    @test eltype(grid) == Float32
-    @test extent(grid) == (40.0,50.0)
+@testset "Grid, n=$n, T=$T" for (n,ex) in ( ( (4,5),(40.0,50.0) ), ( (4,5,6),(40.0,50.0,60.0) ) ), T in (Float32, Float64)
+    grid = Grid(shape = n, extent=ex, dtype = T)
+    @test size(grid) == n
+    @test ndims(grid) == length(n)
+    @test eltype(grid) == T
+    @test extent(grid) == ex
 end
 
-@testset "Grid, Float64" begin
-    grid = Grid(shape = (4,5), extent=(40.0,50.0), dtype = Float64)
-    @test eltype(grid) == Float64
-    @test extent(grid) == (40.0,50.0)
-    @test size(grid) == (4,5)
-    @test ndims(grid) == 2
-end
-
-@testset "Function, data_with_halo" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "Function, data_with_halo n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     b_data = data_with_halo(b)
+    @test ndims(b_data) == length(n)
 
     rand!(b_data)
 
@@ -39,30 +32,31 @@ end
     @test b_data ≈ b_data_test
 end
 
-@testset "Function, grid" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "Function, grid, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     @test grid == Devito.grid(b)
+    @test ndims(grid) == length(n)
 end
 
-@testset "Function, halo" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "Function, halo, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     so = 2
     b = Devito.Function(name="b", grid=grid, space_order=so)
-    @test ((so,so),(so,so)) == halo(b)
+    @test ntuple(_->(so,so), length(n)) == halo(b)
 end
 
-@testset "Function, ndims" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
-    so = 2
-    b = Devito.Function(name="b", grid=grid, space_order=so)
-    @test 2 == ndims(b)
+@testset "Function, ndims, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    @test length(n) == ndims(b)
 end
 
-@testset "Function, data" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "Function, data, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     b_data = data(b)
+    @test ndims(b_data) == length(n)
 
     copy!(b_data, rand(eltype(grid), size(grid)))
 
@@ -70,11 +64,12 @@ end
     @test b_data ≈ b_data_test
 end
 
-@testset "TimeFunction, data with halo" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "TimeFunction, data with halo, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
     p_data = data_with_halo(p)
+    @test ndims(p_data) == length(n)+1
 
     copy!(p_data, rand(eltype(grid), size_with_halo(p)))
 
@@ -82,11 +77,12 @@ end
     @test p_data ≈ p_data_test
 end
 
-@testset "TimeFunction, data" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "TimeFunction, data, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
     p_data = data(p)
+    @test ndims(p_data) == length(n)+1
 
     copy!(p_data, rand(eltype(grid), size(p)))
 
@@ -94,33 +90,38 @@ end
     @test p_data ≈ p_data_test
 end
 
-@testset "TimeFunction, grid" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "TimeFunction, grid, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
     @test grid == Devito.grid(p)
+    @test ndims(grid) == length(n)
 end
 
-@testset "TimeFunction, halo" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "TimeFunction, halo, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     so = 2
     p = Devito.TimeFunction(name="p", grid=grid, time_order=2, space_order=so)
-    @test ((so,so),(so,so),(0,0)) == halo(p)
+    if length(n) == 2
+        @test ((so,so),(so,so),(0,0)) == halo(p)
+    else
+        @test ((so,so),(so,so),(so,so),(0,0)) == halo(p)
+    end
 end
 
-@testset "TimeFunction, ndims" begin
-    grid = Grid(shape = (4,5), dtype = Float32)
+@testset "TimeFunction, ndims, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
     so = 2
     p = Devito.TimeFunction(name="p", grid=grid, time_order=2, space_order=so)
-    @test 3 == ndims(p)
+    @test length(n)+1 == ndims(p)
 end
 
-@testset "Sparse time function coordinates, 2D grid" begin
-    grid = Grid(shape=(10,11), dtype=Float32)
+@testset "Sparse time function coordinates, n=$n" for n in ( (10,11), (10,11,12) )
+    grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
     stf_coords = coordinates(stf)
     @test isa(stf_coords, Devito.DevitoArray)
-    @test size(stf_coords) == (2,10)
-    x = rand(2,10)
+    @test size(stf_coords) == (length(n),10)
+    x = rand(length(n),10)
     stf_coords .= x
     _stf_coords = coordinates(stf)
     @test _stf_coords ≈ x
@@ -529,59 +530,82 @@ addprocs(manager)
     configuration!("language", "openmp")
     configuration!("mpi", true)
 
-    @testset "DevitoMPIArray, fill!, with halo" begin
-        grid = Grid(shape=(5,4), dtype=Float32)
+    @testset "DevitoMPIArray, fill!, with halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
-        @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
-        @test size(b_data) == (9,8)
+        @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
+        if length(n) == 2
+            @test size(b_data) == (15,14)
+        else
+            @test size(b_data) == (16,15,14)
+        end
         b_data .= 3.14f0
 
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
-                @test parent(b_data) ≈ 3.14*ones(Float32, 9, 4)
+                if length(n) == 2
+                    @test parent(b_data) ≈ 3.14*ones(Float32, 15, 7)
+                else
+                    @test parent(b_data) ≈ 3.14*ones(Float32, 16, 15, 7)
+                end
                 @test isa(parent(b_data), StridedView)
             end
             MPI.Barrier(MPI.COMM_WORLD)
         end
     end
 
-    @testset "DevitoMPIArray, fill!, no halo" begin
-        grid = Grid(shape=(5,4), dtype=Float32)
+    @testset "DevitoMPIArray, fill!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
-        @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
-        @test size(b_data) == (5,4)
+        @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
+        @test size(b_data) == n
         b_data .= 3.14f0
 
         b_data_test = data(b)
 
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
-                @test parent(b_data_test) ≈ 3.14*ones(Float32, 5, 2)
+                if length(n) == 2
+                    @test parent(b_data_test) ≈ 3.14*ones(Float32, 11, 5)
+                else
+                    @test parent(b_data_test) ≈ 3.14*ones(Float32, 12, 11, 5)
+                end
                 @test isa(parent(b_data_test), StridedView)
             end
             MPI.Barrier(MPI.COMM_WORLD)
         end
     end
 
-    @testset "DevitoMPIArray, copy!, halo" begin
-        grid = Grid(shape=(5,4), dtype=Float32)
+    @testset "DevitoMPIArray, copy!, halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
-        @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
-        @test size(b_data) == (9,8)
+        @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
 
-        b_data_test = rand(Float32,9,8)
+        _n = length(n) == 2 ? (15,14) : (16,15,14)
+
+        @test size(b_data) == _n
+
+        b_data_test = rand(Float32,_n)
         copy!(b_data, b_data_test)
 
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
                 if rnk == 0
-                    @test parent(b_data) ≈ b_data_test[:,1:4]
+                    if length(n) == 2
+                        @test parent(b_data) ≈ b_data_test[:,1:7]
+                    else
+                        @test parent(b_data) ≈ b_data_test[:,:,1:7]
+                    end
                 end
                 if rnk == 1
-                    @test parent(b_data) ≈ b_data_test[:,5:8]
+                    if length(n) == 2
+                        @test parent(b_data) ≈ b_data_test[:,8:14]
+                    else
+                        @test parent(b_data) ≈ b_data_test[:,:,8:14]
+                    end
                 end
                 @test isa(parent(b_data), StridedView)
             end
@@ -589,25 +613,33 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, copy!, no halo" begin
-        grid = Grid(shape=(5,4), dtype=Float32)
+    @testset "DevitoMPIArray, copy!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
-        @test isa(b_data, Devito.DevitoMPIArray{Float32,2})
-        @test size(b_data) == (5,4)
+        @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
+        @test size(b_data) == n
 
-        b_data_test = reshape([1:20;], (5,4))
+        b_data_test = reshape([1:prod(n);], n)
         copy!(b_data, b_data_test)
         _b_data = data(b)
 
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
                 if rnk == 0
-                    @test parent(_b_data) ≈ b_data_test[:,1:2]
+                    if length(n) == 2
+                        @test parent(_b_data) ≈ b_data_test[:,1:5]
+                    else
+                        @test parent(_b_data) ≈ b_data_test[:,:,1:5]
+                    end
                     @test isa(parent(_b_data), StridedView)
                 end
                 if rnk == 1
-                    @test parent(_b_data) ≈ b_data_test[:,3:4]
+                    if length(n) == 2
+                        @test parent(_b_data) ≈ b_data_test[:,6:10]
+                    else
+                        @test parent(_b_data) ≈ b_data_test[:,:,6:10]
+                    end
                     @test isa(parent(_b_data), StridedView)
                 end
             end
@@ -615,12 +647,14 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, convert to Array, halo" begin
-        grid = Grid(shape=(5,4), dtype=Float32)
+    @testset "DevitoMPIArray, convert to Array, halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
 
-        b_data_test = reshape([1:72;], (9,8))
+        _n = length(n) == 2 ? (15,14) : (16,15,14)
+
+        b_data_test = reshape([1:prod(_n);], _n)
         copy!(b_data, b_data_test)
 
         _b_data_test = convert(Array, b_data)
@@ -630,12 +664,12 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, convert to Array, no halo" begin
-        grid = Grid(shape=(5,4), dtype=Float32)
+    @testset "DevitoMPIArray, convert to Array, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
 
-        b_data_test = reshape([1:20;], (5,4))
+        b_data_test = reshape([1:prod(n);], n)
         copy!(b_data, b_data_test)
 
         _b_data_test = convert(Array, b_data)
@@ -645,15 +679,17 @@ addprocs(manager)
         end
     end
 
-    @testset "TimeFunction, data with halo" begin
-        grid = Grid(shape = (5,4), dtype = Float32)
+    @testset "TimeFunction, data with halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape = n, dtype = Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
         p_data = data_with_halo(p)
 
+        _n = length(n) == 2 ? (15,14,3) : (16,15,14,3)
+
         @show size(p_data)
         @show p_data.local_indices
-        p_data_test = reshape([1:216;], (9,8,3))
+        p_data_test = reshape([1:prod(_n);], _n)
         copy!(p_data, p_data_test)
 
         _p_data_test = convert(Array, p_data)
@@ -663,13 +699,15 @@ addprocs(manager)
         end
     end
 
-    @testset "TimeFunction, data with no halo" begin
-        grid = Grid(shape = (5,4), dtype = Float32)
+    @testset "TimeFunction, data with no halo, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape = n, dtype = Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
         p_data = data(p)
 
-        p_data_test = reshape([1:60;], (5,4,3))
+        _n = length(n) == 2 ? (11,10,3) : (12,11,10,3)
+
+        p_data_test = reshape([1:prod(_n);], _n)
         copy!(p_data, p_data_test)
 
         _p_data_test = convert(Array, p_data)
@@ -679,13 +717,13 @@ addprocs(manager)
         end
     end
 
-    @testset "Sparse time function coordinates" begin
-        grid = Grid(shape=(11,10), dtype=Float32)
+    @testset "Sparse time function coordinates, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
         stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
         stf_coords = coordinates(stf)
         @test isa(stf_coords, Devito.DevitoMPIArray)
-        @test size(stf_coords) == (2,10)
-        x = rand(2,10)
+        @test size(stf_coords) == (length(n),10)
+        x = rand(length(n),10)
         copy!(stf_coords, x)
         _stf_coords = convert(Array,coordinates(stf))
         if MPI.Comm_rank(MPI.COMM_WORLD) == 0
