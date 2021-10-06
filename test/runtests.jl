@@ -114,13 +114,25 @@ end
     @test 3 == ndims(p)
 end
 
-@testset "Sparse time function coordinates" begin
+@testset "Sparse time function coordinates, 2D grid" begin
     grid = Grid(shape=(10,11), dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
     stf_coords = coordinates(stf)
     @test isa(stf_coords, Devito.DevitoArray)
     @test size(stf_coords) == (2,10)
     x = rand(2,10)
+    stf_coords .= x
+    _stf_coords = coordinates(stf)
+    @test _stf_coords ≈ x
+end
+
+@testset "Sparse time function coordinates, 3D grid" begin
+    grid = Grid(shape=(10,11,12), dtype=Float32)
+    stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
+    stf_coords = coordinates(stf)
+    @test isa(stf_coords, Devito.DevitoArray)
+    @test size(stf_coords) == (3,10)
+    x = rand(3,10)
     stf_coords .= x
     _stf_coords = coordinates(stf)
     @test _stf_coords ≈ x
