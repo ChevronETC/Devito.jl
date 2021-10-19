@@ -6,9 +6,9 @@ configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
 configuration!("mpi", false)
 
-function ricker!(src, f, _t, t₀)
-    t = reshape(_t, size(src))
-    src .= (1.0 .- 2.0 * (pi * f * (t .- t₀)).^2) .* exp.(-(pi * f * (t .- t₀)).^2)
+function ricker(f, _t, t₀)
+    t = reshape(_t, length(_t), 1)
+    (1.0 .- 2.0 * (pi * f * (t .- t₀)).^2) .* exp.(-(pi * f * (t .- t₀)).^2)
 end
 
 grid = Grid(
@@ -38,7 +38,8 @@ z,y,x,t = dimensions(p)
 
 src = SparseTimeFunction(name="src", grid=grid, f0=0.01f0, npoint=1, nt=length(time_range), coordinates=[605.0 605.0 10.0])
 src_data = data(src)
-ricker!(src_data, 0.01, collect(time_range), 125)
+w = ricker(0.01, collect(time_range), 125)
+copy!(src_data, w)
 src_term = inject(src; field=forward(p), expr=src*spacing(t)^2*v^2/b)
 
 nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...

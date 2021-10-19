@@ -9,27 +9,27 @@ addprocs(manager)
 @everywhere using Revise
 @everywhere using Devito
 @everywhere using MPI
-
 @everywhere configuration!("log-level", "DEBUG")
 @everywhere configuration!("language", "openmp")
 @everywhere configuration!("mpi", true)
 
 @everywhere function ricker(f, _t, t₀)
-    t = reshape(_t, 1, length(_t))
+    t = reshape(_t, length(_t), 1)
     (1.0 .- 2.0 * (pi * f * (t .- t₀)).^2) .* exp.(-(pi * f * (t .- t₀)).^2)
 end
+
 
 @everywhere function model()
     write(stdout, "inside model()\n")
     grid = Grid(
-        shape = (301,601,601),
+        shape = (121,121,121),
         origin = (0.0,0.0,0.0),
-        extent = (6000.0,12000.0,12000.0),
+        extent = (1210.0,1210.0,1210.0),
         dtype = Float32)
 
     b = Devito.Function(name="b", grid=grid, space_order=8)
     v = Devito.Function(name="vel", grid=grid, space_order=8)
-    q = Devito.Function(name="wOverQ", grid=grid, space_order=8)
+    q = Devito.Function(name="woverq", grid=grid, space_order=8)
 
     b_data = data(b)
     v_data = data(v)
@@ -39,12 +39,12 @@ end
     v_data .= 1.5
     q_data .= 1/1000
 
-    time_range = 0.0f0:1.0f0:250.0f0
+    time_range = 0.0f0:1.0f0:750.0f0
 
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
     z,y,x,t = dimensions(p)
     
-    src = SparseTimeFunction(name="src", grid=grid, f0=0.01f0, npoint=1, nt=length(time_range), coordinates=[6500.0 6500.0 10.0])
+    src = SparseTimeFunction(name="src", grid=grid, f0=0.01f0, npoint=1, nt=length(time_range), coordinates=[605.0 605.0 10.0])
     src_data = data(src)
     w = ricker(0.01, collect(time_range), 125)
     copy!(src_data, w)
@@ -53,9 +53,9 @@ end
     nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...
     rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
     rec_coords = coordinates(rec)
-    _rec_coords = zeros(Float32, length(time_range), nx)
+    _rec_coords = zeros(Float32, length(dimensions(p))-1, nx)
     _rec_coords[1,:] .= δx*(0:nx-1)
-    _rec_coords[2,:] .= 6500
+    _rec_coords[2,:] .= 605
     _rec_coords[3,:] .= 20
     copy!(rec_coords, _rec_coords)
     rec_term = interpolate(rec, expr=p)
@@ -95,8 +95,6 @@ end
 
     __d = convert(Array, _d)
 
-    @show size(__d)
-
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         write("d.bin", __d)
     end
@@ -107,7 +105,7 @@ end
 
 @mpi_do manager model()
 
-d = read!("d.bin", Array{Float32}(undef,601,251))
+d = read!("d.bin", Array{Float32}(undef,751,121))
 
 using PyPlot
 figure(); imshow(d); display(gcf())

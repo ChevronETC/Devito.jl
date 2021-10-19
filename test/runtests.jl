@@ -743,6 +743,16 @@ addprocs(manager)
             @test x ≈ _x
         end
     end
+
+    @testset "DevitoMPISparseArray copy! axes check, n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
+        stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
+        stf_data = data(stf)
+        @test size(stf_data) == (100,10)
+        x = rand(10,100)
+        @test_throws ArgumentError copy!(stf_data, x)
+    end
+        
 end
 
 rmprocs(workers())
