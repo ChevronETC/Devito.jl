@@ -107,7 +107,7 @@ function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
     y
 end
 
-function Base.copy!(dst::DevitoMPIArray, src::AbstractArray)
+function Base.copyto!(dst::DevitoMPIArray, src::AbstractArray)
     MPI.Initialized() || MPI.Init()
     MPI.Bcast!(src, 0, MPI.COMM_WORLD)
     parent(dst) .= src[localindices(dst)...]
@@ -176,7 +176,7 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseArray{T,N}) where {T,N}
 end
 Base.convert(::Type{Array}, x::Transpose{T, <:DevitoMPISparseArray{T,2}}) where {T} = (convert(Array, parent(x)))'
 
-function Base.copy!(dst::DevitoMPISparseArray, src::Array, transposeflag = false)
+function Base.copyto!(dst::DevitoMPISparseArray, src::Array, transposeflag = false)
     MPI.Initialized() || MPI.Init()
     MPI.Bcast!(src, 0, MPI.COMM_WORLD)
     n = transposeflag ? size(src, 1) : size(src, 2)
@@ -189,7 +189,7 @@ function Base.copy!(dst::DevitoMPISparseArray, src::Array, transposeflag = false
     MPI.Barrier(MPI.COMM_WORLD)
     dst
 end
-Base.copy!(dst::Transpose{T, <:DevitoMPISparseArray{T,2}}, src::Matrix) where {T} = copy!(parent(dst), src, true)
+Base.copyto!(dst::Transpose{T, <:DevitoMPISparseArray{T,2}}, src::Matrix) where {T} = copyto!(parent(dst), src, true)
 
 #
 # Dimension

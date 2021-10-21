@@ -13,7 +13,7 @@ addprocs("cbox120", 1; group="tqff-devito7", mpi_ranks_per_worker=16)
 @everywhere configuration!("mpi", true)
 
 @everywhere function ricker(f, _t, t₀)
-    t = reshape(_t, 1, length(_t))
+    t = reshape(_t, length(_t), 1)
     (1.0 .- 2.0 * (pi * f * (t .- t₀)).^2) .* exp.(-(pi * f * (t .- t₀)).^2)
 end
 
