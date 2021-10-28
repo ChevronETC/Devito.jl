@@ -620,7 +620,6 @@ addprocs(manager)
         b_data = data(b)
         @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
         @test size(b_data) == n
-
         b_data_test = reshape([1:prod(n);], n)
         copy!(b_data, b_data_test)
         _b_data = data(b)
@@ -646,6 +645,26 @@ addprocs(manager)
             end
             MPI.Barrier(MPI.COMM_WORLD)
         end
+    end
+
+    @testset "Convert data from rank 0 to DevitoMPIArray then back n=$n" for n in ( (11,10), (12,11,10) )
+        grid = Grid(shape=n, dtype=Float32)
+        b = Devito.Function(name="b", grid=grid, space_order=2)
+        b_data = data(b)
+
+        b_data_test = zeros(n)
+        if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+            b_data_test .= reshape([1:prod(n);], n)
+        end
+        copy!(b_data, b_data_test)
+        _b_data = data(b)
+
+        b_data_out = convert(Array,_b_data)
+        MPI.Barrier(MPI.COMM_WORLD)
+        if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+            @test b_data_out ≈ b_data_test
+        end
+        MPI.Barrier(MPI.COMM_WORLD)
     end
 
     @testset "DevitoMPIArray, convert to Array, halo, n=$n" for n in ( (11,10), (12,11,10) )
