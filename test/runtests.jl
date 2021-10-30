@@ -737,13 +737,13 @@ addprocs(manager)
         end
     end
 
-    @testset "Sparse time function coordinates, n=$n" for n in ( (11,10), (12,11,10) )
+    @testset "Sparse time function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
         grid = Grid(shape=n, dtype=Float32)
-        stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
+        stf = SparseTimeFunction(name="stf", npoint=npoint, nt=100, grid=grid)
         stf_coords = coordinates(stf)
         @test isa(stf_coords, Devito.DevitoMPIArray)
-        @test size(stf_coords) == (length(n),10)
-        x = rand(length(n),10)
+        @test size(stf_coords) == (length(n),npoint)
+        x = rand(length(n),npoint)
         copy!(stf_coords, x)
         _stf_coords = convert(Array,coordinates(stf))
         if MPI.Comm_rank(MPI.COMM_WORLD) == 0

@@ -37,7 +37,6 @@ end
 configuration(key) = PyDict(devito."configuration")[key]
 configuration() = PyDict(devito."configuration")
 
-
 _reverse(argument::Tuple) = reverse(argument)
 _reverse(argument) = argument
 
@@ -89,13 +88,13 @@ end
 
 function Base.size(x::DevitoMPIArray{T,N}) where {T,N}
     MPI.Initialized() || MPI.Init()
-    n = ntuple(i->x.local_indices[i][end], N)
+    n = ntuple(i->( localsize(x)[i] > 0 ? x.local_indices[i][end] : 0), N)
     MPI.Allreduce(n, max, MPI.COMM_WORLD)
 end
 
 Base.parent(x::DevitoMPIArray) = x.p
 
-localsize(x::DevitoMPIArray{T,N}) where {T,N} = ntuple(i->x.local_indices[i][end]-x.local_indices[i][1]+1, N)
+localsize(x::DevitoMPIArray{T,N}) where {T,N} = ntuple(i->size(x.local_indices[i])[1], N)
 
 localindices(x::DevitoMPIArray{T,N}) where {T,N} = x.local_indices
 
@@ -640,7 +639,12 @@ this also *collects* the data onto MPI rank 0.
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    ntuple(i->convert(Int,x.o.local_indices[N-i+1].start)+1:convert(Int,x.o.local_indices[N-i+1].stop), N)
+    localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
+    if localinds === nothing
+        return ntuple(i -> 0:-1, N)
+    else
+        return ntuple(i->convert(Int,localinds[N-i+1].start)+1:convert(Int,localinds[N-i+1].stop), N)
+    end
 end
 
 topology(x::DiscreteFunction) = reverse(x.o._distributor.topology)
@@ -733,7 +737,9 @@ function coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
     n = ndims(grid(x))
     view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"), n:-1:1, :)
 end
+#coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
+
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
     if o.is_Conditional
