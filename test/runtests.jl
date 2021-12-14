@@ -278,6 +278,20 @@ end
     end  
 end
 
+@testset "Unitary Minus" begin
+    grid = Grid(shape=(11,), dtype=Float32)
+    f = Devito.Function(name="f", grid=grid)
+    g = Devito.Function(name="g", grid=grid)
+    x = dimensions(f)[1]
+    data(f) .= 1.0
+    op = Operator([Eq(f,-f),Eq(g,-x)],name="unitaryminus")
+    apply(op)
+    for i in 1:length(data(f))
+        @test data(f)[i] == -1.0
+        @test data(g)[i] == 1-i
+    end
+end
+
 @testset "Mod on Dimensions" begin
     x = SpaceDimension(name="x")
     grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
