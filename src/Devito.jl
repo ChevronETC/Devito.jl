@@ -586,7 +586,14 @@ backward(x::TimeFunction) = x.o.backward
 Returns the time dimension for the associated object.
 """
 time_dim(x::Union{Grid,TimeFunction}) = dimension(x.o.time_dim)
-export time_dim
+
+"""
+    stepping_dim(x::Grid)
+
+Returns the stepping dimension for the associated grid.
+"""
+stepping_dim(x::Grid) = dimension(x.o.stepping_dim)
+export time_dim, stepping_dim
 
 """
     data(x::DiscreteFunction)

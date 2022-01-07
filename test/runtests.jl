@@ -381,6 +381,14 @@ end
     end
 end
 
+@testset "Devito stepping dimension" begin
+    grid = Grid(shape=(5,5),origin=(0.,0.),extent=(1.,1.))
+    f = TimeFunction(grid=grid,space_order=8,time_order=2,name="f")
+    @test stepping_dim(grid) == time_dim(f)
+    @test stepping_dim(grid) != time_dim(grid)
+    @test stepping_dim(grid).o.is_Stepping
+end
+
 @testset "Sparse Inject and Interpolate" begin
     dt = 0.01
     nt = 101
