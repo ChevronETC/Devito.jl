@@ -173,6 +173,8 @@ end
         @test is_Derived(griddim[1]) == false 
         # test that the complete second axis is same dimension
         @test griddim[2] == subdim[2]
+        # test the interior method
+        @test interior(grid) == subdomains(grid)["interior"]
 
     end
 end

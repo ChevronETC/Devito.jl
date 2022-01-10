@@ -363,6 +363,14 @@ function subdomains(x::Grid{T,N}) where {T,N}
     return dict
 end
 
+"""
+    interior(x::grid)
+returns the interior subdomain of a Devito grid
+"""
+interior(x::Grid{T,N}) where {T,N} = SubDomain{N}(x.o.interior)
+
+Base.:(==)(x::SubDomain,y::SubDomain) = x.o == y.o
+
 #
 # Functions
 #
@@ -1185,6 +1193,6 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(subdom(name,instructions))    
 end
 
-export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, origin, size_with_halo, spacing, spacing_map, step, subdomains
+export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, origin, size_with_halo, spacing, spacing_map, step, subdomains
 
 end
