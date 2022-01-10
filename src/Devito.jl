@@ -1236,9 +1236,26 @@ PyObject 22/7
 """
 nsimplify(expr::PyObject; constants=(), tolerance=nothing, full=false, rational=nothing, rational_conversion="base10") = pycall(sympy.nsimplify, PyObject, expr, constants=constants, tolerance=tolerance, full=full, rational=rational, rational_conversion=rational_conversion)
 
-
 nsimplify(x::Number; kwargs...) = nsimplify(PyObject(x); kwargs...)
 
-export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, spacing, spacing_map, step, subdomains
+"""
+    solve(eq::PyObject, target::PyObject; kwargs...)
+
+Algebraically rearrange an Eq w.r.t. a given symbol.
+This is a wrapper around ``devito.solve``, which in turn is a wrapper around ``sympy.solve``.
+Parameters
+----------
+eq : expr-like
+    The equation to be rearranged.
+target : symbol
+    The symbol w.r.t. which the equation is rearranged. May be a `Function`
+    or any other symbolic object.
+**kwargs
+    Symbolic optimizations applied while rearranging the equation. For more
+    information. refer to ``sympy.solve.__doc__``.
+"""
+solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
+
+export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains
 
 end
