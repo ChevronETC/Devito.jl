@@ -545,6 +545,25 @@ end
     @test nsimplify((2*x+2)/2) == x+1
 end
 
+@testset "solve" begin
+    g = Grid(shape=(11,11))
+    u = TimeFunction(grid=g, name="u", time_order=2, space_order=8)
+    v = TimeFunction(grid=g, name="v", time_order=2, space_order=8)
+    for k in 1:size(data(u))[3], j in 1:size(data(u))[2], i in 1:size(data(u))[1]
+        data(u)[i,j,k] = k*0.02 + i*i*0.01 - j*j*0.03
+    end
+    data(v) .= data(u)
+    y,x,t = dimensions(u)
+    pde = dt2(u) - (dx(dx(u)) + dy(dy(u))) - dy(dx(u))
+    solved = Eq(forward(u),solve(pde, forward(u)))
+    eq =  Eq(forward(v), (2 * v - backward(v)) + spacing(t)^2 * ( dx(dx(v)) - dy(dx(v)) + dy(dy(v))))
+    smap = spacing_map(g)
+    smap[spacing(t)] = 0.001
+    op = Operator([solved,eq],subs=smap,name="solve")
+    apply(op,time_M=5)
+    @test data(v) ≈ data(u)
+end
+
 @testset "ccode" begin
     grd = Grid(shape=(5,5))
     f = Devito.Function(grid=grd, name="f")
