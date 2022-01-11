@@ -1193,6 +1193,52 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(subdom(name,instructions))    
 end
 
-export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, origin, size_with_halo, spacing, spacing_map, step, subdomains
+"""
+    nsimplify(expr::PyObject; constants=(), tolerance=none, full=false, rational=none, rational_conversion="base10")
+
+Wrapper around `sympy.nsimplify`.
+Find a simple representation for a number or, if there are free symbols or
+if ``rational=True``, then replace Floats with their Rational equivalents. If
+no change is made and rational is not False then Floats will at least be
+converted to Rationals.
+Explanation
+===========
+For numerical expressions, a simple formula that numerically matches the
+given numerical expression is sought (and the input should be possible
+to evalf to a precision of at least 30 digits).
+Optionally, a list of (rationally independent) constants to
+include in the formula may be given.
+A lower tolerance may be set to find less exact matches. If no tolerance
+is given then the least precise value will set the tolerance (e.g. Floats
+default to 15 digits of precision, so would be tolerance=10**-15).
+With ``full=True``, a more extensive search is performed
+(this is useful to find simpler numbers when the tolerance
+is set low).
+When converting to rational, if rational_conversion='base10' (the default), then
+convert floats to rationals using their base-10 (string) representation.
+When rational_conversion='exact' it uses the exact, base-2 representation.
+
+See https://github.com/sympy/sympy/blob/52f606a503cea5e9588de14150ccb9f7f9ed4752/sympy/simplify/simplify.py .
+
+Examples:
+```julia
+    nsimplify(π)
+```
+```julia
+PyObject 314159265358979/100000000000000
+```
+```julia
+    nsimplify(π; tolerance=0.1)
+```
+```julia
+PyObject 22/7
+```
+"""
+nsimplify(expr::PyObject; constants=(), tolerance=nothing, full=false, rational=nothing, rational_conversion="base10") = pycall(sympy.nsimplify, PyObject, expr, constants=constants, tolerance=tolerance, full=full, rational=rational, rational_conversion=rational_conversion)
+
+
+nsimplify(x::Number; kwargs...) = nsimplify(PyObject(x); kwargs...)
+
+export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain,  TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, spacing, spacing_map, step, subdomains
 
 end

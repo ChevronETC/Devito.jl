@@ -532,6 +532,19 @@ end
     @test data(f3)[3,3,2] == (data(f1)[3,3,3] - 2*data(f1)[3,3,2] + data(f1)[3,3,1] )/t_spacing^2
 end
 
+@testset "nsimplify" begin
+    @test nsimplify(0) == 0
+    @test nsimplify(-1) == -1
+    @test nsimplify(1) == 1
+    @test nsimplify(π; tolerance=0.1) == nsimplify(22/7)
+    @test nsimplify(π) != nsimplify(π; tolerance=0.1)
+    g = Grid(shape=(5,))
+    x = dimensions(g)[1]
+    @test nsimplify(x+1) == x+1
+    @test nsimplify(1+x) == x+1
+    @test nsimplify((2*x+2)/2) == x+1
+end
+
 @testset "ccode" begin
     grd = Grid(shape=(5,5))
     f = Devito.Function(grid=grd, name="f")
