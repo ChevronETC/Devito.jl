@@ -65,6 +65,25 @@ end
     @test b_data ≈ b_data_test
 end
 
+@testset "Constant" begin
+    a = Constant(name="a")
+    @test isconst(a)
+    @test typeof(value(a)) == Float32
+    @test value(a) == 0.0
+    @test value(a) == data(a)
+    value!(a,2.0)
+    @test typeof(value(a)) == Float32
+    @test value(a) == 2.0
+    @test value(a) == data(a)
+    value!(a, π)
+    @test value(a) == convert(Float32,π)
+
+    p = Constant(name="p", dtype=Float64, value=π)
+    @test typeof(value(p)) == Float64
+    @test value(p) == convert(Float64,π)
+    @test data(p) == value(p)
+end
+
 @testset "TimeFunction, data with halo, n=$n" for n in ( (4,5), (4,5,6) )
     grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)

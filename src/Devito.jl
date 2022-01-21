@@ -212,7 +212,8 @@ for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,
 end
 
 # Python <-> Julia quick-and-dirty type/struct mappings
-for (M,F) in ((:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
+for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
+
     @eval begin
         struct $F
             o::PyObject
@@ -224,7 +225,56 @@ for (M,F) in ((:devito,:Constant), (:devito,:Eq), (:devito,:Injection), (:devito
     end
 end
 
-function SpaceDimension end
+struct Constant{T}
+    o::PyObject
+end
+
+"""
+    Constant(args...; kwargs...)
+Symbol representing a constant, scalar value in symbolic equations. 
+A Constant carries a scalar value.
+kwargs:
+    name (str) -- Name of the symbol.
+    value (Real) -- Value associated with the symbol.  Defaults to 0.
+    dtype (data-type, optional) -- Any object that can be interpreted as a float data type. Defaults to Float32.
+"""
+function Constant(args...; kwargs...)
+    o =  pycall(devito.Constant, PyObject, args...; kwargs...)
+    T = numpy_eltype(o.dtype)
+    Constant{T}(o)
+end
+
+PyCall.PyObject(x::Constant{T}) where {T} = x.o
+Base.convert(::Type{Constant{T}}, x::PyObject) where {T} = Constant(x)
+
+"""
+    data(x::Constant{T})
+Returns `value(x::Constnat{T})`.  See `value` documentation for more information.
+"""
+data(x::Constant) = value(x)
+
+"""
+    value(x::Constant)
+Returns the value of a devito constant.
+Can not be used to change constant value, for that use set_constant!(x,y)
+"""
+value(x::Constant{T}) where {T} = convert(T,x.o._value)
+
+"""
+    isconst(x::Constant)
+True if the symbol value cannot be modified within an Operator (and thus its value is provided by the user directly from Python-land), False otherwise.
+"""
+Base.isconst(x::Constant) = x.o.is_const
+
+"""
+    value!(x::Constant{T},y::T)
+Change the numerical value of a constant, x, after creation to y, after converting y to datatype T of constant x.
+"""
+function value!(x::Constant{T},y::Real) where {T}
+    x.o.data = PyObject(convert(T,y))
+end
+
+    function SpaceDimension end
 """
     SpaceDimension(;kwargs...)
 
@@ -1256,6 +1306,6 @@ target : symbol
 """
 solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
 
-export DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains
+export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, value, value!
 
 end
