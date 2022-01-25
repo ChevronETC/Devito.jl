@@ -522,6 +522,52 @@ end
     @test data(g2)[4] == 0.
 end
 
+@testset "Derivatives on Constants" begin
+    for x in (Constant(name="a", value=2), Constant(name="b", dtype=Float64, value=2), 1, -1.0, π)
+        @test dx(x) == 0
+        @test dxl(x) == 0
+        @test dxr(x) == 0
+        @test dy(x) == 0
+        @test dyl(x) == 0
+        @test dyr(x) == 0
+        @test dz(x) == 0
+        @test dzl(x) == 0
+        @test dzr(x) == 0
+        @test dx(dx(x)+1) == 0
+        @test dxl(dxl(x)+1) == 0
+        @test dxr(dxr(x)+1) == 0
+        @test dy(dy(x)+1) == 0
+        @test dyl(dyl(x)+1) == 0
+        @test dyr(dyr(x)+1) == 0
+        @test dz(dz(x)+1) == 0
+        @test dzl(dzl(x)+1) == 0
+        @test dzr(dzr(x)+1) == 0
+    end
+end
+
+@testset "Derivatives on dimensions not in a function, T=$T" for T in (Float32,Float64)
+    x = SpaceDimension(name="x")
+    grid = Grid(shape=(5,), dimensions=(x,), dtype=T)
+    f = Devito.Function(name="f", grid=grid, dtype=T)
+    u = Devito.TimeFunction(name="u", grid=grid, dtype=T)
+    a = Constant(name="a", dtype=T, value=2)
+    b = Constant(name="b", dtype=T, value=2)
+    for func in (f,u)
+        @test dy(func) == 0
+        @test dyl(func) == 0
+        @test dyr(func) == 0
+        @test dz(func) == 0
+        @test dzl(func) == 0
+        @test dzr(func) == 0
+        @test dy(b*func+a-1) == 0
+        @test dyl(b*func+a-1) == 0
+        @test dyr(b*func+a-1) == 0
+        @test dz(b*func+a-1) == 0
+        @test dzl(b*func+a-1) == 0
+        @test dzr(b*func+a-1) == 0
+    end
+end
+
 @testset "Conditional Dimension Subsampling" begin
     size, factr = 17, 4
     i = Devito.SpaceDimension(name="i")

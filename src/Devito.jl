@@ -941,28 +941,33 @@ end
 # metaprograming for various derivatives
 for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl)
     @eval begin
-        $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).$F, PyObject, args...; kwargs...)
+        $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = ( haskey(PyObject(x),Symbol($F)) ? pycall(PyObject(x).$F, PyObject, args...; kwargs...) : PyObject(0) )
+        $F(x::Union{Constant,Number}, args...; kwargs...) = PyObject(0)
         export $F
     end
 end
 """
-    dx(f::DiscreteFunction, args...; kwargs...)
+    dx(f::Union{DiscreteFunction,PyObject,Constant,Number}, args...; kwargs...)
 
-Returns the symbol for the first derivative with respect to x.
+Returns the symbol for the first derivative with respect to x if f is a Function with dimension x.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
+
 """
 function dx end
 
 """
     dy(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first derivative with respect to y.
+Returns the symbol for the first derivative with respect to yif f is a Function with dimension y.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dy end
 
 """
     dz(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first derivative with respect to z.
+Returns the symbol for the first derivative with respect to zif f is a Function with dimension z.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 
 function dz end
@@ -970,42 +975,48 @@ function dz end
 """
     dxl(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first backward one-sided derivative with respect to x.
+Returns the symbol for the first backward one-sided derivative with respect to x if f is a Function with dimension x.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dxl end
 
 """
     dyl(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first backward one-sided derivative with respect to y.
+Returns the symbol for the first backward one-sided derivative with respect to y if f is a Function with dimension y.
+    Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dyl end
 
 """
     dzl(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first backward one-sided derivative with respect to z.
+Returns the symbol for the first backward one-sided derivative with respect to z if f is a Function with dimension y.
+    Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dzl end
 
 """
     dxr(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first forward one-sided derivative with respect to x.
+Returns the symbol for the first forward one-sided derivative with respect to x if f is a Function with dimension x.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dxr end
 
 """
     dyr(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first forward one-sided derivative with respect to y.
+Returns the symbol for the first forward one-sided derivative with respect to y if f is a Function with dimension y.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dyr end
 
 """
     dzr(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first forward one-sided derivative with respect to z.
+Returns the symbol for the first forward one-sided derivative with respect to z if f is a Function with dimension z.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dz end
 
