@@ -1032,21 +1032,15 @@ function dt2 end
 # metaprogramming for basic operations
 for F in ( :+, :-, :*, :/, :^)
     @eval begin
-        Base.$F(x::Real,y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::DiscreteFunction, y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::DiscreteFunction, y::PyObject) = $F(x.o,y)
-        Base.$F(x::PyObject, y::DiscreteFunction) = $F(x,y.o)
-        Base.$F(x::DiscreteFunction, y::Real) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::AbstractDimension, y::Real) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Real, y::AbstractDimension) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::AbstractDimension, y::DiscreteFunction) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::DiscreteFunction, y::AbstractDimension) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::AbstractDimension, y::PyObject) = $F(PyObject(x),y)
-        Base.$F(x::PyObject, y::AbstractDimension) = $F(x,PyObject(y))
+        Base.$F(x::Real,y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Union{DiscreteFunction,Constant,AbstractDimension}, y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Union{DiscreteFunction,Constant,Dimension}, y::PyObject) = $F(x.o,y)
+        Base.$F(x::PyObject, y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(x,y.o)
+        Base.$F(x::Union{DiscreteFunction,Constant,AbstractDimension}, y::Real) = $F(PyObject(x),PyObject(y))
     end
 end
 
-Base.:(-)(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = -1*x
+Base.:(-)(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = -1*x
 
 # metaprogramming to access Devito dimension boolean attributes
 for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Derived, :is_NonlinearDerived, :is_Sub, :is_Conditional, :is_Stepping, :is_Modulo, :is_Incr)
@@ -1140,26 +1134,26 @@ function Max end
 # functions defined on real numbers with equivalent in base
 for F in (:cos, :sin, :tan, :sinh, :cosh, :tanh, :exp, :floor)
     @eval begin
-        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
     end
 end
 # functions defined on real numbers who are written differently in base
 for F in (:Abs,:ceiling)
     @eval begin
-        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
         export $F
     end
 end
 # functions defined on positive numbers with equivalent in base
 for F in (:sqrt,)
     @eval begin
-        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
     end
 end
 # functions defined on positive numbers who are written differently in base
 for F in (:ln,)
     @eval begin
-        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
         export $F
     end
 end

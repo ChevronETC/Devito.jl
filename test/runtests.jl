@@ -353,6 +353,64 @@ end
     end
 end
 
+@testset "Symbolic Math" begin
+    x = SpaceDimension(name="x")
+    y = SpaceDimension(name="y")
+    grd = Grid(shape=(5,5), dimensions=(y,x))
+    a = Constant(name="a")
+    b = Constant(name="b")
+    f = Devito.Function(name="f", grid=grd)
+    g = Devito.Function(name="g", grid=grd)
+    @test a != b
+    @test x != y
+    @test f != g
+    @test x+x+y == 2*x+y
+    @test x*y == y*x
+    @test 2*x+y-x == x+y
+    @test x*x == x^2
+    @test x+x+a == 2*x+a
+    @test 2*x+a-x == x+a
+    @test a+a+b == 2*a+b
+    @test 2*a+b-a == a+b
+    @test a*b == b*a
+    @test a*a == a^2
+    @test f+f+x == 2*f+x
+    @test 2*f+x-f == f+x
+    @test f*f == f^2
+    @test f*g == g*f
+    @test f+f+a == 2*f+a
+    @test 2*f+a-f == f+a
+    @test f+f+g == 2*f+g
+    @test 2*f+g-f == f+g
+    @test 0*(1+f+a+x) == 0
+    @test (1+f+a+x)*0 == 0
+end
+
+@testset "Constants in Operators, T=$T" for T in (Float32,Float64)
+    a = Constant(name="a", dtype=T, value=1)
+    b = Constant(name="b", dtype=T, value=2)
+    grid = Grid(shape=(5,), dtype=T)
+    f = Devito.Function(name="f", grid=grid, dtype=T)
+    g = Devito.Function(name="g", grid=grid, dtype=T)
+    op1 = Operator([Eq(f,a),Eq(g,f+b)],name="op1")
+    apply(op1)
+    for element in data(f)
+        @test element == 1
+    end
+    for element in data(g)
+        @test element == 3
+    end
+    value!(a,0)
+    value!(b,1)
+    apply(op1)
+    for element in data(f)
+        @test element == 0
+    end
+    for element in data(g)
+        @test element == 1
+    end
+end
+
 @testset "Math on Dimensions" begin
     x = SpaceDimension(name="x")
     grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
