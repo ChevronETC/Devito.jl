@@ -388,15 +388,6 @@ struct SubDomain{N}
     o::PyObject
 end
 
-"""
-    name(subdomain)
-
-returns the name of the subdomain
-"""
-function name(x::SubDomain)
-    x.o.name
-end
-
 PyCall.PyObject(x::SubDomain) = x.o
 
 """
@@ -1310,6 +1301,13 @@ target : symbol
     information. refer to ``sympy.solve.__doc__``.
 """
 solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
+
+"""
+    name(x::Union{SubDomain, SparseTimeFunction, TimeFunction, Function, Constant, AbstractDimension, Operator})
+
+returns the name of the Devito object
+"""
+name(x::Union{SubDomain, SparseTimeFunction, TimeFunction, Function, Constant, AbstractDimension, Operator}) = x.o.name
 
 export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, value, value!
 

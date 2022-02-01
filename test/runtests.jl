@@ -687,6 +687,28 @@ end
     @test data(v) ≈ data(u)
 end
 
+@testset "name" begin
+    a = Constant(name="a")
+    @test name(a) == "a"
+    x = SpaceDimension(name="x")
+    @test name(x) == "x"
+    t = TimeDimension(name="t")
+    @test name(t) == "t"
+    t1 = ConditionalDimension(name="t1", parent=t, factor=2)
+    @test name(t1) == "t1"
+    time = SteppingDimension(name="time", parent=t)
+    @test name(time) == "time"
+    grid = Grid(shape=(5,))
+    f = Devito.Function(name="f", grid=grid)
+    @test name(f) == "f"
+    u = Devito.TimeFunction(name="u", grid=grid)
+    @test name(u) == "u"
+    stf = SparseTimeFunction(name="stf", npoint=1, nt=10, grid=grid)
+    @test name(stf) == "stf"
+    op = Operator(Eq(f,1), name="op")
+    @test name(op) == "op"
+end
+
 @testset "ccode" begin
     grd = Grid(shape=(5,5))
     f = Devito.Function(grid=grd, name="f")
