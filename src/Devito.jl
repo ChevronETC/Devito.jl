@@ -225,6 +225,8 @@ for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
     end
 end
 
+Base.:(==)(x::Eq,y::Eq) = x.o == y.o
+
 struct Constant{T}
     o::PyObject
 end

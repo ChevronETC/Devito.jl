@@ -198,6 +198,30 @@ end
     end
 end
 
+@testset "Equation Equality, shape=$shape, T=$T" for shape in ((11,11),(11,11,11)), T in (Float32, Float64)
+    g = Grid(shape=shape, dtype=T)
+    f1 = Devito.Function(name="f1", grid=g, dtype=T)
+    f2 = Devito.Function(name="f2", grid=g, dtype=T)
+    u1 = TimeFunction(name="u1", grid=g, dtype=T)
+    u2 = TimeFunction(name="u2", grid=g, dtype=T)
+
+    eq1 = Eq(f1,1)
+    eq2 = Eq(f2,1)
+    eq3 = Eq(f1,1)
+    eq4 = Eq(u1,1)
+    eq5 = Eq(u2,1)
+    eq6 = Eq(u1,1)
+    eq7 = Eq(u2,u1+f1)
+    eq8 = Eq(u2,u1+f1)
+
+    @test eq1 == eq3
+    @test eq2 != eq1
+    @test eq4 == eq6
+    @test eq4 != eq5
+    @test eq1 != eq4
+    @test eq7 == eq8
+end
+
 @testset "Symbolic Min, Max, Size, and Spacing" begin
     x = SpaceDimension(name="x")
     y = SpaceDimension(name="y")
