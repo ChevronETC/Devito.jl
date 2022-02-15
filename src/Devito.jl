@@ -101,7 +101,7 @@ localindices(x::DevitoMPIArray{T,N}) where {T,N} = x.local_indices
 function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
     MPI.Initialized() || MPI.Init()
     y = zeros(T, size(x))
-    y[localindices(x)...] .= parent(x)
+    copyto!(view(y, localindices(x)...), parent(x))
     MPI.Reduce!(y, +, 0, MPI.COMM_WORLD)
     y
 end
@@ -109,7 +109,7 @@ end
 function Base.copyto!(dst::DevitoMPIArray, src::AbstractArray)
     MPI.Initialized() || MPI.Init()
     MPI.Bcast!(src, 0, MPI.COMM_WORLD)
-    parent(dst) .= src[localindices(dst)...]
+    copyto!(parent(dst), view(src, localindices(dst)...))
     MPI.Barrier(MPI.COMM_WORLD)
     dst
 end
