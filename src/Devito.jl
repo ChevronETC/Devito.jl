@@ -75,15 +75,17 @@ Base.IndexStyle(::Type{<:DevitoArray{<:Any,<:Any,<:StridedView}}) = IndexCartesi
 
 Base.view(x::DevitoArray{T,N,Array{T,N}}, I::Vararg{Any}) where {T,N} = DevitoArray(x.o, sview(x.p, I...))
 
-struct DevitoMPIArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
+struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: AbstractArray{T,N}
     o::PyObject
     p::A
     local_indices::NTuple{N,UnitRange{Int}}
+    decomposition::D
+    topology::NTuple{N,Int}
 end
 
-function DevitoMPIArray{T,N}(o, idxs) where {T,N}
+function DevitoMPIArray{T,N}(o, idxs, decomp::D, topo::NTuple{N,Int}) where {T,N,D}
     p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
-    DevitoMPIArray{T,N,Array{T,N}}(o, p, idxs)
+    DevitoMPIArray{T,N,Array{T,N},D}(o, p, idxs, decomp, topo)
 end
 
 function Base.size(x::DevitoMPIArray{T,N}) where {T,N}
@@ -98,6 +100,20 @@ localsize(x::DevitoMPIArray{T,N}) where {T,N} = ntuple(i->size(x.local_indices[i
 
 localindices(x::DevitoMPIArray{T,N}) where {T,N} = x.local_indices
 
+decomposition(x::DevitoMPIArray) = x.decomposition
+
+topology(x::DevitoMPIArray) = x.topology
+
+function count(x::DevitoMPIArray, mycoords)
+    d = decomposition(x)
+    mapreduce(idim->length(d[idim][mycoords[idim]]), *, 1:length(d))
+end
+
+function counts(x::DevitoMPIArray)
+    MPI.Initialized() || MPI.Init()
+    [count(x, mycoords) for mycoords in CartesianIndices(topology(x))][:]
+end
+
 function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
     MPI.Initialized() || MPI.Init()
     y = zeros(T, size(x))
@@ -106,11 +122,20 @@ function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
     y
 end
 
-function Base.copyto!(dst::DevitoMPIArray, src::AbstractArray)
+function Base.copyto!(dst::DevitoMPIArray{T}, src::AbstractArray{T}) where {T}
     MPI.Initialized() || MPI.Init()
-    MPI.Bcast!(src, 0, MPI.COMM_WORLD)
-    copyto!(parent(dst), view(src, localindices(dst)...))
-    MPI.Barrier(MPI.COMM_WORLD)
+
+    _counts = counts(dst)
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        data_vbuffer = VBuffer(src, _counts)
+    else
+        data_vbuffer = VBuffer(nothing)
+    end
+
+    # the extra memory allocation is frustating but seems needed since dst is an `sview`
+    _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
+    copyto!(parent(dst), _dst)
     dst
 end
 
@@ -708,6 +733,7 @@ end
 topology(x::DiscreteFunction) = reverse(x.o._distributor.topology)
 mycoords(x::DiscreteFunction) = reverse(x.o._distributor.mycoords) .+ 1
 decomposition(x::DiscreteFunction) = reverse(x.o._decomposition)
+decomposition_with_halo(x::DiscreteFunction) = reverse(x.o._decomposition_outhalo)
 
 function localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     h = inhalo(x)
@@ -754,21 +780,27 @@ end
 
 function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask(x)...)
-    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices(x))
+    d = decomposition(x)
+    t = topology(x)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, localindices(x), d, t)
 end
 
 function data_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_halo(x)...)
-    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_halo(x))
+    d = decomposition_with_halo(x)
+    t = topology(x)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, localindices_with_halo(x), d, t)
 end
 
 function data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_inhalo(x)...)
-    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_inhalo(x))
+    d = decomposition_with_inhalo(x)
+    t = topology(x)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, localindices_with_inhalo(x), d, t)
 end
 
 function data_allocated(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x))
+    DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
 end
 
 # TODO - needed? <--
@@ -796,7 +828,7 @@ function coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
     view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"), n:-1:1, :)
 end
 #coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
-coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
+coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)), decomposition(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)), topology(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)

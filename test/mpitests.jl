@@ -10,7 +10,7 @@ addprocs(manager)
     configuration!("language", "openmp")
     configuration!("mpi", true)
 
-    @testset "DevitoMPIArray, fill!, with halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "DevitoMPIArray, fill!, with halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
@@ -35,7 +35,7 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, fill!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "DevitoMPIArray, fill!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
@@ -58,7 +58,8 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, copy!, halo, n=$n" for n in ( (11,10), (12,11,10) )
+    # @testset "DevitoMPIArray, copy!, halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @testset "DevitoMPIArray, copy!, halo, n=$n" for n in ( (11,10), )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
@@ -93,31 +94,39 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, copy!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "DevitoMPIArray, copy!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
         @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
         @test size(b_data) == n
-        b_data_test = reshape([1:prod(n);], n)
+        b_data_test = zeros(Float32, n)
+        if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+            b_data_test = reshape(Float32[1:prod(n);], n)
+        end
         copy!(b_data, b_data_test)
         _b_data = data(b)
+        b_data_test = reshape(Float32[1:prod(n);], n)
 
         for rnk in 0:1
             if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
                 if rnk == 0
                     if length(n) == 2
                         @test parent(_b_data) ≈ b_data_test[:,1:5]
+                        @test parent(b_data) ≈ b_data_test[:,1:5]
                     else
                         @test parent(_b_data) ≈ b_data_test[:,:,1:5]
+                        @test parent(b_data) ≈ b_data_test[:,:,1:5]
                     end
                     @test isa(parent(_b_data), StridedView)
                 end
                 if rnk == 1
                     if length(n) == 2
                         @test parent(_b_data) ≈ b_data_test[:,6:10]
+                        @test parent(b_data) ≈ b_data_test[:,6:10]
                     else
                         @test parent(_b_data) ≈ b_data_test[:,:,6:10]
+                        @test parent(b_data) ≈ b_data_test[:,:,6:10]
                     end
                     @test isa(parent(_b_data), StridedView)
                 end
@@ -126,7 +135,7 @@ addprocs(manager)
         end
     end
 
-    @testset "Convert data from rank 0 to DevitoMPIArray then back n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "Convert data from rank 0 to DevitoMPIArray then back n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
@@ -146,7 +155,7 @@ addprocs(manager)
         MPI.Barrier(MPI.COMM_WORLD)
     end
 
-    @testset "DevitoMPIArray, convert to Array, halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "DevitoMPIArray, convert to Array, halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data_with_halo(b)
@@ -163,7 +172,7 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPIArray, convert to Array, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "DevitoMPIArray, convert to Array, no halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
@@ -178,7 +187,7 @@ addprocs(manager)
         end
     end
 
-    @testset "TimeFunction, data with halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "TimeFunction, data with halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape = n, dtype = Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
@@ -198,7 +207,7 @@ addprocs(manager)
         end
     end
 
-    @testset "TimeFunction, data with no halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "TimeFunction, data with no halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape = n, dtype = Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
@@ -216,7 +225,7 @@ addprocs(manager)
         end
     end
 
-    @testset "Sparse time function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
+    @test_skip @testset "Sparse time function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
         grid = Grid(shape=n, dtype=Float32)
         stf = SparseTimeFunction(name="stf", npoint=npoint, nt=100, grid=grid)
         stf_coords = coordinates(stf)
@@ -230,7 +239,7 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPISparseArray, copy! and convert, transposed" begin
+    @test_skip @testset "DevitoMPISparseArray, copy! and convert, transposed" begin
         grid = Grid(shape=(11,10), dtype=Float32)
         stf = SparseTimeFunction(name="stf", grid=grid, npoint=1, nt=100)
         x = rand(Float32,100,1)
@@ -242,7 +251,7 @@ addprocs(manager)
         end
     end
 
-    @testset "DevitoMPISparseArray copy! axes check, n=$n" for n in ( (11,10), (12,11,10) )
+    @test_skip @testset "DevitoMPISparseArray copy! axes check, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
         stf_data = data(stf)
