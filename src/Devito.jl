@@ -278,7 +278,13 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
     copyto!(_x, permutedims(parent(x), copyto_permutedims_forward(N)))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
 
-    permutedims(y, copyto_permutedims_reverse(N))
+    local _y
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        _y = permutedims(y, copyto_permutedims_reverse(N))
+    else
+        _y = Array{T,N}(undef, ntuple(_->0, N))
+    end
+    _y
 end
 Base.convert(::Type{Array}, x::Transpose{T, <:DevitoMPISparseTimeArray{T,2}}) where {T} = (convert(Array, parent(x)))'
 
