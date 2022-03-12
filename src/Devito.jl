@@ -203,7 +203,14 @@ function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
     _x = zeros(T, copyto_permutedims_forward(size(parent(x))))
     copyto!(_x, permutedims(parent(x), copyto_permutedims_forward(N)))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
-    permutedims(y, copyto_permutedims_reverse(N))
+
+    local __x
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        __x = permutedims(y, copyto_permutedims_reverse(N))
+    else
+        __x = Array{T,N}(undef, ntuple(_->0, N))
+    end
+    __x
 end
 
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
