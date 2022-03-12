@@ -83,11 +83,13 @@ localindices(x::DevitoMPIAbstractArray{T,N}) where {T,N} = x.local_indices
 decomposition(x::DevitoMPIAbstractArray) = x.decomposition
 topology(x::DevitoMPIAbstractArray) = x.topology
 
-function Base.size(x::DevitoMPIAbstractArray{T,N}) where {T,N}
+function _size_from_local_indices(local_indices::NTuple{N,UnitRange{Int64}}) where {N}
     MPI.Initialized() || MPI.Init()
-    n = ntuple(i->(localsize(x)[i] > 0 ? x.local_indices[i][end] : 0), N)
+    n = ntuple(i->(size(local_indices[i])[1] > 0 ? local_indices[i][end] : 0), N)
     MPI.Allreduce(n, max, MPI.COMM_WORLD)
 end
+
+Base.size(x::DevitoMPIAbstractArray) = x.size
 
 function counts(x::DevitoMPIAbstractArray)
     MPI.Initialized() || MPI.Init()
@@ -117,11 +119,13 @@ struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N
     local_indices::NTuple{N,UnitRange{Int}}
     decomposition::D
     topology::NTuple{N,Int}
+    size::NTuple{N,Int}
 end
 
 function DevitoMPIArray{T,N}(o, idxs, decomp::D, topo) where {T,N,D}
     p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
-    DevitoMPIArray{T,N,Array{T,N},D}(o, p, idxs, decomp, topo)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,Array{T,N},D}(o, p, idxs, decomp, topo, n)
 end
 
 function count(x::DevitoMPIArray, mycoords)
@@ -135,10 +139,8 @@ function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
 
     y = zeros(T, size(x))
 
-    _counts = counts(x)
-
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        y_vbuffer = VBuffer(y, _counts)
+        y_vbuffer = VBuffer(y, counts(x))
     else
         y_vbuffer = VBuffer(nothing)
     end
@@ -168,16 +170,18 @@ struct DevitoMPITimeArray{T,N,A<:AbstractArray{T,N},NM1,D} <: DevitoMPIAbstractA
     local_indices::NTuple{N,UnitRange{Int}}
     decomposition::D
     topology::NTuple{NM1,Int}
+    size::NTuple{N,Int}
 end
 
 function DevitoMPITimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
     p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
-    DevitoMPITimeArray{T,N,Array{T,N},NM1,D}(o, p, idxs, decomp, topo)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,Array{T,N},NM1,D}(o, p, idxs, decomp, topo, n)
 end
 
 function count(x::DevitoMPITimeArray, mycoords)
     d = decomposition(x)
-    n = size(parent(x))
+    n = size(x)
     mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
@@ -190,10 +194,8 @@ function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
 
     y = zeros(T, copyto_permutedims_forward(size(x)))
 
-    _counts = counts(x)
-
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        y_vbuffer = VBuffer(y, _counts)
+        y_vbuffer = VBuffer(y, counts(x))
     else
         y_vbuffer = VBuffer(nothing)
     end
@@ -227,6 +229,7 @@ struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
     local_indices::Array{Int,NM1}
     decomposition::D
     topology::NTuple{NM1,Int}
+    size::NTuple{N,Int}
 end
 
 function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
@@ -236,15 +239,15 @@ function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}
     else
         p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
     end
-    DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo)
+    n = _size_for_sparse_time_array(o)
+    DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo, n)
 end
 
 localsize(x::DevitoMPISparseTimeArray{T,2}) where {T} = (length(x.local_indices), x.o.shape[1])
 
-function Base.size(x::DevitoMPISparseTimeArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-    n = MPI.Allreduce(x.o.shape[2], +, MPI.COMM_WORLD)
-    (n,x.o.shape[1])
+function _size_for_sparse_time_array(o::PyObject)
+    n = MPI.Allreduce(o.shape[2], +, MPI.COMM_WORLD)
+    (n,o.shape[1])
 end
 
 function count(x::DevitoMPISparseTimeArray, mycoords)
@@ -258,10 +261,8 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
 
     y = zeros(T, copyto_permutedims_forward(size(x)))
 
-    _counts = counts(x)
-
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        y_vbuffer = VBuffer(y, _counts)
+        y_vbuffer = VBuffer(y, counts(x))
     else
         y_vbuffer = VBuffer(nothing)
     end
@@ -895,21 +896,27 @@ function data(x::Function{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask(x)...)
     d = decomposition(x)
     t = topology(x)
-    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, localindices(x), d, t)
+    idxs = localindices(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
 function data_with_halo(x::Function{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_halo(x)...)
     d = decomposition_with_halo(x)
     t = topology(x)
-    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, localindices_with_halo(x), d, t)
+    idxs = localindices_with_halo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
 function data_with_inhalo(x::Function{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_inhalo(x)...)
     d = decomposition_with_inhalo(x)
     t = topology(x)
-    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, localindices_with_inhalo(x), d, t)
+    idxs = localindices_with_inhalo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
 function data_allocated(x::Function{T,N,DevitoMPITrue}) where {T,N}
@@ -920,21 +927,27 @@ function data(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask(x)...)
     d = decomposition(x)
     t = topology(x)
-    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, localindices(x), d, t)
+    idxs = localindices(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
 function data_with_halo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_halo(x)...)
     d = decomposition_with_halo(x)
     t = topology(x)
-    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, localindices_with_halo(x), d, t)
+    idxs = localindices_with_halo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
 function data_with_inhalo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_inhalo(x)...)
     d = decomposition_with_inhalo(x)
     t = topology(x)
-    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, localindices_with_inhalo(x), d, t)
+    idxs = localindices_with_inhalo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
 function data_allocated(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
