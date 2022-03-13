@@ -35,7 +35,7 @@ addprocs(manager)
         end
     end
 
-    @test_skip @testset "DevitoMPIArray, fill!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+    @testset "DevitoMPIArray, fill!, no halo, n=$n" for n in ( (11,10), (12,11,10) )
         grid = Grid(shape=n, dtype=Float32)
         b = Devito.Function(name="b", grid=grid, space_order=2)
         b_data = data(b)
@@ -478,5 +478,3 @@ addprocs(manager)
         @test_throws ArgumentError copy!(stf_data, x)
     end
 end
-
-rmprocs(workers())
