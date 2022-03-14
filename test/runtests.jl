@@ -1,3 +1,3 @@
-for testscript in ("serialtests.jl","mpitests.jl")
+for testscript in ("mpitests.jl","serialtests.jl")
     include(testscript)
 end

@@ -75,120 +75,235 @@ Base.IndexStyle(::Type{<:DevitoArray{<:Any,<:Any,<:StridedView}}) = IndexCartesi
 
 Base.view(x::DevitoArray{T,N,Array{T,N}}, I::Vararg{Any}) where {T,N} = DevitoArray(x.o, sview(x.p, I...))
 
-struct DevitoMPIArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
-    o::PyObject
-    p::A
-    local_indices::NTuple{N,UnitRange{Int}}
-end
+abstract type DevitoMPIAbstractArray{T,N} <: AbstractArray{T,N} end
 
-function DevitoMPIArray{T,N}(o, idxs) where {T,N}
-    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
-    DevitoMPIArray{T,N,Array{T,N}}(o, p, idxs)
-end
+Base.parent(x::DevitoMPIAbstractArray) = x.p
+localsize(x::DevitoMPIAbstractArray{T,N}) where {T,N} = ntuple(i->size(x.local_indices[i])[1], N)
+localindices(x::DevitoMPIAbstractArray{T,N}) where {T,N} = x.local_indices
+decomposition(x::DevitoMPIAbstractArray) = x.decomposition
+topology(x::DevitoMPIAbstractArray) = x.topology
 
-function Base.size(x::DevitoMPIArray{T,N}) where {T,N}
+function _size_from_local_indices(local_indices::NTuple{N,UnitRange{Int64}}) where {N}
     MPI.Initialized() || MPI.Init()
-    n = ntuple(i->( localsize(x)[i] > 0 ? x.local_indices[i][end] : 0), N)
+    n = ntuple(i->(size(local_indices[i])[1] > 0 ? local_indices[i][end] : 0), N)
     MPI.Allreduce(n, max, MPI.COMM_WORLD)
 end
 
-Base.parent(x::DevitoMPIArray) = x.p
+Base.size(x::DevitoMPIAbstractArray) = x.size
 
-localsize(x::DevitoMPIArray{T,N}) where {T,N} = ntuple(i->size(x.local_indices[i])[1], N)
-
-localindices(x::DevitoMPIArray{T,N}) where {T,N} = x.local_indices
-
-function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
+function counts(x::DevitoMPIAbstractArray)
     MPI.Initialized() || MPI.Init()
-    y = zeros(T, size(x))
-    y[localindices(x)...] .= parent(x)
-    MPI.Reduce!(y, +, 0, MPI.COMM_WORLD)
-    y
+    [count(x, mycoords) for mycoords in CartesianIndices(topology(x))][:]
 end
 
-function Base.copyto!(dst::DevitoMPIArray, src::AbstractArray)
-    MPI.Initialized() || MPI.Init()
-    MPI.Bcast!(src, 0, MPI.COMM_WORLD)
-    parent(dst) .= src[localindices(dst)...]
-    MPI.Barrier(MPI.COMM_WORLD)
-    dst
-end
-
-function Base.fill!(x::DevitoMPIArray, v)
+function Base.fill!(x::DevitoMPIAbstractArray, v)
     MPI.Initialized() || MPI.Init()
     parent(x) .= v
     MPI.Barrier(MPI.COMM_WORLD)
     x
 end
 
-function Base.getindex(x::DevitoMPIArray{T,N}, I::Vararg{Int,N}) where {T,N}
+function Base.getindex(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
     if all(ntuple(idim->I[idim] ∈ x.local_indices[idim], N))
         J = ntuple(idim->I[idim]-x.local_indices[idim]+1, N)
         v = getindex(x.p, J...)
     end
     v
 end
-Base.setindex!(x::DevitoMPIArray{T,N}, v, i) where {T,N} = @warn "not implemented"
-Base.IndexStyle(::Type{<:DevitoMPIArray}) = IndexCartesian()
+Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v, i) where {T,N} = error("not implemented")
+Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
 
-# TODO -- need to implement broadcasting interface for DevitoMPIArray
-
-struct DevitoMPISparseArray{T,N,NM1} <: AbstractArray{T,N}
+struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N}
     o::PyObject
-    p::Array
-    local_indices::Array{Int,NM1}
+    p::A
+    local_indices::NTuple{N,UnitRange{Int}}
+    decomposition::D
+    topology::NTuple{N,Int}
+    size::NTuple{N,Int}
 end
 
-function DevitoMPISparseArray{T,N}(o, idxs) where {T,N}
+function DevitoMPIArray{T,N}(o, idxs, decomp::D, topo) where {T,N,D}
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,Array{T,N},D}(o, p, idxs, decomp, topo, n)
+end
+
+function count(x::DevitoMPIArray, mycoords)
+    d = decomposition(x)
+    n = size(x) # need size rather than localsize to account for empty ranks
+    mapreduce(idim->d[idim] === nothing ? n[idim] : length(d[idim][mycoords[idim]]), *, 1:length(d))
+end
+
+function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
+    MPI.Initialized() || MPI.Init()
+
+    y = zeros(T, size(x))
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        y_vbuffer = VBuffer(y, counts(x))
+    else
+        y_vbuffer = VBuffer(nothing)
+    end
+
+    _x = zeros(T, size(parent(x)))
+    copyto!(_x, parent(x))
+    MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
+end
+
+function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+    _counts = counts(dst)
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        data_vbuffer = VBuffer(src, _counts)
+    else
+        data_vbuffer = VBuffer(nothing)
+    end
+
+    _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
+    copyto!(parent(dst), _dst)
+end
+
+struct DevitoMPITimeArray{T,N,A<:AbstractArray{T,N},NM1,D} <: DevitoMPIAbstractArray{T,N}
+    o::PyObject
+    p::A
+    local_indices::NTuple{N,UnitRange{Int}}
+    decomposition::D
+    topology::NTuple{NM1,Int}
+    size::NTuple{N,Int}
+end
+
+function DevitoMPITimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,Array{T,N},NM1,D}(o, p, idxs, decomp, topo, n)
+end
+
+function count(x::DevitoMPITimeArray, mycoords)
+    d = decomposition(x)
+    n = size(x)
+    mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
+end
+
+copyto_permutedims_forward(N) = ntuple(i->i == 1 ? N : i - 1, N)
+copyto_permutedims_forward(n::NTuple{N,Int}) where {N} = ntuple(i->i == 1 ? n[N] : n[i-1], N)
+copyto_permutedims_reverse(N) = ntuple(i->i == N ? 1 : i + 1, N)
+
+function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+
+    y = zeros(T, copyto_permutedims_forward(size(x)))
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        y_vbuffer = VBuffer(y, counts(x))
+    else
+        y_vbuffer = VBuffer(nothing)
+    end
+
+    _x = zeros(T, copyto_permutedims_forward(size(parent(x))))
+    copyto!(_x, permutedims(parent(x), copyto_permutedims_forward(N)))
+    MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
+
+    local __x
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        __x = permutedims(y, copyto_permutedims_reverse(N))
+    else
+        __x = Array{T,N}(undef, ntuple(_->0, N))
+    end
+    __x
+end
+
+function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
+    MPI.Initialized() || MPI.Init()
+
+    _counts = counts(dst)
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        data_vbuffer = VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
+    else
+        data_vbuffer = VBuffer(nothing)
+    end
+
+    _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
+
+    n = copyto_permutedims_forward(size(parent(dst)))
+    copyto!(parent(dst), permutedims(reshape(_dst, n), copyto_permutedims_reverse(N)))
+end
+
+struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
+    o::PyObject
+    p::Array{T,N}
+    local_indices::Array{Int,NM1}
+    decomposition::D
+    topology::NTuple{NM1,Int}
+    size::NTuple{N,Int}
+end
+
+function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
     local p
     if length(idxs) == 0
         p = Array{T,N}(undef, ntuple(_->0, N))
     else
         p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
     end
-    DevitoMPISparseArray{T,N,N-1}(o, p, idxs)
-end
-Base.IndexStyle(::Type{<:DevitoMPISparseArray}) = IndexCartesian()
-Base.getindex(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,N}) where {T,N} = error("not implemented")
-Base.setindex!(x::DevitoMPISparseArray{T,N}, v, I::Vararg{Int,N}) where {T,N} = error("not implemented")
-
-Base.parent(x::DevitoMPISparseArray) = x.p
-
-function Base.size(x::DevitoMPISparseArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-    n = MPI.Allreduce(x.o.shape[2], +, MPI.COMM_WORLD)
-    (n,x.o.shape[1])
+    n = _size_for_sparse_time_array(o)
+    DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo, n)
 end
 
-function Base.convert(::Type{Array}, x::DevitoMPISparseArray{T,N}) where {T,N}
+localsize(x::DevitoMPISparseTimeArray{T,2}) where {T} = (length(x.local_indices), x.o.shape[1])
+
+function _size_for_sparse_time_array(o::PyObject)
+    n = MPI.Allreduce(o.shape[2], +, MPI.COMM_WORLD)
+    (n,o.shape[1])
+end
+
+function count(x::DevitoMPISparseTimeArray, mycoords)
+    d = decomposition(x)
+    n = size(x)
+    mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
+end
+
+function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,N}
     MPI.Initialized() || MPI.Init()
-    y = zeros(T, size(x))
-    _x = parent(x)
-    n = x.o.shape[1]
-    for j = 1:n
-        for (i,idx) in enumerate(x.local_indices)
-            y[idx,j] = _x[i,j]
-        end
+
+    y = zeros(T, copyto_permutedims_forward(size(x)))
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        y_vbuffer = VBuffer(y, counts(x))
+    else
+        y_vbuffer = VBuffer(nothing)
     end
-    MPI.Reduce!(y, +, 0, MPI.COMM_WORLD)
-    y
-end
-Base.convert(::Type{Array}, x::Transpose{T, <:DevitoMPISparseArray{T,2}}) where {T} = (convert(Array, parent(x)))'
 
-function Base.copyto!(dst::DevitoMPISparseArray, src::Array, transposeflag = false)
-    MPI.Initialized() || MPI.Init()
-    MPI.Bcast!(src, 0, MPI.COMM_WORLD)
-    n = transposeflag ? size(src, 1) : size(src, 2)
-    dst_parent = parent(dst)
-    for (i,idx) in enumerate(dst.local_indices)
-        for j = 1:n
-            dst_parent[i,j] = transposeflag ? src[j,idx] : src[idx,j]
-        end
+    _x = zeros(T, copyto_permutedims_forward(size(parent(x))))
+    copyto!(_x, permutedims(parent(x), copyto_permutedims_forward(N)))
+    MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
+
+    local _y
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        _y = permutedims(y, copyto_permutedims_reverse(N))
+    else
+        _y = Array{T,N}(undef, ntuple(_->0, N))
     end
-    MPI.Barrier(MPI.COMM_WORLD)
-    dst
+    _y
 end
-Base.copyto!(dst::Transpose{T, <:DevitoMPISparseArray{T,2}}, src::Matrix) where {T} = copyto!(parent(dst), src, true)
+Base.convert(::Type{Array}, x::Transpose{T, <:DevitoMPISparseTimeArray{T,2}}) where {T} = (convert(Array, parent(x)))'
+
+function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array, transposeflag = false) where {T,N}
+    MPI.Initialized() || MPI.Init()
+
+    _counts = counts(dst)
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        data_vbuffer = transposeflag ? VBuffer(src, _counts) : VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
+    else
+        data_vbuffer = VBuffer(nothing)
+    end
+
+    _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
+    n = copyto_permutedims_forward(size(parent(dst)))
+    copyto!(parent(dst), permutedims(reshape(_dst, n), copyto_permutedims_reverse(N)))
+end
+Base.copyto!(dst::Transpose{T, <:DevitoMPISparseTimeArray{T,2}}, src::Matrix) where {T} = copyto!(parent(dst), src, true)
 
 #
 # Dimension
@@ -522,6 +637,7 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 ```
 """
 function SparseTimeFunction(args...; kwargs...)
+    MPI.Initialized() || MPI.Init()
     o = pycall(devito.SparseTimeFunction, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
@@ -705,9 +821,46 @@ function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     end
 end
 
+function one_based_decomposition(decomposition)
+    for idim = 1:length(decomposition)
+        if decomposition[idim] !== nothing
+            for ipart = 1:length(decomposition[idim])
+                decomposition[idim][ipart] .+= 1
+            end
+        end
+    end
+    decomposition
+end
+
 topology(x::DiscreteFunction) = reverse(x.o._distributor.topology)
 mycoords(x::DiscreteFunction) = reverse(x.o._distributor.mycoords) .+ 1
-decomposition(x::DiscreteFunction) = reverse(x.o._decomposition)
+decomposition(x::DiscreteFunction) = one_based_decomposition(reverse(x.o._decomposition))
+decomposition_with_halo(x::DiscreteFunction) = one_based_decomposition(reverse(x.o._decomposition_outhalo))
+
+function decomposition_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+    _decomposition = reverse(x.o._decomposition)
+    h = inhalo(x)
+
+    ntuple(
+        idim->begin
+            if _decomposition[idim] === nothing
+                nothing
+            else
+                M = length(_decomposition[idim])
+                ntuple(
+                    ipart->begin
+                        n = length(_decomposition[idim][ipart])
+                        strt = _decomposition[idim][ipart][1] + (h[idim][1] + h[idim][2])*(ipart-1) + 1
+                        stop = _decomposition[idim][ipart][end] + (h[idim][1] + h[idim][2])*ipart + 1
+                        [strt:stop;]
+                    end,
+                    M
+                )
+            end
+        end,
+        N
+    )
+end
 
 function localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     h = inhalo(x)
@@ -752,32 +905,78 @@ function localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T
         end, N)
 end
 
-function data(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+function data(x::Function{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask(x)...)
-    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices(x))
+    d = decomposition(x)
+    t = topology(x)
+    idxs = localindices(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
-function data_with_halo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+function data_with_halo(x::Function{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_halo(x)...)
-    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_halo(x))
+    d = decomposition_with_halo(x)
+    t = topology(x)
+    idxs = localindices_with_halo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
-function data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
+function data_with_inhalo(x::Function{T,N,DevitoMPITrue}) where {T,N}
     p = sview(parent(data_allocated(x)), localmask_with_inhalo(x)...)
-    DevitoMPIArray{T,N,typeof(p)}(x.o."_data_allocated", p, localindices_with_inhalo(x))
+    d = decomposition_with_inhalo(x)
+    t = topology(x)
+    idxs = localindices_with_inhalo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
 end
 
-function data_allocated(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x))
+function data_allocated(x::Function{T,N,DevitoMPITrue}) where {T,N}
+    DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
+end
+
+function data(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    p = sview(parent(data_allocated(x)), localmask(x)...)
+    d = decomposition(x)
+    t = topology(x)
+    idxs = localindices(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+end
+
+function data_with_halo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    p = sview(parent(data_allocated(x)), localmask_with_halo(x)...)
+    d = decomposition_with_halo(x)
+    t = topology(x)
+    idxs = localindices_with_halo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+end
+
+function data_with_inhalo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    p = sview(parent(data_allocated(x)), localmask_with_inhalo(x)...)
+    d = decomposition_with_inhalo(x)
+    t = topology(x)
+    idxs = localindices_with_inhalo(x)
+    n = _size_from_local_indices(idxs)
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+end
+
+function data_allocated(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    DevitoMPITimeArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
 end
 
 # TODO - needed? <--
 function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     MPI.Initialized() || MPI.Init()
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
-    x.o._decomposition[1] == nothing || error("Sam does not know what he is doing!")
-    idxs = x.o._decomposition[2][rnk+1] .+ 1
-    d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", idxs)
+    decomposition(x)[end] === nothing || error("Sam does not know what he is doing!")
+    idxs = decomposition(x)[1][rnk+1]
+
+    topo = ntuple(i->i == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : 1, N-1)
+
+    d = DevitoMPISparseTimeArray{T,N}(x.o."_data_allocated", idxs, decomposition(x), topo)
     MPI.Barrier(MPI.COMM_WORLD)
     transpose(d)
 end
@@ -796,7 +995,11 @@ function coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
     view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"), n:-1:1, :)
 end
 #coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
-coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
+
+function coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
+    topo = (1, MPI.Comm_size(MPI.COMM_WORLD)) # topo is not defined for sparse decompositions
+    DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)), decomposition(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)), topo)
+end
 
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
