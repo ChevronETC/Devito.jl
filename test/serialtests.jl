@@ -222,6 +222,37 @@ end
     @test eq7 == eq8
 end
 
+@testset "Injection Equality, shape=$shape, T=$T" for shape in ((11,11),(11,11,11)), T in (Float32, Float64)
+    g = Grid(shape=shape, dtype=T)
+    f1 = Devito.Function(name="f1", grid=g, dtype=T)
+    f2 = Devito.Function(name="f2", grid=g, dtype=T)
+    u1 = TimeFunction(name="u1", grid=g, dtype=T)
+    u2 = TimeFunction(name="u2", grid=g, dtype=T)
+    q = SparseTimeFunction(name="q", grid=g, dtype=T, npoint=1, nt=5)
+    r = SparseTimeFunction(name="r", grid=g, dtype=T, npoint=1, nt=5)
+    inj1 = inject(q, field=forward(u1), expr=2*q)
+    inj2 = inject(q, field=forward(u1), expr=q)
+    inj3 = inject(q, field=forward(u1), expr=2*q)
+    inj4 = inject(q, field=forward(u2), expr=2*q)
+
+    inj5 = inject(q, field=f1, expr=q)
+    inj6 = inject(q, field=f2, expr=q)
+    inj7 = inject(q, field=f1, expr=q)
+
+    inj8 = inject(r, field=forward(u1), expr=2*r)
+    inj9 = inject(r, field=f1, expr=r)
+
+    @test inj1 == inj3
+    @test inj1 != inj2
+    @test inj1 != inj4
+
+    @test inj5 == inj7
+    @test inj5 != inj2
+
+    @test inj8 != inj1
+    @test inj9 != inj5
+end
+
 @testset "Symbolic Min, Max, Size, and Spacing" begin
     x = SpaceDimension(name="x")
     y = SpaceDimension(name="y")
