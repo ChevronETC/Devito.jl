@@ -1,7 +1,7 @@
 name = "Devito"
 uuid = "06ed14b1-0e40-4084-abdf-764a285f8c42"
 authors = ["Sam Kaplan <Sam.Kaplan@chevron.com>"]
-version = "0.3.0"
+version = "0.2.0"
 
 [deps]
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
