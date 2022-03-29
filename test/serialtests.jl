@@ -733,6 +733,25 @@ end
     @test name(op) == "op"
 end
 
+@testset "subs" begin
+    grid = Grid(shape=(5,5,5))
+    dims = dimensions(grid)
+    for staggered in ((dims[1],),(dims[2],),(dims[3],),dims[1:2],dims[2:3],(dims[1],dims[3]),dims)
+        f = Devito.Function(name="f", grid=grid, staggered=staggered)
+        for d in staggered
+            stagdict1 = Dict()
+            stagdict2 = Dict()
+            stagdict1[d] = d-spacing(d)/2
+            stagdict2[d] = d-spacing(d)
+            h = f
+            g = f
+            h = subs(h,stagdict1)
+            g = .5 * (g + subs(g,stagdict2))
+            @test evaluate(h) == g
+        end
+    end 
+end
+
 @testset "ccode" begin
     grd = Grid(shape=(5,5))
     f = Devito.Function(grid=grd, name="f")
