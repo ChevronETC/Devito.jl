@@ -763,6 +763,27 @@ stepping_dim(x::Grid) = dimension(x.o.stepping_dim)
 export time_dim, stepping_dim
 
 """
+    subs(f::DiscreteFunction{T,N,M},dict::Dict)
+Perform substitution on the dimensions of Devito Discrete Function f based on a dictionary.
+
+# Example
+```julia
+    grid = Grid(shape=(10,10,10))
+    z,y,x = dimensions(grid)
+    f = Devito.Function(grid=grid, name="f", staggered=x)
+    subsdict = Dict(x=>x-spacing(x)/2)
+    g = subs(f,subsdict)
+```
+"""
+subs(f::DiscreteFunction{T,N,M},dict::Dict) where {T,N,M} = f.o.subs(dict)
+
+"""
+    evaluate(x::PyObject)
+Evaluate a PyCall expression
+"""
+evaluate(x::PyObject) = x.evaluate
+
+"""
     data(x::DiscreteFunction)
 
 Return the data associated with the grid that corresponds to the discrete function `x`.  This is the
@@ -1514,6 +1535,6 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, SparseTimeFunction, TimeFunction, Function, Constant, AbstractDimension, Operator}) = x.o.name
 
-export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, value, value!
+export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, value, value!
 
 end
