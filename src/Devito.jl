@@ -495,7 +495,7 @@ Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
 spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
-spacing_map(x::Grid) = PyDict(x.o."spacing_map")
+spacing_map(x::Grid{T,N}) where {T,N} = Dict( key => convert( T, val) for (key, val) in pairs(PyDict(x.o."spacing_map")))
 
 #
 # SubDomain

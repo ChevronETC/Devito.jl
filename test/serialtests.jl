@@ -410,6 +410,15 @@ end
     @test (1+f+a+x)*0 == 0
 end
 
+@testset "Spacing Map" for T in (Float32,Float64)
+    grid = Grid(shape=(5,6), dtype=T)
+    smap = spacing_map(grid)
+    @test typeof(smap) == Dict{PyCall.PyObject, T}
+    y,x = dimensions(grid)
+    @test smap[spacing(y)] ≈ 1 / (size(grid)[1] - 1)
+    @test smap[spacing(x)] ≈ 1 / (size(grid)[2] - 1)
+end
+
 @testset "Constants in Operators, T=$T" for T in (Float32,Float64)
     a = Constant(name="a", dtype=T, value=1)
     b = Constant(name="b", dtype=T, value=2)
