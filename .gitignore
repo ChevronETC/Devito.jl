@@ -2,3 +2,4 @@ Manifest.toml
 deps/build.log
 benchmark/tune.json
 docs/build
+tests/operator*.c

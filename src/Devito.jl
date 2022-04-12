@@ -1412,7 +1412,7 @@ If filename is provided, writes ccode to disk using that filename
 function ccode(x::Operator; filename="")
     py"""
     def ccode(x, filename):
-        if filename is "":
+        if filename == "":
             return print(x)
         else:
             with open(filename, 'w') as f:
