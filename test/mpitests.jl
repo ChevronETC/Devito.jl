@@ -1,6 +1,6 @@
 using Distributed, MPIClusterManagers
 
-manager = MPIManager(;np=2)
+manager = MPIWorkerManager(2)
 addprocs(manager)
 
 @everywhere using Devito, LinearAlgebra, MPI, Random, Strided, Test
