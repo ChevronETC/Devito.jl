@@ -136,8 +136,9 @@ end
     # check parity of generated code
     @test success(`cmp --quiet operator1.julia.c operator1.python.c`)
 
+    rm("operator1.python.c", force=true)
+    rm("operator1.julia.c", force=true)
 end
-
 
 @testset "GenCodeDerivativesMixed" begin
 
@@ -166,4 +167,6 @@ end
     # check parity of generated code
     @test success(`cmp --quiet operator2.julia.c operator2.python.c`)
 
+    rm("operator1.python.c", force=true)
+    rm("operator1.julia.c", force=true)
 end
