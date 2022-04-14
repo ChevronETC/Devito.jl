@@ -314,7 +314,12 @@ abstract type AbstractDimension end
 # https://github.com/devitocodes/devito/blob/02bbefb7e380d299a2508fef2923c1a4fbd5c59d/devito/types/dimension.py
 
 # Python <-> Julia quick-and-dirty type/struct for dimensions 
-for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,:TimeDimension), (:devito,:ConditionalDimension),(:devito,:Dimension),(:devito,:DefaultDimension))
+for (M,F) in ((:devito,:SpaceDimension), 
+              (:devito,:SteppingDimension), 
+              (:devito,:TimeDimension), 
+              (:devito,:ConditionalDimension),
+              (:devito,:Dimension),
+              (:devito,:DefaultDimension))
     @eval begin
         struct $F <: AbstractDimension
             o::PyObject
@@ -325,6 +330,84 @@ for (M,F) in ((:devito,:SpaceDimension), (:devito,:SteppingDimension), (:devito,
         export $F
     end
 end
+
+# subdimensions, generated using subdimension helper functions for simplicity 
+abstract type AbstractSubDimension <: AbstractDimension end
+for (M,F,G) in ((:devito,:SubDimensionLeft,:left), 
+                (:devito,:SubDimensionRight, :right), 
+                (:devito,:SubDimensionMiddle, :middle))
+    @eval begin
+        struct $F <: AbstractSubDimension
+            o::PyObject
+        end
+        PyCall.PyObject(x::$F) = x.o
+        Base.convert(::Type{$F}, x::PyObject) = $F(x) 
+        $F(args...; kwargs...) = pycall($M.SubDimension.$G, $F, args...; kwargs...)
+        export $F
+    end
+end
+
+"""
+    SubDimensionLeft(args...; kwargs...)
+Creates middle a SubDimension.  Equivalent to devito.SubDimension.left helper function.
+
+# Example
+```julia
+x = SpaceDimension(name="x")
+xm = SubDimensionLeft(name="xl", parent=x, thickness=2)
+```
+"""
+function SubDimensionLeft end
+
+"""
+    SubDimensionRight(args...; kwargs...)
+Creates right a SubDimension.  Equivalent to devito.SubDimension.right helper function.
+
+# Example
+```julia
+x = SpaceDimension(name="x")
+xr = SubDimensionRight(name="xr", parent=x, thickness=3)
+```
+"""
+function SubDimensionRight end
+
+"""
+    SubDimensionMiddle(args...; kwargs...)
+Creates middle a SubDimension.  Equivalent to devito.SubDimension.middle helper function.
+
+# Example
+```julia
+x = SpaceDimension(name="x")
+xm = SubDimensionMiddle(name="xm", parent=x, thickness_left=2, thickness_right=3)
+```
+"""
+function SubDimensionMiddle end
+
+"""
+    thickness(x::AbstractSubDimension)
+Returns a tuple of a tuple containing information about the left and right thickness of a SubDimension and a symbol corresponding to each side's thickness.
+
+# Example
+```julia
+x = SpaceDimension(name="x")
+xr = SubDimensionRight(name="xr", parent=x, thickness=2)
+thickness(xr)
+```
+"""
+thickness(x::AbstractSubDimension) = x.o.thickness
+
+"""
+    parent(x::AbstractSubDimension)
+Returns the parent dimension of a subdimension.
+
+# Example
+```julia
+x = SpaceDimension(name="x")
+xr = SubDimensionRight(name="xr", parent=x, thickness=2)
+parent(xr)
+````
+"""
+Base.parent(x::AbstractSubDimension) = x.o.parent
 
 # Python <-> Julia quick-and-dirty type/struct mappings
 for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
@@ -1535,6 +1618,6 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, SparseTimeFunction, TimeFunction, Function, Constant, AbstractDimension, Operator}) = x.o.name
 
-export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, value, value!
+export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
