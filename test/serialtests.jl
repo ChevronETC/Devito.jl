@@ -493,6 +493,19 @@ end
     end
 end
 
+@testset "Devito SubDimensions" begin
+    d = SpaceDimension(name="d")
+    dl = SubDimensionLeft(name="dl", parent=d, thickness=2)
+    dr = SubDimensionRight(name="dr", parent=d, thickness=3)
+    dm = SubDimensionMiddle(name="dm", parent=d, thickness_left=2, thickness_right=3)
+    for subdim in (dl,dr,dm)
+        @test parent(subdim) == d
+    end
+    @test (thickness(dl)[1][2], thickness(dl)[2][2]) == (2, 0)
+    @test (thickness(dr)[1][2], thickness(dr)[2][2]) == (0, 3)
+    @test (thickness(dm)[1][2], thickness(dr)[2][2]) == (2, 3)
+end
+
 @testset "Devito stepping dimension" begin
     grid = Grid(shape=(5,5),origin=(0.,0.),extent=(1.,1.))
     f = TimeFunction(grid=grid,space_order=8,time_order=2,name="f")
