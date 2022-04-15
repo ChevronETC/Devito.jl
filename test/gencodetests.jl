@@ -90,6 +90,43 @@ function python_test_mixed_derivatives()
         """
 end
 
+# test subdomain creation
+function python_test_subdomains() 
+    python_code = 
+        py"""
+        import numpy as np
+        from devito import SubDomain, Grid, Function, Eq, Operator
+
+        class fs1(SubDomain):
+            name = "fs"
+
+            def define(self, dimensions):
+                x, y = dimensions
+                return {x: x, y: ("left", 1)}
+
+        grid = Grid(shape=(4,4), dtype=np.float32, subdomains=(fs1()))
+
+        fs  = grid.subdomains["fs"]
+        all = grid.subdomains["domain"]
+
+        f = Function(name="f", grid=grid, space_order=4)
+
+        f.data[:] = 0
+        op1 = Operator([Eq(f, 1, subdomain=all)], name="subop1")
+        op1.apply()
+        out = open("subdomain.operator1.python.c", "w")
+        print(op1, file=out)
+        out.close()
+
+        f.data[:] = 0
+        op2 = Operator([Eq(f, 1, subdomain=fs)], name="subop2")
+        op2.apply()
+        out = open("subdomain.operator2.python.c", "w")
+        print(op2, file=out)
+        out.close()
+        """
+end
+
 @testset "GenCodeDerivativesIndividual" begin
 
     # python execution
@@ -169,4 +206,36 @@ end
 
     rm("operator1.python.c", force=true)
     rm("operator1.julia.c", force=true)
+end
+
+@testset "GenCodeSubdomain" begin
+    
+    # python execution
+    python_test_subdomains() 
+
+    # julia with Devito.jl implementation
+    fs = SubDomain("fs", [("left",1), ("middle",0,0)])
+    grid = Devito.Grid(shape=(4,4), dtype=Float32, subdomains=(fs,))
+    f = Devito.Function(name="f", grid=grid, space_order=4)
+    fs  = subdomains(grid)["fs"]
+    all = subdomains(grid)["domain"]
+    data(f)[:,:] .= 0
+    op1 = Operator([Eq(f, 1, subdomain=all)], name="subop1")
+    apply(op1)
+    ccode(op1; filename="subdomain.operator1.julia.c")
+
+    op2 = Operator([Eq(f, 1, subdomain=fs)], name="subop2")
+    apply(op2)
+    ccode(op2; filename="subdomain.operator2.julia.c")
+
+    # check parity of generated codes
+    @test success(`cmp --quiet subdomain.operator1.julia.c subdomain.operator1.python.c`)
+    @test success(`cmp --quiet subdomain.operator2.julia.c subdomain.operator2.python.c`)
+    # check that generated code w/o subdomains is different than that with subdomains
+    @test ~success(`cmp --quiet subdomain.operator1.julia.c subdomain.operator2.julia.c`)
+    # clean up 
+    rm("subdomain.operator1.julia.c", force=true)
+    rm("subdomain.operator2.julia.c", force=true)
+    rm("subdomain.operator1.python.c", force=true)
+    rm("subdomain.operator2.python.c", force=true)
 end
