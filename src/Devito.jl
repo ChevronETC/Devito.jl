@@ -213,6 +213,14 @@ function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
     __x
 end
 
+function Base.copy!(dst::Union{DevitoMPIAbstractArray,Transpose{<:Number,<:DevitoMPIAbstractArray}}, src::AbstractArray)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        axes(dst) == axes(src) || throw(ArgumentError(
+            "arrays must have the same axes for copy! (consider using `copyto!`)"))
+    end
+    copyto!(dst, src)
+end
+
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     MPI.Initialized() || MPI.Init()
 
