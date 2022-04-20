@@ -418,7 +418,7 @@ parent(xr)
 Base.parent(x::AbstractSubDimension) = x.o.parent
 
 # Python <-> Julia quick-and-dirty type/struct mappings
-for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
+for (M,F) in ((:devito,:Eq), (:devito,:Injection))
 
     @eval begin
         struct $F
@@ -432,6 +432,21 @@ for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
 end
 
 Base.:(==)(x::Eq,y::Eq) = x.o == y.o
+
+struct Operator
+    o::PyObject
+
+    function Operator(args...; kwargs...)
+        if :name ∈ keys(kwargs)
+            new(pycall(devito.Operator, PyObject, args...; kwargs...))
+        else
+            new(pycall(devito.Operator, PyObject, args...; name="Kernel", kwargs...))
+        end
+    end
+end
+PyCall.PyObject(x::Operator) = x.o
+Base.convert(::Type{Operator}, x::PyObject) = Operator(x)
+export Operator
 
 struct Constant{T}
     o::PyObject
