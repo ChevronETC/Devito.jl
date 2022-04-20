@@ -448,6 +448,33 @@ PyCall.PyObject(x::Operator) = x.o
 Base.convert(::Type{Operator}, x::PyObject) = Operator(x)
 export Operator
 
+"""
+    Operator(expressions...; kwargs)
+Generate, JIT-compile and run C code starting from an ordered sequence of symbolic expressions.
+Parameters:
+    expressions (expr-like or list or expr-like) - The (list of) expression(s) defining the Operator computation.
+
+    **kwargs:
+
+        name::String
+        Name of the Operator, defaults to “Kernel”.
+
+        subs::Dict
+        Symbolic substitutions to be applied to expressions.
+
+        opt::String
+        The performance optimization level. Defaults to configuration["opt"].
+
+        language::String
+        The target language for shared-memory parallelism. Defaults to configuration["language"].
+
+        platform::String
+        The architecture the code is generated for. Defaults to configuration["platform"].
+
+        compiler::String
+        The backend compiler used to jit-compile the generated code. Defaults to configuration["compiler"].
+"""
+function Operator End
 struct Constant{T}
     o::PyObject
 end
