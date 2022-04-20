@@ -793,5 +793,18 @@ end
     @test name(op) == "foo"
     op = Operator([Eq(f,1)])
     @test name(op) == "Kernel"
+op = Operator(Eq(f,1))
+@test name(op) == "Kernel"
+op = Operator( (Eq(f,1), Eq(f,1)))
+@test name(op) == "Kernel"
+op = Operator( [Eq(f,1), Eq(f,1)])
+@test name(op) == "Kernel"
+op = Operator(Eq(f,1), opt="advanced")
+@test name(op) == "Kernel"
+op = Operator( (Eq(f,1), Eq(f,1)), opt="advanced")
+@test name(op) == "Kernel"
+op = Operator( [Eq(f,1), Eq(f,1)], opt="advanced")
+@test name(op) == "Kernel"
+
 end
 
