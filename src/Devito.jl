@@ -418,7 +418,7 @@ parent(xr)
 Base.parent(x::AbstractSubDimension) = x.o.parent
 
 # Python <-> Julia quick-and-dirty type/struct mappings
-for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
+for (M,F) in ((:devito,:Eq), (:devito,:Injection))
 
     @eval begin
         struct $F
@@ -432,6 +432,37 @@ for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito,:Operator))
 end
 
 Base.:(==)(x::Eq,y::Eq) = x.o == y.o
+
+struct Operator
+    o::PyObject
+
+    function Operator(args...; kwargs...)
+        if :name ∈ keys(kwargs)
+            new(pycall(devito.Operator, PyObject, args...; kwargs...))
+        else
+            new(pycall(devito.Operator, PyObject, args...; name="Kernel", kwargs...))
+        end
+    end
+end
+PyCall.PyObject(x::Operator) = x.o
+Base.convert(::Type{Operator}, x::PyObject) = Operator(x)
+export Operator
+
+"""
+    Operator(expressions...[; optional named arguments])
+
+Generate, JIT-compile and run C code starting from an ordered sequence of symbolic expressions,
+and where you provide a list of `expressions` defining the computation.
+
+# Optional named arguments
+* `name::String` Name of the Operator, defaults to “Kernel”.
+* `subs::Dict` Symbolic substitutions to be applied to expressions.
+* `opt::String` The performance optimization level. Defaults to configuration["opt"].
+* `language::String` The target language for shared-memory parallelism. Defaults to configuration["language"].
+* `platform::String` The architecture the code is generated for. Defaults to configuration["platform"].
+* `compiler::String` The backend compiler used to jit-compile the generated code. Defaults to configuration["compiler"].
+"""
+function Operator end
 
 struct Constant{T}
     o::PyObject

@@ -785,3 +785,25 @@ end
     @test code != ""
 end
 
+@testset "Operator default naming" begin
+    grid1 = Devito.Grid(shape=(2,2), origin=(0,0), extent=(1,1), dtype=Float32)
+    f = Devito.Function(name="f", grid=grid1, space_order=4)
+
+    op = Operator([Eq(f,1)]; name="foo")
+    @test name(op) == "foo"
+    op = Operator([Eq(f,1)])
+    @test name(op) == "Kernel"
+    op = Operator(Eq(f,1))
+    @test name(op) == "Kernel"
+    op = Operator( (Eq(f,1), Eq(f,1)))
+    @test name(op) == "Kernel"
+    op = Operator( [Eq(f,1), Eq(f,1)])
+    @test name(op) == "Kernel"
+    op = Operator(Eq(f,1), opt="advanced")
+    @test name(op) == "Kernel"
+    op = Operator( (Eq(f,1), Eq(f,1)), opt="advanced")
+    @test name(op) == "Kernel"
+    op = Operator( [Eq(f,1), Eq(f,1)], opt="advanced")
+    @test name(op) == "Kernel"
+end
+
