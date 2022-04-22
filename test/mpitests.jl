@@ -400,10 +400,30 @@ end
     stf_coords = coordinates(stf)
     @test isa(stf_coords, Devito.DevitoMPIArray)
     @test size(stf_coords) == (length(n),npoint)
-    x = rand(Float32,length(n),npoint)
+
+    x = reshape(Float32[1:length(n)*npoint;], length(n), npoint)
 
     copy!(stf_coords, x)
 
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        if npoint == 1
+            @test isempty(parent(stf_coords))
+        elseif npoint == 5
+            @test parent(stf_coords) ≈ (x[:,1:2])
+        elseif npoint == 10
+            @test parent(stf_coords) ≈ (x[:,1:5])
+        end
+    else
+        if npoint == 1
+            @test parent(stf_coords) ≈ x
+        elseif npoint == 5
+            @test parent(stf_coords) ≈ (x[:,3:end])
+        elseif npoint == 10
+            @test parent(stf_coords) ≈ (x[:,6:end])
+        end
+    end
+
+    # round trip
     _stf_coords = convert(Array,coordinates(stf))
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
