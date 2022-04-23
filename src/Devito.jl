@@ -37,6 +37,52 @@ end
 configuration(key) = PyDict(devito."configuration")[key]
 configuration() = PyDict(devito."configuration")
 
+function configure_nvidia_hpcsdk(version::String)
+
+    version === "22.3" || error("Only Nvidia HPC_SDK version 22.3 is currently supported!")
+
+    # HPC-SDK location 
+    HPCSDK_HOME  = "/opt/nvidia/hpc_sdk/Linux_x86_64/2022"
+    HPCSDK_CUPTI = "/opt/nvidia/hpc_sdk/Linux_x86_64/2022/cuda/11.4/extras/CUPTI"
+
+    # nvidia-container-runtime
+    ENV["HPCSDK_HOME"] = HPCSDK_HOME
+    ENV["HPCSDK_CUPTI"] = HPCSDK_CUPTI
+    ENV["NVIDIA_VISIBLE_DEVICES"] = "all"
+    ENV["NVIDIA_DRIVER_CAPABILITIES"] = "compute,utility"
+
+    # Compiler, CUDA, and Library paths
+    ENV["CUDA_HOME"] = "$HPCSDK_HOME/cuda"
+    ENV["CUDA_ROOT"] = "$HPCSDK_HOME/cuda/bin"
+
+    old_path    = get(ENV, "PATH", "")
+    old_ld_path = get(ENV, "LD_LIBRARY_PATH", "")
+
+    ENV["PATH"] = "$HPCSDK_HOME/compilers/bin:$HPCSDK_HOME/cuda/bin:$HPCSDK_HOME/comm_libs/mpi/bin:" * old_path
+    ENV["LD_LIBRARY_PATH"] = "$HPCSDK_HOME/cuda/lib:$HPCSDK_HOME/cuda/lib64:$HPCSDK_HOME/compilers/lib:$HPCSDK_HOME/math_libs/lib64:$HPCSDK_HOME/comm_libs/mpi/lib:$HPCSDK_CUPTI/lib64:bitcomp_DIR:" * old_ld_path
+
+    # MPI ROOT USER DEFAULTS
+    ENV["OMPI_ALLOW_RUN_AS_ROOT"] = 1
+    ENV["OMPI_ALLOW_RUN_AS_ROOT_CONFIRM"] = 1
+    ENV["OMPI_MCA_rmaps_base_oversubscribe"] = 1
+    ENV["OMPI_MCA_btl_base_warn_component_unused"] = 0
+    ENV["UCX_MEMTYPE_CACHE"] = "no"
+    ENV["UCX_NET_DEVICES"] = "all"
+    ENV["UCX_SHM_DEVICES"] = "all"
+    ENV["UCX_ACC_DEVICES"] = "all"
+    ENV["NCCL_UCX_RNDV_THRESH"] = 0
+    ENV["NCCL_UCX_RNDV_SCHEME"] = "get_zcopy"
+    ENV["NCCL_PLUGIN_P2P"] = "ucx"
+    ENV["MELLANOX_MOUNT_DRIVER"] = 1
+
+    # devito specific
+    configuration!("compiler", "nvc") 
+    configuration!("language", "openacc")
+    configuration!("platform", "nvidiaX")
+
+    configuration()
+end
+
 _reverse(argument::Tuple) = reverse(argument)
 _reverse(argument) = argument
 
