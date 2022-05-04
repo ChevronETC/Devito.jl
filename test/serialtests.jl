@@ -532,7 +532,7 @@ end
     src_coords = coordinates(src)
     src_coords .= coords
     src_data = data(src)
-    src_data .= reshape(1e3*Base.sin.(time_range .* (3*pi/2)),:,1)
+    src_data .= reshape(1e3*Base.sin.(time_range .* (3*pi/2)),1,:)
     pupdate = Eq(forward(p),1+p)
     src_term = inject(src; field=forward(p), expr=src*spacing(t)^2)
 
@@ -545,8 +545,8 @@ end
     op = Operator([pupdate,src_term,rec_term],name="SparseInjectInterp", subs=smap)
     apply(op,time_M=nt-1)
     @test data(p)[3,1,end-1] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
-    @test data(rec)[end,1] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
-    @test data(rec)[end,2] ≈ (nt-1)
+    @test data(rec)[1,end] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
+    @test data(rec)[2,end] ≈ (nt-1)
     
 end
 

@@ -438,28 +438,29 @@ end
 
     x = Matrix{Float32}(undef,0,0)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        x = reshape(Float32[1:prod(nt*npoint);], nt, npoint)
+        x = reshape(Float32[1:prod(nt*npoint);], npoint, nt)
     end
     
     _x = data(stf)
+
     copy!(_x, x)
-    x = reshape(Float32[1:prod(nt*npoint);], nt, npoint)
+    x = reshape(Float32[1:prod(nt*npoint);], npoint, nt)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         if npoint == 1
             @test isempty(parent(parent(_x)))
         elseif npoint == 5
-            @test parent(parent(_x)) ≈ (x[:,1:2])'
+            @test parent(parent(_x)) ≈ x[1:2,:]
         elseif npoint == 10
-            @test parent(parent(_x)) ≈ (x[:,1:5])'
+            @test parent(parent(_x)) ≈ x[1:5,:]
         end
     else
         if npoint == 1
-            @test parent(parent(_x)) ≈ x'
+            @test parent(parent(_x)) ≈ x
         elseif npoint == 5
-            @test parent(parent(_x)) ≈ (x[:,3:5])'
+            @test parent(parent(_x)) ≈ x[3:5,:]
         elseif npoint == 10
-            @test parent(parent(_x)) ≈ (x[:,6:10])'
+            @test parent(parent(_x)) ≈ x[6:10,:]
         end
     end
 end
@@ -469,16 +470,16 @@ end
     nt = 100
     stf = SparseTimeFunction(name="stf", npoint=npoint, nt=nt, grid=grid)
 
-    x = zeros(Float32, nt, npoint)
+    x = zeros(Float32, npoint, nt)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        x .= reshape(Float32[1:prod(nt*npoint);], nt, npoint)
+        x .= reshape(Float32[1:prod(nt*npoint);], npoint, nt)
     end
     MPI.Barrier(MPI.COMM_WORLD)
     _x = data(stf)
-    @test isa(data(stf), Transpose)
+    @test isa(data(stf), Devito.DevitoMPISparseTimeArray)
 
     copy!(_x, x)
-    x .= reshape(Float32[1:prod(nt*npoint);], nt, npoint)
+    x .= reshape(Float32[1:prod(nt*npoint);], npoint, nt)
 
     __x = convert(Array, _x)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -490,8 +491,8 @@ end
     grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
     stf_data = data(stf)
-    @test size(stf_data) == (100,10)
-    x = rand(10,100)
+    @test size(stf_data) == (10,100)
+    x = rand(100,10)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         @test_throws ArgumentError copy!(stf_data, x)
     end
