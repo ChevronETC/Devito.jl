@@ -528,7 +528,7 @@ end
 
     src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=nt)
     @test typeof(dimensions(src)[1]) == Dimension
-    coords =  [0.5; 0]
+    coords =  [0; 0.5]
     src_coords = coordinates(src)
     src_coords .= coords
     src_data = data(src)

@@ -1133,11 +1133,15 @@ data_with_halo(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 data(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 # -->
 
+"""
+    coordinates(x::SparseTimeFunction)
+Returns a Devito array associated with the coordinates of a sparse time function.
+Note that contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
+Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z.
+"""
 function coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
-    n = ndims(grid(x))
-    view(DevitoArray{T,N}(x.o.coordinates."_data_allocated"), n:-1:1, :)
+    DevitoArray{T,N}(x.o.coordinates."_data_allocated")
 end
-#coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)))
 
 function coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     topo = (1, MPI.Comm_size(MPI.COMM_WORLD)) # topo is not defined for sparse decompositions
