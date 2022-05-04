@@ -213,7 +213,7 @@ function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
     __x
 end
 
-function Base.copy!(dst::Union{DevitoMPIAbstractArray,Transpose{<:Number,<:DevitoMPIAbstractArray}}, src::AbstractArray)
+function Base.copy!(dst::DevitoMPIAbstractArray, src::AbstractArray)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         axes(dst) == axes(src) || throw(ArgumentError(
             "arrays must have the same axes for copy! (consider using `copyto!`)"))
@@ -294,15 +294,14 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
     end
     _y
 end
-Base.convert(::Type{Array}, x::Transpose{T, <:DevitoMPISparseTimeArray{T,2}}) where {T} = (convert(Array, parent(x)))'
 
-function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array, transposeflag = false) where {T,N}
+function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array) where {T,N}
     MPI.Initialized() || MPI.Init()
 
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        data_vbuffer = transposeflag ? VBuffer(src, _counts) : VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
+        data_vbuffer = VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
     else
         data_vbuffer = VBuffer(nothing)
     end
@@ -311,7 +310,6 @@ function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array, transposef
     n = copyto_permutedims_forward(size(parent(dst)))
     copyto!(parent(dst), permutedims(reshape(_dst, n), copyto_permutedims_reverse(N)))
 end
-Base.copyto!(dst::Transpose{T, <:DevitoMPISparseTimeArray{T,2}}, src::Matrix) where {T} = copyto!(parent(dst), src, true)
 
 #
 # Dimension
@@ -1121,12 +1119,12 @@ function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
 
     d = DevitoMPISparseTimeArray{T,N}(x.o."_data_allocated", idxs, decomposition(x), topo)
     MPI.Barrier(MPI.COMM_WORLD)
-    transpose(d)
+    d
 end
 
 function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
     d = DevitoArray{T,N}(x.o."_data_allocated")
-    transpose(d)
+    d
 end
 
 data_with_halo(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
