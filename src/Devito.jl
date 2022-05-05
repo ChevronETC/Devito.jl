@@ -84,7 +84,6 @@ decomposition(x::DevitoMPIAbstractArray) = x.decomposition
 topology(x::DevitoMPIAbstractArray) = x.topology
 
 function _size_from_local_indices(local_indices::NTuple{N,UnitRange{Int64}}) where {N}
-    MPI.Initialized() || MPI.Init()
     n = ntuple(i->(size(local_indices[i])[1] > 0 ? local_indices[i][end] : 0), N)
     MPI.Allreduce(n, max, MPI.COMM_WORLD)
 end
@@ -92,12 +91,10 @@ end
 Base.size(x::DevitoMPIAbstractArray) = x.size
 
 function counts(x::DevitoMPIAbstractArray)
-    MPI.Initialized() || MPI.Init()
     [count(x, mycoords) for mycoords in CartesianIndices(topology(x))][:]
 end
 
 function Base.fill!(x::DevitoMPIAbstractArray, v)
-    MPI.Initialized() || MPI.Init()
     parent(x) .= v
     MPI.Barrier(MPI.COMM_WORLD)
     x
@@ -135,8 +132,6 @@ function count(x::DevitoMPIArray, mycoords)
 end
 
 function Base.convert(::Type{Array}, x::DevitoMPIArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         y = zeros(T, size(x))
@@ -152,7 +147,6 @@ function Base.convert(::Type{Array}, x::DevitoMPIArray{T,N}) where {T,N}
 end
 
 function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -191,8 +185,6 @@ copyto_permutedims_forward(n::NTuple{N,Int}) where {N} = ntuple(i->i == 1 ? n[N]
 copyto_permutedims_reverse(N) = ntuple(i->i == N ? 1 : i + 1, N)
 
 function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         y = zeros(T, copyto_permutedims_forward(size(x)))
@@ -224,8 +216,6 @@ function Base.copy!(dst::DevitoMPIAbstractArray, src::AbstractArray)
 end
 
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -274,8 +264,6 @@ function count(x::DevitoMPISparseTimeArray, mycoords)
 end
 
 function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         y = zeros(T, copyto_permutedims_forward(size(x)))
@@ -299,8 +287,6 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
 end
 
 function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array) where {T,N}
-    MPI.Initialized() || MPI.Init()
-
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -772,7 +758,6 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 ```
 """
 function SparseTimeFunction(args...; kwargs...)
-    MPI.Initialized() || MPI.Init()
     o = pycall(devito.SparseTimeFunction, PyObject, args...; kwargs...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
@@ -839,8 +824,6 @@ Return the size of the grid associated with `z`, inclusive the the Devito "inner
 size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
 function Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
-    MPI.Initialized() || MPI.Init()
-
     _shape = zeros(Int, N)
     if x.o._decomposition[1] == nothing
         if reduce(*, x.o.shape) != 0
@@ -1127,7 +1110,6 @@ end
 
 # TODO - needed? <--
 function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
-    MPI.Initialized() || MPI.Init()
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
     decomposition(x)[end] === nothing || error("Sam does not know what he is doing!")
     idxs = decomposition(x)[1][rnk+1]
