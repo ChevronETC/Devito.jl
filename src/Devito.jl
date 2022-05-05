@@ -358,6 +358,7 @@ end
 
 """
     SubDimensionLeft(args...; kwargs...)
+
 Creates middle a SubDimension.  Equivalent to devito.SubDimension.left helper function.
 
 # Example
@@ -370,6 +371,7 @@ function SubDimensionLeft end
 
 """
     SubDimensionRight(args...; kwargs...)
+
 Creates right a SubDimension.  Equivalent to devito.SubDimension.right helper function.
 
 # Example
@@ -382,6 +384,7 @@ function SubDimensionRight end
 
 """
     SubDimensionMiddle(args...; kwargs...)
+
 Creates middle a SubDimension.  Equivalent to devito.SubDimension.middle helper function.
 
 # Example
@@ -394,6 +397,7 @@ function SubDimensionMiddle end
 
 """
     thickness(x::AbstractSubDimension)
+
 Returns a tuple of a tuple containing information about the left and right thickness of a SubDimension and a symbol corresponding to each side's thickness.
 
 # Example
@@ -407,6 +411,7 @@ thickness(x::AbstractSubDimension) = x.o.thickness
 
 """
     parent(x::AbstractSubDimension)
+
 Returns the parent dimension of a subdimension.
 
 # Example
@@ -471,12 +476,14 @@ end
 
 """
     Constant(args...; kwargs...)
+
 Symbol representing a constant, scalar value in symbolic equations. 
 A Constant carries a scalar value.
-kwargs:
-    name (str) -- Name of the symbol.
-    value (Real) -- Value associated with the symbol.  Defaults to 0.
-    dtype (data-type, optional) -- Any object that can be interpreted as a float data type. Defaults to Float32.
+
+# kwargs
+* `name::String` Name of the symbol.
+* `value::Real` Value associated with the symbol.  Defaults to 0.
+* `dtype::Type{AbstractFloat}` choose from `Float32` or `Float64`.  Default is `Float32`
 """
 function Constant(args...; kwargs...)
     o =  pycall(devito.Constant, PyObject, args...; kwargs...)
@@ -489,25 +496,28 @@ Base.convert(::Type{Constant{T}}, x::PyObject) where {T} = Constant(x)
 
 """
     data(x::Constant{T})
-Returns `value(x::Constnat{T})`.  See `value` documentation for more information.
+
+Returns `value(x::Constant{T})`.  See `value` documentation for more information.
 """
 data(x::Constant) = value(x)
 
 """
     value(x::Constant)
-Returns the value of a devito constant.
-Can not be used to change constant value, for that use set_constant!(x,y)
+
+Returns the value of a devito constant. Can not be used to change constant value, for that use value!(x,y)
 """
 value(x::Constant{T}) where {T} = convert(T,x.o._value)
 
 """
     isconst(x::Constant)
+
 True if the symbol value cannot be modified within an Operator (and thus its value is provided by the user directly from Python-land), False otherwise.
 """
 Base.isconst(x::Constant) = x.o.is_const
 
 """
     value!(x::Constant{T},y::T)
+
 Change the numerical value of a constant, x, after creation to y, after converting y to datatype T of constant x.
 """
 function value!(x::Constant{T},y::Real) where {T}
@@ -609,6 +619,7 @@ Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
 extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,Float64})
 """
     origin(grid)
+
 returns the tuple corresponding to the grid's origin
 """
 origin(grid::Grid{T,N}) where {T,N} = reverse((grid.o.origin)::NTuple{N,Float64})
@@ -646,6 +657,7 @@ end
 
 """
     interior(x::grid)
+
 returns the interior subdomain of a Devito grid
 """
 interior(x::Grid{T,N}) where {T,N} = SubDomain{N}(x.o.interior)
@@ -887,6 +899,7 @@ export time_dim, stepping_dim
 
 """
     subs(f::DiscreteFunction{T,N,M},dict::Dict)
+
 Perform substitution on the dimensions of Devito Discrete Function f based on a dictionary.
 
 # Example
@@ -902,6 +915,7 @@ subs(f::DiscreteFunction{T,N,M},dict::Dict) where {T,N,M} = f.o.subs(dict)
 
 """
     evaluate(x::PyObject)
+
 Evaluate a PyCall expression
 """
 evaluate(x::PyObject) = x.evaluate
@@ -1136,6 +1150,7 @@ data(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 
 """
     coordinates(x::SparseTimeFunction)
+
 Returns a Devito array associated with the coordinates of a sparse time function.
 Note that contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
 Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z.
@@ -1295,7 +1310,6 @@ end
 
 Returns the symbol for the first derivative with respect to x if f is a Function with dimension x.
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
-
 """
 function dx end
 
@@ -1328,7 +1342,7 @@ function dxl end
     dyl(f::DiscreteFunction, args...; kwargs...)
 
 Returns the symbol for the first backward one-sided derivative with respect to y if f is a Function with dimension y.
-    Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dyl end
 
@@ -1336,7 +1350,7 @@ function dyl end
     dzl(f::DiscreteFunction, args...; kwargs...)
 
 Returns the symbol for the first backward one-sided derivative with respect to z if f is a Function with dimension y.
-    Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dzl end
 
@@ -1374,12 +1388,14 @@ end
 
 """
     dt(f::TimeFunction, args...; kwargs...)
+
 Returns the symbol for the first time derivative of a time function
 """
 function dt end
 
 """
     dt2(f::TimeFunction, args...; kwargs...)
+
 Returns the symbol for the second time derivative of a time function
 """
 function dt2 end
@@ -1422,30 +1438,35 @@ end
 
 """
     symbolic_min(x::Dimension)
+
 Symbol defining the minimum point of the Dimension
 """
 function symbolic_min end
 
 """
     symbolic_max(x::Dimension)
+
 Symbol defining the maximum point of the Dimension
 """
 function symbolic_max end
 
 """
     spacing(x::Dimension)
+
 Symbol representing the physical spacing along the Dimension.
 """
 function spacing end
 
 """
     is_Derived(x::Dimension)
+
 Returns true when dimension is derived, false when it is not
 """
 function is_Derived end
 
 """
     symbolic_size(x::Dimension)
+
 Symbol defining the size of the Dimension
 """
 function symbolic_size end
@@ -1515,6 +1536,7 @@ end
 
 """ 
     Mod(x::AbstractDimension,y::Int)
+
 Perform Modular division on a dimension
 """
 Mod(x::AbstractDimension,y::Int) = sympy.Mod(PyObject(x),PyObject(y))
@@ -1530,9 +1552,8 @@ function Base.getindex(x::Union{TimeFunction,Function},args...)
 end
 
 """
-    ```
     ccode(x::Operator; filename="")
-    ```
+
 Print the ccode associated with a devito operator.  
 If filename is provided, writes ccode to disk using that filename
 """
@@ -1600,8 +1621,8 @@ Find a simple representation for a number or, if there are free symbols or
 if ``rational=True``, then replace Floats with their Rational equivalents. If
 no change is made and rational is not False then Floats will at least be
 converted to Rationals.
-Explanation
-===========
+
+# Explanation
 For numerical expressions, a simple formula that numerically matches the
 given numerical expression is sought (and the input should be possible
 to evalf to a precision of at least 30 digits).
@@ -1619,18 +1640,12 @@ When rational_conversion='exact' it uses the exact, base-2 representation.
 
 See https://github.com/sympy/sympy/blob/52f606a503cea5e9588de14150ccb9f7f9ed4752/sympy/simplify/simplify.py .
 
-Examples:
+# Examples:
 ```julia
-    nsimplify(π)
+nsimplify(π) # PyObject 314159265358979/100000000000000
 ```
 ```julia
-PyObject 314159265358979/100000000000000
-```
-```julia
-    nsimplify(π; tolerance=0.1)
-```
-```julia
-PyObject 22/7
+nsimplify(π; tolerance=0.1) # PyObject 22/7
 ```
 """
 nsimplify(expr::PyObject; constants=(), tolerance=nothing, full=false, rational=nothing, rational_conversion="base10") = pycall(sympy.nsimplify, PyObject, expr, constants=constants, tolerance=tolerance, full=full, rational=rational, rational_conversion=rational_conversion)
@@ -1642,16 +1657,13 @@ nsimplify(x::Number; kwargs...) = nsimplify(PyObject(x); kwargs...)
 
 Algebraically rearrange an Eq w.r.t. a given symbol.
 This is a wrapper around ``devito.solve``, which in turn is a wrapper around ``sympy.solve``.
-Parameters
-----------
-eq : expr-like
-    The equation to be rearranged.
-target : symbol
-    The symbol w.r.t. which the equation is rearranged. May be a `Function`
-    or any other symbolic object.
-**kwargs
-    Symbolic optimizations applied while rearranging the equation. For more
-    information. refer to ``sympy.solve.__doc__``.
+
+# Parameters
+* `eq::PyObject` expr-like. The equation to be rearranged.
+* `target::PyObject` The symbol w.r.t. which the equation is rearranged. May be a `Function` or any other symbolic object.
+
+## kwargs
+* Symbolic optimizations applied while rearranging the equation. For more information. refer to `sympy.solve.__doc__`.
 """
 solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
 
