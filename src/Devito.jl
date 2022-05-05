@@ -134,14 +134,15 @@ function count(x::DevitoMPIArray, mycoords)
     mapreduce(idim->d[idim] === nothing ? n[idim] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
-function Base.convert(::Type{Array}, x::DevitoMPIArray{T}) where {T}
+function Base.convert(::Type{Array}, x::DevitoMPIArray{T,N}) where {T,N}
     MPI.Initialized() || MPI.Init()
 
-    y = zeros(T, size(x))
-
+    local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        y = zeros(T, size(x))
         y_vbuffer = VBuffer(y, counts(x))
     else
+        y = Array{T}(undef, ntuple(_->0, N))
         y_vbuffer = VBuffer(nothing)
     end
 
@@ -192,11 +193,12 @@ copyto_permutedims_reverse(N) = ntuple(i->i == N ? 1 : i + 1, N)
 function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
     MPI.Initialized() || MPI.Init()
 
-    y = zeros(T, copyto_permutedims_forward(size(x)))
-
+    local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        y = zeros(T, copyto_permutedims_forward(size(x)))
         y_vbuffer = VBuffer(y, counts(x))
     else
+        y = Array{T,N}(undef, ntuple(_->0, N))
         y_vbuffer = VBuffer(nothing)
     end
 
@@ -274,11 +276,12 @@ end
 function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,N}
     MPI.Initialized() || MPI.Init()
 
-    y = zeros(T, copyto_permutedims_forward(size(x)))
-
+    local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        y = zeros(T, copyto_permutedims_forward(size(x)))
         y_vbuffer = VBuffer(y, counts(x))
     else
+        y = Array{T,N}(undef, ntuple(_->0, N))
         y_vbuffer = VBuffer(nothing)
     end
 
