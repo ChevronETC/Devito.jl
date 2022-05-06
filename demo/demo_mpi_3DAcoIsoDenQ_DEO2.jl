@@ -1,7 +1,7 @@
 using Revise
 using Distributed, MPIClusterManagers
 
-manager = MPIManager(np=4)
+manager = MPIWorkerManager(4)
 addprocs(manager)
 
 @everywhere ENV["OMP_NUM_THREADS"] = 4
@@ -46,7 +46,8 @@ end
     
     src = SparseTimeFunction(name="src", grid=grid, f0=0.01f0, npoint=1, nt=length(time_range), coordinates=[605.0 605.0 10.0])
     src_data = data(src)
-    w = ricker(0.01, collect(time_range), 125)
+    w = zeros(Float32, 1, length(time_range))
+    w[1,:] .= ricker(0.01, collect(time_range), 125)[:]
     copy!(src_data, w)
     src_term = inject(src; field=forward(p), expr=src * spacing(t)^2 * v^2 / b)
 
