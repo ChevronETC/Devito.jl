@@ -431,6 +431,20 @@ end
     end
 end
 
+@testset "Sparse time function dispatch" begin
+    grid = Grid(shape=(11,12), dtype=Float32)
+    nt = 100
+    stf = SparseTimeFunction(name="stf", npoint=1, nt=nt, grid=grid)
+    x = ones(Float64, 1, nt)
+    data_stf = data(stf)
+    @test_throws ErrorException copy!(data_stf,x) 
+    x = ones(Float32, 1, nt)
+    copy!(data_stf, x)
+    if MPI.Comm_rank == 0
+        @test convert(Array,data_stf) ≈ x
+    end
+end
+
 @testset "Sparse time function, copy!, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
     grid = Grid(shape=n, dtype=Float32)
     nt = 100
