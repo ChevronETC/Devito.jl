@@ -286,7 +286,7 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
     _y
 end
 
-function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array) where {T,N}
+function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array{T,N}) where {T,N}
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
