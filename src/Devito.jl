@@ -1394,6 +1394,7 @@ for F in ( :+, :-, :*, :/, :^)
 end
 
 Base.:(-)(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = -1*x
+Base.:(+)(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = x
 
 # metaprogramming to access Devito dimension boolean attributes
 for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Derived, :is_NonlinearDerived, :is_Sub, :is_Conditional, :is_Stepping, :is_Modulo, :is_Incr)
