@@ -350,20 +350,20 @@ end
 function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,N}
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        y = zeros(T, copyto_permutedims_forward(size(x)))
+        y = zeros(T, length(x))
         y_vbuffer = VBuffer(y, counts(x))
     else
         y = Array{T,N}(undef, ntuple(_->0, N))
         y_vbuffer = VBuffer(nothing)
     end
 
-    _x = zeros(T, copyto_permutedims_forward(size(parent(x))))
-    copyto!(_x, permutedims(parent(x), copyto_permutedims_forward(N)))
+    _x = zeros(T, size(parent(x)))
+    copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
 
     local _y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        _y = permutedims(y, copyto_permutedims_reverse(N))
+        _y = convert_resort_array!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
     else
         _y = Array{T,N}(undef, ntuple(_->0, N))
     end
@@ -374,14 +374,14 @@ function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array{T,N}) where
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        data_vbuffer = VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
+        _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
+        data_vbuffer = VBuffer(_y, _counts)
     else
         data_vbuffer = VBuffer(nothing)
     end
 
     _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
-    n = copyto_permutedims_forward(size(parent(dst)))
-    copyto!(parent(dst), permutedims(reshape(_dst, n), copyto_permutedims_reverse(N)))
+    copyto!(parent(dst), _dst)
 end
 
 #

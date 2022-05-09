@@ -231,3 +231,75 @@ end
         end
     end
 end
+
+@testset "Sparse time function, copy!, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
+    grid = Grid(shape=n, dtype=Float32)
+    nt = 100
+    stf = SparseTimeFunction(name="stf", npoint=npoint, nt=nt, grid=grid)
+
+    x = Matrix{Float32}(undef,0,0)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        x = reshape(Float32[1:prod(nt*npoint);], npoint, nt)
+    end
+
+    _x = data(stf)
+
+    copy!(_x, x)
+    x = reshape(Float32[1:prod(nt*npoint);], npoint, nt)
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        if npoint == 1
+            @test isempty(parent(_x))
+        elseif npoint == 5
+            @test parent(_x) ≈ x[1:1,:]
+        elseif npoint == 10
+            @test parent(_x) ≈ x[1:2,:]
+        end
+    elseif MPI.Comm_rank(MPI.COMM_WORLD) == 1
+        if npoint == 1
+            @test isempty(parent(_x))
+        elseif npoint == 5
+            @test parent(_x) ≈ x[2:2,:]
+        elseif npoint == 10
+            @test parent(_x) ≈ x[3:4,:]
+        end
+    elseif MPI.Comm_rank(MPI.COMM_WORLD) == 2
+        if npoint == 1
+            @test isempty(parent(_x))
+        elseif npoint == 5
+            @test parent(_x) ≈ x[3:3,:]
+        elseif npoint == 10
+            @test parent(_x) ≈ x[5:6,:]
+        end
+    elseif MPI.Comm_rank(MPI.COMM_WORLD) == 3
+        if npoint == 1
+            @test parent(_x) ≈ x
+        elseif npoint == 5
+            @test parent(_x) ≈ x[4:5,:]
+        elseif npoint == 10
+            @test parent(_x) ≈ x[7:10,:]
+        end
+    end
+end
+
+@testset "Sparse time function, copy! and convert, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
+    grid = Grid(shape=n, dtype=Float32)
+    nt = 100
+    stf = SparseTimeFunction(name="stf", npoint=npoint, nt=nt, grid=grid)
+
+    x = zeros(Float32, npoint, nt)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        x .= reshape(Float32[1:prod(nt*npoint);], npoint, nt)
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+    _x = data(stf)
+    @test isa(data(stf), Devito.DevitoMPISparseTimeArray)
+
+    copy!(_x, x)
+    x .= reshape(Float32[1:prod(nt*npoint);], npoint, nt)
+
+    __x = convert(Array, _x)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test __x ≈ x
+    end
+end
