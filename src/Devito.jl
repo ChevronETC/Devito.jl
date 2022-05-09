@@ -144,7 +144,7 @@ function convert_resort_array!(_y::Array{T,N}, y::Vector{T}, topology, decomposi
     _y
 end
 
-function Base.convert(::Type{Array}, x::DevitoMPIArray{T,N}) where {T,N}
+function Base.convert(::Type{Array}, x::DevitoMPIAbstractArray{T,N}) where {T,N}
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         y = zeros(T, length(x))
@@ -215,50 +215,6 @@ function count(x::DevitoMPITimeArray, mycoords)
     mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
-copyto_permutedims_forward(N) = ntuple(i->i == 1 ? N : i - 1, N)
-copyto_permutedims_forward(n::NTuple{N,Int}) where {N} = ntuple(i->i == 1 ? n[N] : n[i-1], N)
-copyto_permutedims_reverse(N) = ntuple(i->i == N ? 1 : i + 1, N)
-
-#=
-These are specialized version for 3 and 4 dimensions.  They seems to run faster than the N dimension
-version.  I guess this is becuase it is non-allocating, where-as the N dimension version does
-allocate memory.
-=#
-function convert_resort_timearray!(_y::Array{T,3}, y::Vector{T}, topology, decomposition) where {T}
-    i = 1
-    for idx in CartesianIndices(topology)
-        for i3 in 1:size(_y,3), i2 in decomposition[2][idx.I[2]], i1 in decomposition[1][idx.I[1]]
-            _y[i1,i2,i3] = y[i]
-            i += 1
-        end
-    end
-    _y
-end
-
-function convert_resort_timearray!(_y::Array{T,4}, y::Vector{T}, topology, decomposition) where {T}
-    i = 1
-    for idx in CartesianIndices(topology)
-        for i4 in 1:size(_y,4), i3 in decomposition[3][idx.I[3]], i2 in decomposition[2][idx.I[2]], i1 in decomposition[1][idx.I[1]]
-            _y[i1,i2,i3,i4] = y[i]
-            i += 1
-        end
-    end
-    _y
-end
-
-function convert_resort_timearray!(_y::Array{T,N}, y::Vector{T}, topology, decomposition) where {T,N}
-    i = 1
-    for block_idx in CartesianIndices(topology)
-        idxs = CartesianIndices(ntuple(idim->decomposition[idim] === nothing ? size(_y, idim) : length(decomposition[idim][block_idx.I[idim]]), N))
-        for _idx in idxs
-            idx = CartesianIndex(ntuple(idim->decomposition[idim] === nothing ? _idx.I[idim] : decomposition[idim][block_idx.I[idim]][_idx.I[idim]], N))
-            _y[idx] = y[i]
-            i += 1
-        end
-    end
-    _y
-end
-
 function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -271,7 +227,7 @@ function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
     MPI.Gatherv!(convert(Array, parent(x)), y_vbuffer, 0, MPI.COMM_WORLD)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        _y = convert_resort_timearray!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
+        _y = convert_resort_array!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
     else
         _y = zeros(T, ntuple(_->0, N))
     end
@@ -287,24 +243,11 @@ function Base.copy!(dst::DevitoMPIAbstractArray, src::AbstractArray)
     copyto!(dst, src)
 end
 
-function copyto_resort_timearray!(_y::Vector{T}, y::Array{T,N}, topology, decomposition) where {T,N}
-    i = 1
-    for block_idx in CartesianIndices(topology)
-        idxs = CartesianIndices(ntuple(idim->decomposition[idim] === nothing ? size(y, idim) : length(decomposition[idim][block_idx.I[idim]]), N))
-        for _idx in idxs
-            idx = CartesianIndex(ntuple(idim->decomposition[idim] === nothing ? _idx.I[idim] : decomposition[idim][block_idx.I[idim]][_idx.I[idim]], N))
-            _y[i] = y[idx]
-            i += 1
-        end
-    end
-    _y
-end
-
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        _y = copyto_resort_timearray!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
+        _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
         data_vbuffer = VBuffer(_y, _counts)
     else
         data_vbuffer = VBuffer(nothing)
