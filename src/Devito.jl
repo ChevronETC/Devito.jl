@@ -131,10 +131,23 @@ function count(x::DevitoMPIArray, mycoords)
     mapreduce(idim->d[idim] === nothing ? n[idim] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
+function convert_resort_array!(_y::Array{T,N}, y::Vector{T}, topology, decomposition) where {T,N}
+    i = 1
+    for block_idx in CartesianIndices(topology)
+        idxs = CartesianIndices(ntuple(idim->decomposition[idim] === nothing ? size(_y, idim) : length(decomposition[idim][block_idx.I[idim]]), N))
+        for _idx in idxs
+            idx = CartesianIndex(ntuple(idim->decomposition[idim] === nothing ? _idx.I[idim] : decomposition[idim][block_idx.I[idim]][_idx.I[idim]], N))
+            _y[idx] = y[i]
+            i += 1
+        end
+    end
+    _y
+end
+
 function Base.convert(::Type{Array}, x::DevitoMPIArray{T,N}) where {T,N}
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        y = zeros(T, size(x))
+        y = zeros(T, length(x))
         y_vbuffer = VBuffer(y, counts(x))
     else
         y = Array{T}(undef, ntuple(_->0, N))
@@ -144,13 +157,35 @@ function Base.convert(::Type{Array}, x::DevitoMPIArray{T,N}) where {T,N}
     _x = zeros(T, size(parent(x)))
     copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
+
+    local _y
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        _y = convert_resort_array!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
+    else
+        _y = Array{T,N}(undef, ntuple(_->0, N))
+    end
+    _y
+end
+
+function copyto_resort_array!(_y::Vector{T}, y::Array{T,N}, topology, decomposition) where {T,N}
+    i = 1
+    for block_idx in CartesianIndices(topology)
+        idxs = CartesianIndices(ntuple(idim->decomposition[idim] === nothing ? size(y, idim) : length(decomposition[idim][block_idx.I[idim]]), N))
+        for _idx in idxs
+            idx = CartesianIndex(ntuple(idim->decomposition[idim] === nothing ? _idx.I[idim] : decomposition[idim][block_idx.I[idim]][_idx.I[idim]], N))
+            _y[i] = y[idx]
+            i += 1
+        end
+    end
+    _y
 end
 
 function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        data_vbuffer = VBuffer(src, _counts)
+        _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
+        data_vbuffer = VBuffer(_y, _counts)
     else
         data_vbuffer = VBuffer(nothing)
     end
