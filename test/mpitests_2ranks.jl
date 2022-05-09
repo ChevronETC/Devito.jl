@@ -563,19 +563,19 @@ end
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         if npoint == 1
-            @test isempty(parent(parent(_x)))
+            @test isempty(parent(_x))
         elseif npoint == 5
-            @test parent(parent(_x)) ≈ x[1:2,:]
+            @test parent(_x) ≈ x[1:2,:]
         elseif npoint == 10
-            @test parent(parent(_x)) ≈ x[1:5,:]
+            @test parent(_x) ≈ x[1:5,:]
         end
     else
         if npoint == 1
-            @test parent(parent(_x)) ≈ x
+            @test parent(_x) ≈ x
         elseif npoint == 5
-            @test parent(parent(_x)) ≈ x[3:5,:]
+            @test parent(_x) ≈ x[3:5,:]
         elseif npoint == 10
-            @test parent(parent(_x)) ≈ x[6:10,:]
+            @test parent(_x) ≈ x[6:10,:]
         end
     end
 end
