@@ -374,14 +374,14 @@ function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array{T,N}) where
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        data_vbuffer = VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
+        _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
+        data_vbuffer = VBuffer(_y, _counts)
     else
         data_vbuffer = VBuffer(nothing)
     end
 
     _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
-    n = copyto_permutedims_forward(size(parent(dst)))
-    copyto!(parent(dst), permutedims(reshape(_dst, n), copyto_permutedims_reverse(N)))
+    copyto!(parent(dst), _dst)
 end
 
 #
