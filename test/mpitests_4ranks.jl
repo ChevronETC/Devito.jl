@@ -5,6 +5,86 @@ configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
 configuration!("mpi", true)
 
+@testset "DevitoMPIArray, copy!, no halo, n=$n" for n in ( (11,10), (12,11,10))
+    grid = Grid(shape=n, dtype=Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    b_data = data(b)
+    @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
+    @test size(b_data) == n
+    b_data_test = zeros(Float32, n)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        b_data_test = reshape(Float32[1:prod(n);], n)
+    end
+    copy!(b_data, b_data_test)
+    _b_data = data(b)
+    b_data_test = reshape(Float32[1:prod(n);], n)
+
+    for rnk in 0:3
+        if MPI.Comm_rank(MPI.COMM_WORLD) == rnk
+            if rnk == 0
+                if length(n) == 2
+                    @test parent(_b_data) ≈ b_data_test[1:6,1:5]
+                    @test parent(b_data) ≈ b_data_test[1:6,1:5]
+                else
+                    @test parent(_b_data) ≈ b_data_test[:,1:6,1:5]
+                    @test parent(b_data) ≈ b_data_test[:,1:6,1:5]
+                end
+                @test isa(parent(_b_data), StridedView)
+            end
+            if rnk == 1
+                if length(n) == 2
+                    @test parent(_b_data) ≈ b_data_test[7:11,1:5]
+                    @test parent(b_data) ≈ b_data_test[7:11,1:5]
+                else
+                    @test parent(_b_data) ≈ b_data_test[:,7:11,1:5]
+                    @test parent(b_data) ≈ b_data_test[:,7:11,1:5]
+                end
+                @test isa(parent(_b_data), StridedView)
+            end
+            if rnk == 2
+                if length(n) == 2
+                    @test parent(_b_data) ≈ b_data_test[1:6,6:10]
+                    @test parent(b_data) ≈ b_data_test[1:6,6:10]
+                else
+                    @test parent(_b_data) ≈ b_data_test[:,1:6,6:10]
+                    @test parent(b_data) ≈ b_data_test[:,1:6,6:10]
+                end
+                @test isa(parent(_b_data), StridedView)
+            end
+            if rnk == 3
+                if length(n) == 2
+                    @test parent(_b_data) ≈ b_data_test[7:11,6:10]
+                    @test parent(b_data) ≈ b_data_test[7:11,6:10]
+                else
+                    @test parent(_b_data) ≈ b_data_test[:,7:11,6:10]
+                    @test parent(b_data) ≈ b_data_test[:,7:11,6:10]
+                end
+                @test isa(parent(_b_data), StridedView)
+            end
+        end
+        MPI.Barrier(MPI.COMM_WORLD)
+    end
+end
+
+@testset "Convert data from rank 0 to DevitoMPIArray then back, no halo, n=$n" for n in ( (11,10), (12,11,10) )
+    grid = Grid(shape=n, dtype=Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    b_data = data(b)
+
+    b_data_test = zeros(Float32, n)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        b_data_test .= reshape(Float32[1:prod(n);], n)
+    end
+    copy!(b_data, b_data_test)
+    _b_data = data(b)
+
+    b_data_out = convert(Array, _b_data)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test b_data_out ≈ b_data_test
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+end
+
 @testset "DevitoMPITimeArray coordinates check" begin
     ny,nx = 4,6
 
