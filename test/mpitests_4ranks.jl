@@ -85,6 +85,52 @@ end
     MPI.Barrier(MPI.COMM_WORLD)
 end
 
+@testset "DevitoMPITimeArray, copy!, data, no halo, n=$n" for n in ( (11,10), (12,11,10))
+    grid = Grid(shape = n, dtype = Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
+    p_data = data(p)
+
+    _n = length(n) == 2 ? (11,10,3) : (12,11,10,3)
+    p_data_test = zeros(Float32, _n)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        p_data_test .= reshape(Float32[1:prod(_n);], _n)
+    end
+    copy!(p_data, p_data_test)
+    p_data_test .= reshape(Float32[1:prod(_n);], _n)
+
+    p_data_local = parent(p_data)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        if length(n) == 2
+            @test p_data_local ≈ p_data_test[1:6,1:5,:]
+        else
+            @test p_data_local ≈ p_data_test[:,1:6,1:5,:]
+        end
+    end
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 1
+        if length(n) == 2
+            @test p_data_local ≈ p_data_test[7:11,1:5,:]
+        else
+            @test p_data_local ≈ p_data_test[:,7:11,1:5,:]
+        end
+    end
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 2
+        if length(n) == 2
+            @test p_data_local ≈ p_data_test[1:6,6:10,:]
+        else
+            @test p_data_local ≈ p_data_test[:,1:6,6:10,:]
+        end
+    end
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 3
+        if length(n) == 2
+            @test p_data_local ≈ p_data_test[7:11,6:10,:]
+        else
+            @test p_data_local ≈ p_data_test[:,7:11,6:10,:]
+        end
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+end
+
 @testset "DevitoMPITimeArray coordinates check" begin
     ny,nx = 4,6
 

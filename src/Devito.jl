@@ -287,19 +287,31 @@ function Base.copy!(dst::DevitoMPIAbstractArray, src::AbstractArray)
     copyto!(dst, src)
 end
 
+function copyto_resort_timearray!(_y::Vector{T}, y::Array{T,N}, topology, decomposition) where {T,N}
+    i = 1
+    for block_idx in CartesianIndices(topology)
+        idxs = CartesianIndices(ntuple(idim->decomposition[idim] === nothing ? size(y, idim) : length(decomposition[idim][block_idx.I[idim]]), N))
+        for _idx in idxs
+            idx = CartesianIndex(ntuple(idim->decomposition[idim] === nothing ? _idx.I[idim] : decomposition[idim][block_idx.I[idim]][_idx.I[idim]], N))
+            _y[i] = y[idx]
+            i += 1
+        end
+    end
+    _y
+end
+
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
-        data_vbuffer = VBuffer(permutedims(src, copyto_permutedims_forward(N)), _counts)
+        _y = copyto_resort_timearray!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
+        data_vbuffer = VBuffer(_y, _counts)
     else
         data_vbuffer = VBuffer(nothing)
     end
 
     _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
-
-    n = copyto_permutedims_forward(size(parent(dst)))
-    copyto!(parent(dst), permutedims(reshape(_dst, n), copyto_permutedims_reverse(N)))
+    copyto!(parent(dst), _dst)
 end
 
 struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
