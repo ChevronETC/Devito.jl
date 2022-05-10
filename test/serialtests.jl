@@ -143,6 +143,14 @@ end
     @test length(n)+1 == ndims(p)
 end
 
+@testset "Sparse time function grid, n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
+    N = length(n)
+    grd = Grid(shape=n, dtype=T)
+    stf = SparseTimeFunction(name="stf", npoint=1, nt=5, grid=grd)
+    @test typeof(grid(stf)) <: Grid{T,N}
+    @test grid(stf) == grd
+end
+
 @testset "Sparse time function coordinates, n=$n" for n in ( (10,11), (10,11,12) )
     grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
