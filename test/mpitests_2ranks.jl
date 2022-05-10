@@ -532,6 +532,14 @@ end
     end
 end
 
+@testset "Sparse time function size npoint=$npoint" for npoint in (1,5) 
+    grid = Grid(shape=(11,12), dtype=Float32)
+    nt = 100
+    stf = SparseTimeFunction(name="stf", npoint=npoint, nt=nt, grid=grid)
+    @test size(stf) == (npoint,nt)
+    @test size_with_halo(stf) == (npoint,nt)
+end
+
 @testset "Sparse time function dispatch" begin
     grid = Grid(shape=(11,12), dtype=Float32)
     nt = 100
