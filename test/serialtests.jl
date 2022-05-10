@@ -21,6 +21,14 @@ end
     @test origin(grid) == ori
 end
 
+@testset "DevitoArray creation from PyObject n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
+    N = length(n)
+    array = PyObject(ones(T,n...))
+    devito_array = DevitoArray(array)
+    @test typeof(devito_array) <: DevitoArray{T,N}
+    @test devito_array ≈ ones(T, reverse(n)...)
+end
+
 @testset "Function, data_with_halo n=$n" for n in ( (4,5), (4,5,6) )
     grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
