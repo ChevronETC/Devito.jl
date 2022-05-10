@@ -850,19 +850,7 @@ Return the size of the grid associated with `z`, inclusive the the Devito "inner
 """
 size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
-function Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
-    _shape = zeros(Int, N)
-    if x.o._decomposition[1] == nothing
-        if reduce(*, x.o.shape) != 0
-            map(i->_shape[i] = x.o.shape[N-i+1], 1:N)
-            _shape[1] = x.o.shape[N]
-        end
-        MPI.Reduce!(_shape, +, 0, MPI.COMM_WORLD)
-    else
-        error("not implemented")
-    end
-    ntuple(i->_shape[i], N)
-end
+Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = size(data(x))
 
 size_with_halo(x::SparseTimeFunction) = size(x)
 
