@@ -544,6 +544,18 @@ end
     @test stepping_dim(grid).o.is_Stepping
 end
 
+@testset "Sparse Time Function data with halo npoint=$npoint" for npoint in (1,5)
+    grid = Grid(shape=(5,5))
+    nt = 10
+    stf = SparseTimeFunction(name="stf", grid=grid, npoint=npoint, nt=nt)
+    for i in 1:npoint
+        data(stf)[i,:] .= Float32(i) * [1:nt;]
+    end
+    for i in 1:npoint
+        @test data_with_halo(stf)[i,:] ≈ Float32(i) * [1:nt;]
+    end
+end
+
 @testset "Sparse Inject and Interpolate" begin
     dt = 0.01
     nt = 101
