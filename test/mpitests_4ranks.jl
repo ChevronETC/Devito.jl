@@ -303,3 +303,29 @@ end
         @test __x ≈ x
     end
 end
+
+@testset "MPI Getindex" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) )
+    N = length(n)
+    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=Float32)
+    f = Devito.Function(name="f", grid=grid)
+    arr = reshape(1f0*[1:prod(size(grid));], size(grid))
+    copy!(data(f), arr)
+    nchecks = 10
+    Random.seed!(1234);
+    for check in 1:nchecks
+        i = rand((1:n[1]))
+        j = rand((1:n[2]))
+        I = (i,j)
+        if N == 3
+            k = rand((1:n[3]))
+            I = (i,j,k)
+        end
+       @test data(f)[I...] == arr[I...]
+    end
+    if N == 2
+        @test data(f)[1:div(n[1],2),:] ≈ arr[1:div(n[1],2),:]
+    else
+        @test data(f)[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:] ≈ arr[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:]
+    end
+end

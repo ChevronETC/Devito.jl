@@ -100,13 +100,43 @@ function Base.fill!(x::DevitoMPIAbstractArray, v)
     x
 end
 
+function in_range(i::Int, ranges)
+    for rang in enumerate(ranges)
+        if i ∈ rang[2]
+            return rang[1]
+        end
+    end
+    error("Outside Valid Ranges")
+end
+
+function helix_helper(tup::NTuple{N,Int}) where {N}
+    wrapper = (1,)
+    for i in 2:N
+        wrapper = (wrapper..., wrapper[1]*tup[i-1])
+    end
+    return wrapper
+end
+
+function find_rank(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
+    decomp = decomposition(x)
+    rank_position = in_range.(I,decomp)
+    helper = helix_helper(topology(x))
+    rank = sum((rank_position .- 1) .* helper)
+    return rank
+end
+
+shift_localindicies(i::Int, indices::UnitRange{Int}) = i - indices[1] + 1
+
 function Base.getindex(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
-    if all(ntuple(idim->I[idim] ∈ x.local_indices[idim], N))
-        J = ntuple(idim->I[idim]-x.local_indices[idim]+1, N)
+    v = nothing
+    if all(ntuple(idim->I[idim] ∈ localindices(x)[idim], N))
+        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
         v = getindex(x.p, J...)
     end
+    v = MPI.bcast(v, find_rank(x, I...), MPI.COMM_WORLD)
     v
 end
+
 Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v, i) where {T,N} = error("not implemented")
 Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
 
