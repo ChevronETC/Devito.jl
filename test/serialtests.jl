@@ -19,6 +19,15 @@ end
     @test eltype(grid) == T
     @test extent(grid) == ex
     @test origin(grid) == ori
+    @test spacing(grid) == ex ./ (n .- 1)
+    for i in 1:length(n)
+        @test size(grid,i) == n[i]
+    end
+    halo = []
+    for i in 1:length(n)
+        push!(halo, [2*i 2*i+1;])
+    end
+    @test size_with_halo(grid,halo) == size(grid) .+ (sum.(halo)...,)
 end
 
 @testset "DevitoArray creation from PyObject n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
