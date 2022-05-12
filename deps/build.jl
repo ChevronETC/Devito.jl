@@ -1,4 +1,4 @@
-using PyCall
+using PyCall, Pkg
 
 # dont use Conda!
 # * assume python and pip are on path 
@@ -21,14 +21,15 @@ try
     run(`pip install -r devito/requirements.txt`)
     run(`pip install -r devito/requirements-optional.txt`)
 
-    # HPCX
+    # HPCX comms
     run(`sudo rm -f /opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi`)
     run(`sudo ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/hpcx/latest/ompi /opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi`)
-
     run(`pip uninstall -y mpi4py`)
     run(`pip uninstall -y ipyparallel`)
-    run(`env CFLAGS="-noswitcherror" MPICC=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi/bin/mpicc CC=nvc CFLAGS="-noswitcherror" $pip install --verbose --no-cache-dir mpi4py`)
+    run(`env CFLAGS="-noswitcherror" MPICC=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi/bin/mpicc CC=nvc CFLAGS="-noswitcherror" pip install --verbose --no-cache-dir mpi4py`)
     
+    Pkg.build("MPI")
+
 catch e
     if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
         @warn unable to build
