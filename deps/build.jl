@@ -3,7 +3,7 @@ using PyCall
 # dont use Conda!
 # * assume python and pip are on path 
 #       PyCall check below ensures python version >= 3.8
-# * assume we have the Nvidia HPC_SDK version 22.3 
+# * assume we have the Nvidia HPC_SDK version 2022 (e.g. 22.3)
 
 try
     # get python version number and assert > 3.8
@@ -25,9 +25,9 @@ try
     run(`sudo rm -f /opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi`)
     run(`sudo ln -sf /opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/hpcx/latest/ompi /opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi`)
 
-    # run(`pip uninstall -y mpi4py`)
-    # run(`pip uninstall -y ipyparallel`)
-    # run(`env CFLAGS="-noswitcherror" MPICC=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi/bin/mpicc CC=nvc CFLAGS="-noswitcherror" $pip install --verbose --no-cache-dir mpi4py`)
+    run(`pip uninstall -y mpi4py`)
+    run(`pip uninstall -y ipyparallel`)
+    run(`env CFLAGS="-noswitcherror" MPICC=/opt/nvidia/hpc_sdk/Linux_x86_64/2022/comm_libs/mpi/bin/mpicc CC=nvc CFLAGS="-noswitcherror" $pip install --verbose --no-cache-dir mpi4py`)
     
 catch e
     if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
