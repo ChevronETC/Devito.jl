@@ -858,3 +858,6 @@ end
     @test name(op) == "Kernel"
 end
 
+@testset "in_range throws out of range error" begin
+    @test_throws ErrorException("Outside Valid Ranges") Devito.in_range(10, ([1:5],[6:9]))
+end
