@@ -539,6 +539,7 @@ end
     dm = SubDimensionMiddle(name="dm", parent=d, thickness_left=2, thickness_right=3)
     for subdim in (dl,dr,dm)
         @test parent(subdim) == d
+        @test PyObject(subdim) == subdim.o
     end
     @test (thickness(dl)[1][2], thickness(dl)[2][2]) == (2, 0)
     @test (thickness(dr)[1][2], thickness(dr)[2][2]) == (0, 3)
