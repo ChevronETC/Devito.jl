@@ -151,8 +151,7 @@ function Base.convert(::Type{Array}, x::DevitoMPIAbstractArray{T,N}) where {T,N}
     _x = zeros(T, size(parent(x)))
     copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
-    
-    local _y
+                        
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = convert_resort_array!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
     else
@@ -298,7 +297,6 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
     copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
 
-    local _y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = convert_resort_array!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
     else
