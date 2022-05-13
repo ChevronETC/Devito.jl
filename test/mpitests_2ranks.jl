@@ -621,6 +621,12 @@ end
     end
 end
 
+@testset "MPI Setindex Not Implemented" begin
+    grid = Grid(shape=(5,6,7))
+    f = Devito.Function(name="f", grid=grid)
+    @test_throws ErrorException("not implemented") data(f)[2,2,2] = 1.0
+end
+
 @testset "MPI Getindex for Function n=$n" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) )
     N = length(n)
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)

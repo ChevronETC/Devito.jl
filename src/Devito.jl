@@ -101,7 +101,7 @@ function Base.fill!(x::DevitoMPIAbstractArray, v)
 end
 
 
-Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v, i) where {T,N} = error("not implemented")
+Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v, I::Vararg{Int,N}) where {T,N} = error("not implemented")
 Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
 
 struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N}
