@@ -621,7 +621,7 @@ end
     end
 end
 
-@testset "MPI Getindex" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) )
+@testset "MPI Getindex for Function n=$n" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) )
     N = length(n)
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
     grid = Grid(shape=n, dtype=Float32)
@@ -644,5 +644,57 @@ end
         @test data(f)[1:div(n[1],2),:] ≈ arr[1:div(n[1],2),:]
     else
         @test data(f)[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:] ≈ arr[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:]
+    end
+end
+
+@testset "MPI Getindex for TimeFunction n=$n" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) )
+    N = length(n)
+    nt = 5
+    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=Float32)
+    f = TimeFunction(name="f", grid=grid, save=nt)
+    arr = reshape(1f0*[1:prod(size(data(f)));], size(data(f)))
+    copy!(data(f), arr)
+    nchecks = 10
+    Random.seed!(1234);
+    for check in 1:nchecks
+        i = rand((1:n[1]))
+        j = rand((1:n[2]))
+        I = (i,j)
+        if N == 3
+            k = rand((1:n[3]))
+            I = (i,j,k)
+        end
+        m = rand((1:nt))
+        I = (I...,m)
+        @test data(f)[I...] == arr[I...]
+    end
+    if N == 2
+        @test data(f)[1:div(n[1],2),:,1:div(nt,2)] ≈ arr[1:div(n[1],2),:,1:div(nt,2)]
+    else
+        @test data(f)[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:,1:div(nt,2)] ≈ arr[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:,1:div(nt,2)]
+    end
+end
+
+@testset "MPI Getindex for SparseTimeFunction n=$n npoint=$npoint" for n in ( (5,4),(4,5,6) ), npoint in (1,5,10)
+    N = length(n)
+    nt = 5
+    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=Float32)
+    f = SparseTimeFunction(name="f", grid=grid, nt=nt, npoint=npoint)
+    arr = reshape(1f0*[1:prod(size(data(f)));], size(data(f)))
+    copy!(data(f), arr)
+    nchecks = 10
+    Random.seed!(1234);
+    for check in 1:nchecks
+        i = rand((1:npoint))
+        j = rand((1:nt))
+        I = (i,j)
+        @test data(f)[I...] == arr[I...]
+    end
+    if npoint > 1
+        @test data(f)[1:div(npoint,2),2:end-1] ≈ arr[1:div(npoint,2),2:end-1]
+    else
+        @test data(f)[1,2:end-1] ≈ arr[1,2:end-1]
     end
 end

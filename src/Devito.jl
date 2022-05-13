@@ -100,42 +100,6 @@ function Base.fill!(x::DevitoMPIAbstractArray, v)
     x
 end
 
-function in_range(i::Int, ranges)
-    for rang in enumerate(ranges)
-        if i ∈ rang[2]
-            return rang[1]
-        end
-    end
-    error("Outside Valid Ranges")
-end
-
-function helix_helper(tup::NTuple{N,Int}) where {N}
-    wrapper = (1,)
-    for i in 2:N
-        wrapper = (wrapper..., wrapper[1]*tup[i-1])
-    end
-    return wrapper
-end
-
-function find_rank(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
-    decomp = decomposition(x)
-    rank_position = in_range.(I,decomp)
-    helper = helix_helper(topology(x))
-    rank = sum((rank_position .- 1) .* helper)
-    return rank
-end
-
-shift_localindicies(i::Int, indices::UnitRange{Int}) = i - indices[1] + 1
-
-function Base.getindex(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
-    v = nothing
-    if all(ntuple(idim->I[idim] ∈ localindices(x)[idim], N))
-        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
-        v = getindex(x.p, J...)
-    end
-    v = MPI.bcast(v, find_rank(x, I...), MPI.COMM_WORLD)
-    v
-end
 
 Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v, i) where {T,N} = error("not implemented")
 Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
@@ -183,11 +147,11 @@ function Base.convert(::Type{Array}, x::DevitoMPIAbstractArray{T,N}) where {T,N}
         y = Array{T}(undef, ntuple(_->0, N))
         y_vbuffer = VBuffer(nothing)
     end
-
+    
     _x = zeros(T, size(parent(x)))
     copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
-
+    
     local _y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = convert_resort_array!(Array{T,N}(undef, size(x)), y, x.topology, x.decomposition)
@@ -212,7 +176,7 @@ end
 
 function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
-
+    
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
         data_vbuffer = VBuffer(_y, _counts)
@@ -355,6 +319,75 @@ function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array{T,N}) where
 
     _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
     copyto!(parent(dst), _dst)
+end
+
+function in_range(i::Int, ranges)
+    for rang in enumerate(ranges)
+        if i ∈ rang[2]
+            return rang[1]
+        end
+    end
+    error("Outside Valid Ranges")
+end
+
+function helix_helper(tup::NTuple{N,Int}) where {N}
+    wrapper = (1,)
+    for i in 2:N
+        wrapper = (wrapper..., wrapper[1]*tup[i-1])
+    end
+    return wrapper
+end
+
+function find_rank(x::DevitoMPIArray{T,N}, I::Vararg{Int,N}) where {T,N}
+    decomp = decomposition(x)
+    rank_position = in_range.(I,decomp)
+    helper = helix_helper(topology(x))
+    rank = sum((rank_position .- 1) .* helper)
+    return rank
+end
+
+function find_rank(x::DevitoMPITimeArray{T,N}, I::Vararg{Int,N}) where {T,N}
+    decomp = decomposition(x)[1:end-1]
+    J = I[1:end-1]
+    rank_position = in_range.(J,decomp)
+    helper = helix_helper(topology(x))
+    rank = sum((rank_position .- 1) .* helper)
+    return rank
+end
+
+function find_rank(x::DevitoMPISparseTimeArray{T,N}, I::Vararg{Int,2}) where {T,N}
+    decomp = decomposition(x)[1:end-1]
+    J = I[1]
+    rank_position = in_range.(J,decomp)
+    helper = helix_helper(topology(x))
+    rank = sum((rank_position .- 1) .* helper)
+    return rank
+end
+
+shift_localindicies(i::Int, indices::UnitRange{Int}) = i - indices[1] + 1
+
+shift_localindicies(i::Int, indices::Int) = i - indices + 1
+
+function Base.getindex(x::Union{DevitoMPIArray{T,N},DevitoMPITimeArray{T,N}}, I::Vararg{Int,N}) where {T,N}
+    v = nothing
+    wanted_rank = find_rank(x, I...)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
+        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
+        v = getindex(x.p, J...)
+    end
+    v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
+    v
+end
+
+function Base.getindex(x::DevitoMPISparseTimeArray{T,N}, I::Vararg{Int,2}) where {T,N}
+    v = nothing
+    wanted_rank = find_rank(x, I...)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
+        J = (shift_localindicies( I[1], localindices(x)[1]), I[2])
+        v = getindex(x.p, J...)
+    end
+    v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
+    v
 end
 
 #
