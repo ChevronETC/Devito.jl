@@ -264,6 +264,22 @@ end
     MPI.Barrier(MPI.COMM_WORLD)
 end
 
+@testset "DevitoMPIArray localsize, n=$n" for n in ((5,4),(6,5,4))
+    g = Grid(shape=n)
+    f = Devito.Function(name="f", grid=g)
+    h = Devito.TimeFunction(name="h", grid=g, time_order=2)
+    for func in (f,h)
+        @test localsize(data(func)) == length.(Devito.localindices(data(func)))
+    end
+end
+
+@testset "DevitoMPISparseTimeArray localsize, n=$n, npoint=$npoint" for n in ((5,4),(6,5,4)), npoint in (1,5,10)
+    g = Grid(shape=n)
+    nt = 11
+    stf = SparseTimeFunction(name="stf", grid=g, nt=11, npoint=npoint)
+    @test localsize(data(stf)) == (length(Devito.localindices(data(stf))),nt)
+end
+
 @testset "DevitoMPITimeArray, copy!, data, halo, n=$n" for n in ( (11,10), (12,11,10))
     grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
