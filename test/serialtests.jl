@@ -859,6 +859,15 @@ end
     @test name(op) == "Kernel"
 end
 
+@testset "operator PyObject convert" begin
+    grid = Grid(shape=(3,4))
+    f = Devito.Function(name="f", grid=grid)
+    op = Operator(Eq(f,1), name="ConvertOp")
+    @test typeof(convert(Operator, PyObject(op))) == Operator
+    @test  convert(Operator, PyObject(op)) === op
+    @test_throws ErrorException("PyObject is not an operator") convert(Operator, PyObject(f)) 
+end
+
 @testset "in_range throws out of range error" begin
     @test_throws ErrorException("Outside Valid Ranges") Devito.in_range(10, ([1:5],[6:9]))
 end
