@@ -1224,21 +1224,22 @@ end
 
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
-    if o.is_Conditional
-        return ConditionalDimension(o)
-    elseif o.is_Stepping
-        return SteppingDimension(o)
-    elseif o.is_Space
-        return SpaceDimension(o)
-    elseif o.is_Time
-        return TimeDimension(o)
-    elseif o.is_Default
-        return DefaultDimension(o)
-    elseif o.is_Dimension
-        return Dimension(o)
-    else
-        error("not implemented")
+    if :is_Dimension ∈ keys(o)
+        if o.is_Conditional
+            return ConditionalDimension(o)
+        elseif o.is_Stepping
+            return SteppingDimension(o)
+        elseif o.is_Space
+            return SpaceDimension(o)
+        elseif o.is_Time
+            return TimeDimension(o)
+        elseif o.is_Default
+            return DefaultDimension(o)
+        elseif o.is_Dimension
+            return Dimension(o)
+        end
     end
+    error("not implemented")
 end
 
 """

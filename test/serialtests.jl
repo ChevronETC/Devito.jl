@@ -530,6 +530,13 @@ end
             @test $attribute($dim) == $dim.o.$attribute
         end
     end
+    for _dim in (a,b,c,d,e,f)
+        @test typeof(dimension(PyObject(_dim))) == typeof(_dim)
+        @test dimension(PyObject(_dim)) === _dim
+    end
+    # tests for ErrorExceptiosn
+    grd = Grid(shape=(5,4))
+    @test_throws ErrorException("not implemented")  dimension(PyObject(grd))
 end
 
 @testset "Devito SubDimensions" begin
