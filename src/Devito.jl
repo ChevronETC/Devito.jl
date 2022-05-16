@@ -1033,7 +1033,7 @@ array of type `DevitoMPIArray`.
 The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
 this also *collects* the data onto MPI rank 0.
 """
-data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_inhalo(x)...)
+data_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(data_allocated(x), localindices_with_inhalo(x)...)
 
 """
     data_allocated(x::DiscreteFunction)
