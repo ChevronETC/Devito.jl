@@ -523,6 +523,15 @@ struct Operator
             new(pycall(devito.Operator, PyObject, args...; name="Kernel", kwargs...))
         end
     end
+    
+    function Operator(op::PyObject)
+        if (:apply ∈ keys(op)) && (:ccode ∈ keys(op))
+            new(op)
+        else
+            error("PyObject is not an operator")
+        end
+    end
+    
 end
 PyCall.PyObject(x::Operator) = x.o
 Base.convert(::Type{Operator}, x::PyObject) = Operator(x)
