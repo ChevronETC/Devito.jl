@@ -94,11 +94,17 @@ end
     @test value(a) == data(a)
     value!(a, π)
     @test value(a) == convert(Float32,π)
+    @test typeof(convert(Constant,PyObject(a))) == Constant{Float32}
+    @test convert(Constant,PyObject(a)) === a
 
     p = Constant(name="p", dtype=Float64, value=π)
     @test typeof(value(p)) == Float64
     @test value(p) == convert(Float64,π)
     @test data(p) == value(p)
+    @test typeof(convert(Constant,PyObject(p))) == Constant{Float64}
+    @test convert(Constant,PyObject(p)) === p
+
+    @test_throws  ErrorException("PyObject is not a Constant")  convert(Constant,PyObject(Dimension(name="d")))
 end
 
 @testset "TimeFunction, data with halo, n=$n" for n in ( (4,5), (4,5,6) )

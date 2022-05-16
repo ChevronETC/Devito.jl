@@ -565,8 +565,17 @@ function Constant(args...; kwargs...)
     Constant{T}(o)
 end
 
+function Constant(o::PyObject)
+    if (:is_const ∈ propertynames(o) ) && (o.is_const)
+        T = numpy_eltype(o.dtype)
+        Constant{T}(o)
+    else
+        error("PyObject is not a Constant")
+    end
+end
+
 PyCall.PyObject(x::Constant{T}) where {T} = x.o
-Base.convert(::Type{Constant{T}}, x::PyObject) where {T} = Constant(x)
+Base.convert(::Type{Constant}, x::PyObject) = Constant(x)
 
 """
     data(x::Constant{T})
