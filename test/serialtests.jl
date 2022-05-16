@@ -884,3 +884,33 @@ end
 @testset "in_range throws out of range error" begin
     @test_throws ErrorException("Outside Valid Ranges") Devito.in_range(10, ([1:5],[6:9]))
 end
+
+@testset "Serial inner halo methods, n=$n, space_order=$space_order" for n in ((3,4),(3,4,5)), space_order in (1,2,4)
+    grd = Grid(shape=n)
+    N = length(n)
+    time_order = 2
+    nt = 11
+    npoint=6
+    f = Devito.Function(name="f", grid=grd, space_order=space_order)
+    u = TimeFunction(name="u", grid=grd, space_order=space_order, time_order=2)
+    stf = SparseTimeFunction(name="stf", grid=grd, npoint=npoint, nt=nt)
+    for func in (f,u,stf)
+        data(func) .= 1.0
+    end
+    halo_n = (2*space_order) .+ n
+    @test size(data_with_inhalo(f)) == halo_n
+    @test size(data_with_inhalo(u)) == (halo_n...,time_order+1)
+    @test size(data_with_inhalo(stf)) == (npoint,nt)
+    haloed_f = zeros(Float32, halo_n...)
+    haloed_u = zeros(Float32, halo_n...,time_order+1)
+    if N == 2
+        haloed_f[1+space_order:end-space_order,1+space_order:end-space_order] .= 1.0
+        haloed_u[1+space_order:end-space_order,1+space_order:end-space_order,:] .= 1.0
+    else
+        haloed_f[1+space_order:end-space_order,1+space_order:end-space_order,1+space_order:end-space_order] .= 1.0
+        haloed_u[1+space_order:end-space_order,1+space_order:end-space_order,1+space_order:end-space_order,:] .= 1.0
+    end
+    @test data_with_inhalo(f) ≈ haloed_f
+    @test data_with_inhalo(u) ≈ haloed_u
+    @test data_with_inhalo(stf) ≈ ones(Float32, npoint, nt)
+end
