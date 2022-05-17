@@ -236,6 +236,8 @@ function Base.copy!(dst::DevitoMPIAbstractArray, src::AbstractArray)
     copyto!(dst, src)
 end
 
+Base.copyto!(dst::DevitoMPIAbstractArray{T1,N}, src::AbstractArray{T2,N}) where {T1,T2,N} = copyto!(dst, convert(Array{T1},src))
+
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
 

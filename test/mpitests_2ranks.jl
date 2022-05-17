@@ -562,7 +562,8 @@ end
     stf = SparseTimeFunction(name="stf", npoint=1, nt=nt, grid=grid)
     x = ones(Float64, 1, nt)
     data_stf = data(stf)
-    @test_throws ErrorException copy!(data_stf,x) 
+    copy!(data_stf,x)
+    @test data_stf ≈ ones(Float32,1,nt)
     x = ones(Float32, 1, nt)
     copy!(data_stf, x)
     if MPI.Comm_rank == 0
