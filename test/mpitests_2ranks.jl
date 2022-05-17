@@ -606,20 +606,6 @@ end
     @test size_with_halo(stf) == (npoint,nt)
 end
 
-@testset "Sparse time function dispatch" begin
-    grid = Grid(shape=(11,12), dtype=Float32)
-    nt = 100
-    stf = SparseTimeFunction(name="stf", npoint=1, nt=nt, grid=grid)
-    x = ones(Float64, 1, nt)
-    data_stf = data(stf)
-    @test_throws ErrorException copy!(data_stf,x) 
-    x = ones(Float32, 1, nt)
-    copy!(data_stf, x)
-    if MPI.Comm_rank == 0
-        @test convert(Array,data_stf) ≈ x
-    end
-end
-
 @testset "Sparse function, copy!, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
     grid = Grid(shape=n, dtype=Float32)
     sf = SparseFunction(name="sf", npoint=npoint, grid=grid)
@@ -741,12 +727,6 @@ end
     end
 end
 
-@testset "MPI Setindex Not Implemented" begin
-    grid = Grid(shape=(5,6,7))
-    f = Devito.Function(name="f", grid=grid)
-    @test_throws ErrorException("not implemented") data(f)[2,2,2] = 1.0
-end
-
 @testset "MPI Getindex for Function n=$n" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) )
     N = length(n)
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
@@ -844,5 +824,141 @@ end
         @test data(f)[1:div(npoint,2),2:end-1] ≈ arr[1:div(npoint,2),2:end-1]
     else
         @test data(f)[1,2:end-1] ≈ arr[1,2:end-1]
+    end
+end
+
+@testset "MPI setindex! for Function n=$n, T=$T" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) ), T in (Float32,Float64)
+    N = length(n)
+    my_rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=T)
+    f = Devito.Function(name="f", grid=grid)
+    base_array = reshape(one(T)*[1:prod(size(grid));], size(grid))
+
+    send_arr = zeros(T, (0 .* n)...)
+    expected_arr = zeros(T, (0 .* n)...)
+
+    if my_rnk == 0
+        send_arr = base_array
+        expected_arr = zeros(T, n...)
+    end
+
+    nchecks = 10
+    Random.seed!(1234);
+    local indexes
+    if N == 2
+        indexes = [rand((1:n[1]),nchecks) rand((1:n[2]),nchecks) ;]
+    else
+        indexes = [rand((1:n[1]),nchecks) rand((1:n[2]),nchecks) rand((1:n[3]),nchecks);]
+    end
+    for check in 1:nchecks
+        data(f)[indexes[check,:]...] = (my_rnk == 0 ? send_arr[indexes[check,:]...] : zero(T))
+        if my_rnk == 0 
+            expected_arr[indexes[check,:]...] = base_array[indexes[check,:]...]
+        end
+        @test data(f)[indexes[check,:]...] == base_array[indexes[check,:]...]
+    end
+    made_array = convert(Array,data(f))
+    if my_rnk == 0
+        @test made_array ≈ expected_arr
+    end
+end
+
+@testset "MPI setindex! for TimeFunction n=$n, T=$T" for n in ( (11,10), (5,4), (7,2), (4,5,6), (2,3,4) ), T in (Float32,Float64)
+    N = length(n)
+    time_order = 2
+    my_rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=T)
+    f = TimeFunction(name="f", grid=grid, time_order=time_order)
+    base_array = reshape(one(T)*[1:prod(size(data(f)));], size(data(f)))
+
+    send_arr = zeros(T, (0 .* size(data(f)))...)
+    expected_arr = zeros(T, (0 .* size(data(f)))...)
+
+    if my_rnk == 0
+        send_arr = base_array
+        expected_arr = zeros(T, size(base_array)...)
+    end
+
+    nchecks = 10
+    Random.seed!(1234);
+    local indexes
+    if N == 2
+        indexes = [rand((1:n[1]),nchecks) rand((1:n[2]),nchecks) rand((1:time_order+1),nchecks);]
+    else
+        indexes = [rand((1:n[1]),nchecks) rand((1:n[2]),nchecks) rand((1:n[3]),nchecks) rand((1:time_order+1),nchecks);]
+    end
+    for check in 1:nchecks
+        data(f)[indexes[check,:]...] = (my_rnk == 0 ? send_arr[indexes[check,:]...] : zero(T) )
+        if my_rnk == 0 
+            expected_arr[indexes[check,:]...] = base_array[indexes[check,:]...]
+        end
+        @test data(f)[indexes[check,:]...] == base_array[indexes[check,:]...]
+    end
+    made_array = convert(Array,data(f))
+    if my_rnk == 0
+        @test made_array ≈ expected_arr
+    end
+end
+
+@testset "MPI settindex! for SparseTimeFunction n=$n, npoint=$npoint, T=$T" for n in ( (5,4),(4,5,6) ), npoint in (1,5,10), T in (Float32,Float64)
+    N = length(n)
+    nt = 11
+    my_rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=T)
+    f = SparseTimeFunction(name="f", grid=grid, nt=nt, npoint=npoint)
+    base_array = reshape(one(T)*[1:prod(size(data(f)));], size(data(f)))
+    send_arr = zeros(T, (0 .* size(data(f)))...)
+    expected_arr = zeros(T, (0 .* size(data(f)))...)
+
+    if my_rnk == 0
+        send_arr = base_array
+        expected_arr = zeros(T, size(base_array)...)
+    end
+    
+    nchecks = 10
+    Random.seed!(1234);
+    indexes = [rand((1:npoint),nchecks) rand((1:nt),nchecks);]
+
+    for check in 1:nchecks
+        data(f)[indexes[check,:]...] = (my_rnk == 0 ? send_arr[indexes[check,:]...] : zero(T) )
+        if my_rnk == 0 
+            expected_arr[indexes[check,:]...] = base_array[indexes[check,:]...]
+        end
+        @test data(f)[indexes[check,:]...] == base_array[indexes[check,:]...]
+    end
+    made_array = convert(Array,data(f))
+    if my_rnk == 0
+        @test made_array ≈ expected_arr
+    end
+end
+
+@testset "MPI settindex! for SparseFunction n=$n, npoint=$npoint, T=$T" for n in ( (5,4),(4,5,6) ), npoint in (1,5,10), T in (Float32,Float64)
+    N = length(n)
+    my_rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=T)
+    f = SparseFunction(name="f", grid=grid, npoint=npoint)
+    base_array = reshape(one(T)*[1:prod(size(data(f)));], size(data(f)))
+    send_arr = zeros(T, (0 .* size(data(f)))...)
+    expected_arr = zeros(T, (0 .* size(data(f)))...)
+
+    if my_rnk == 0
+        send_arr = base_array
+        expected_arr = zeros(T, size(base_array)...)
+    end
+    
+    nchecks = 10
+    Random.seed!(1234);
+    indexes = [rand((1:npoint),nchecks);]
+
+    for check in 1:nchecks
+        data(f)[indexes[check,:]...] = (my_rnk == 0 ? send_arr[indexes[check,:]...] : zero(T) )
+        if my_rnk == 0 
+            expected_arr[indexes[check,:]...] = base_array[indexes[check,:]...]
+        end
+        @test data(f)[indexes[check,:]...] == base_array[indexes[check,:]...]
+    end
+    made_array = convert(Array,data(f))
+    if my_rnk == 0
+        @test made_array ≈ expected_arr
     end
 end
