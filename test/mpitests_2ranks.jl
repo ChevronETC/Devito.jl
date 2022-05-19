@@ -61,7 +61,6 @@ end
     @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
 
     _n = length(n) == 2 ? (15,18) : (16,15,18)
-    @show n, _n
 
     @test size(b_data) == _n
 
@@ -271,6 +270,12 @@ end
     for func in (f,h)
         @test localsize(data(func)) == length.(Devito.localindices(data(func)))
     end
+end
+
+@testset "DevitoMPISparseArray localsize, n=$n, npoint=$npoint" for n in ((5,4),(6,5,4)), npoint in (1,5,10)
+    g = Grid(shape=n)
+    sf = SparseFunction(name="sf", grid=g, npoint=npoint)
+    @test localsize(data(sf)) == (length(Devito.localindices(data(sf))),)
 end
 
 @testset "DevitoMPISparseTimeArray localsize, n=$n, npoint=$npoint" for n in ((5,4),(6,5,4)), npoint in (1,5,10)
@@ -511,6 +516,43 @@ end
     end
 end
 
+@testset "Sparse function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
+    grid = Grid(shape=n, dtype=Float32)
+    sf = SparseFunction(name="sf", npoint=npoint, grid=grid)
+    sf_coords = coordinates(sf)
+    @test isa(sf_coords, Devito.DevitoMPIArray)
+    @test size(sf_coords) == (length(n),npoint)
+
+    x = reshape(Float32[1:length(n)*npoint;], length(n), npoint)
+
+    copy!(sf_coords, x)
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        if npoint == 1
+            @test isempty(parent(sf_coords))
+        elseif npoint == 5
+            @test parent(sf_coords) ≈ (x[:,1:2])
+        elseif npoint == 10
+            @test parent(sf_coords) ≈ (x[:,1:5])
+        end
+    else
+        if npoint == 1
+            @test parent(sf_coords) ≈ x
+        elseif npoint == 5
+            @test parent(sf_coords) ≈ (x[:,3:end])
+        elseif npoint == 10
+            @test parent(sf_coords) ≈ (x[:,6:end])
+        end
+    end
+
+    # round trip
+    _sf_coords = convert(Array,coordinates(sf))
+
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test _sf_coords ≈ x
+    end
+end
+
 @testset "Sparse time function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
     grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=npoint, nt=100, grid=grid)
@@ -548,6 +590,14 @@ end
     end
 end
 
+@testset "Sparse function size npoint=$npoint" for npoint in (1,5) 
+    grid = Grid(shape=(11,12), dtype=Float32)
+    nt = 100
+    sf = SparseFunction(name="sf", npoint=npoint, grid=grid)
+    @test size(sf) == (npoint,)
+    @test size_with_halo(sf) == (npoint,)
+end
+
 @testset "Sparse time function size npoint=$npoint" for npoint in (1,5) 
     grid = Grid(shape=(11,12), dtype=Float32)
     nt = 100
@@ -567,6 +617,39 @@ end
     copy!(data_stf, x)
     if MPI.Comm_rank == 0
         @test convert(Array,data_stf) ≈ x
+    end
+end
+
+@testset "Sparse function, copy!, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
+    grid = Grid(shape=n, dtype=Float32)
+    sf = SparseFunction(name="sf", npoint=npoint, grid=grid)
+
+    x = Array{Float32}(undef,0)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        x = Float32[1:npoint;]
+    end
+    
+    _x = data(sf)
+    copy!(_x, x)
+    
+    x = Float32[1:npoint;]
+    
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        if npoint == 1
+            @test isempty(parent(_x))
+        elseif npoint == 5
+            @test parent(_x) ≈ x[1:2]
+        elseif npoint == 10
+            @test parent(_x) ≈ x[1:5]
+        end
+    else
+        if npoint == 1
+            @test parent(_x) ≈ x
+        elseif npoint == 5
+            @test parent(_x) ≈ x[3:5]
+        elseif npoint == 10
+            @test parent(_x) ≈ x[6:10]
+        end
     end
 end
 
@@ -604,6 +687,27 @@ end
     end
 end
 
+@testset "Sparse function, copy! and convert, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
+    grid = Grid(shape=n, dtype=Float32)
+    sf = SparseFunction(name="sf", npoint=npoint, grid=grid)
+
+    x = zeros(Float32, npoint)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        x .= Float32[1:npoint;]
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+    _x = data(sf)
+    @test isa(data(sf), Devito.DevitoMPISparseArray)
+
+    copy!(_x, x)
+    x .= Float32[1:npoint;]
+
+    __x = convert(Array, _x)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test __x ≈ x
+    end
+end
+
 @testset "Sparse time function, copy! and convert, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
     grid = Grid(shape=n, dtype=Float32)
     nt = 100
@@ -626,7 +730,7 @@ end
     end
 end
 
-@testset "DevitoMPISparseArray copy! axes check, n=$n" for n in ( (11,10), (12,11,10) )
+@testset "DevitoMPISparseTimeArray copy! axes check, n=$n" for n in ( (11,10), (12,11,10) )
     grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
     stf_data = data(stf)
@@ -695,6 +799,28 @@ end
         @test data(f)[1:div(n[1],2),:,1:div(nt,2)] ≈ arr[1:div(n[1],2),:,1:div(nt,2)]
     else
         @test data(f)[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:,1:div(nt,2)] ≈ arr[1:div(n[1],2),div(n[2],3):2*div(n[2],3),:,1:div(nt,2)]
+    end
+end
+
+@testset "MPI Getindex for SparseFunction n=$n npoint=$npoint" for n in ( (5,4),(4,5,6) ), npoint in (1,5,10)
+    N = length(n)
+    nt = 5
+    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    grid = Grid(shape=n, dtype=Float32)
+    f = SparseFunction(name="f", grid=grid, npoint=npoint)
+    arr = reshape(1f0*[1:prod(size(data(f)));], size(data(f)))
+    copy!(data(f), arr)
+    nchecks = 10
+    Random.seed!(1234);
+    for check in 1:nchecks
+        i = rand((1:npoint))
+        I = (i,)
+        @test data(f)[I...] == arr[I...]
+    end
+    if npoint > 1
+        @test data(f)[1:div(npoint,2)] ≈ arr[1:div(npoint,2)]
+    else
+        @test data(f)[1] == arr[1]
     end
 end
 
