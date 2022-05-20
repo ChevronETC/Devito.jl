@@ -1343,7 +1343,7 @@ end
 
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
-    if :is_Dimension ∈ keys(o)
+    if :is_Dimension ∈ propertynames(o)
         if o.is_Conditional
             return ConditionalDimension(o)
         elseif o.is_Stepping
