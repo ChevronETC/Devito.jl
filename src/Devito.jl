@@ -525,7 +525,7 @@ struct Operator
     end
     
     function Operator(op::PyObject)
-        if (:apply ∈ keys(op)) && (:ccode ∈ keys(op))
+        if (:apply ∈ propertynames(op)) && (:ccode ∈ propertynames(op))
             new(op)
         else
             error("PyObject is not an operator")
