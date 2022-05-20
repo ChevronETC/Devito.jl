@@ -236,6 +236,14 @@ function Base.copy!(dst::DevitoMPIAbstractArray, src::AbstractArray)
     copyto!(dst, src)
 end
 
+function Base.copy!(dst::DevitoMPIAbstractArray{T,1}, src::AbstractVector) where {T}
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        axes(dst) == axes(src) || throw(ArgumentError(
+            "arrays must have the same axes for copy! (consider using `copyto!`)"))
+    end
+    copyto!(dst, src)
+end
+
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
 
@@ -277,13 +285,45 @@ function _size_for_sparse_time_array(o::PyObject)
     (n,o.shape[1])
 end
 
+struct DevitoMPISparseArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
+    o::PyObject
+    p::Array{T,N}
+    local_indices::Array{Int,NM1}
+    decomposition::D
+    topology::NTuple{NM1,Int}
+    size::NTuple{N,Int}
+end
+
+function DevitoMPISparseArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
+    local p
+    if length(idxs) == 0
+        p = Array{T,N}(undef, ntuple(_->0, N))
+    else
+        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
+    end
+    n = _size_for_sparse_array(o)
+    DevitoMPISparseArray{T,N,NM1,D}(o, p, idxs, decomp, topo, n)
+end
+
+localsize(x::DevitoMPISparseArray{T,1}) where {T} = (length(x.local_indices),)
+
+function _size_for_sparse_array(o::PyObject)
+    n = MPI.Allreduce(o.shape[1], +, MPI.COMM_WORLD)
+    (n,)
+end
+
+function count(x::DevitoMPISparseArray, mycoords)
+    d = decomposition(x)
+    mapreduce(idim->length(d[idim][mycoords[idim]]), *, 1:length(d))
+end
+
 function count(x::DevitoMPISparseTimeArray, mycoords)
     d = decomposition(x)
     n = size(x)
     mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
-function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,N}
+function Base.convert(::Type{Array}, x::Union{DevitoMPISparseTimeArray{T,N},DevitoMPISparseArray{T,N}}) where {T,N}
     local y
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         y = zeros(T, length(x))
@@ -305,16 +345,14 @@ function Base.convert(::Type{Array}, x::DevitoMPISparseTimeArray{T,N}) where {T,
     _y
 end
 
-function Base.copyto!(dst::DevitoMPISparseTimeArray{T,N}, src::Array{T,N}) where {T,N}
+function Base.copyto!(dst::Union{DevitoMPISparseTimeArray{T,N},DevitoMPISparseArray{T,N}}, src::Array{T,N}) where {T,N}
     _counts = counts(dst)
-
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
         data_vbuffer = VBuffer(_y, _counts)
     else
         data_vbuffer = VBuffer(nothing)
     end
-
     _dst = MPI.Scatterv!(data_vbuffer, Vector{T}(undef, _counts[MPI.Comm_rank(MPI.COMM_WORLD)+1]), 0, MPI.COMM_WORLD)
     copyto!(parent(dst), _dst)
 end
@@ -362,6 +400,14 @@ function find_rank(x::DevitoMPISparseTimeArray{T,N}, I::Vararg{Int,2}) where {T,
     return rank
 end
 
+function find_rank(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,1}) where {T,N}
+    decomp = decomposition(x)
+    rank_position = in_range.(I,decomp)
+    helper = helix_helper(topology(x))
+    rank = sum((rank_position .- 1) .* helper)
+    return rank
+end
+
 shift_localindicies(i::Int, indices::UnitRange{Int}) = i - indices[1] + 1
 
 shift_localindicies(i::Int, indices::Int) = i - indices + 1
@@ -382,6 +428,17 @@ function Base.getindex(x::DevitoMPISparseTimeArray{T,N}, I::Vararg{Int,2}) where
     wanted_rank = find_rank(x, I...)
     if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
         J = (shift_localindicies( I[1], localindices(x)[1]), I[2])
+        v = getindex(x.p, J...)
+    end
+    v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
+    v
+end
+
+function Base.getindex(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,N}) where {T,N}
+    v = nothing
+    wanted_rank = find_rank(x, I...)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
+        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
         v = getindex(x.p, J...)
     end
     v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
@@ -837,7 +894,9 @@ function TimeFunction(args...; kwargs...)
     TimeFunction{T,N,M}(o)
 end
 
-struct SparseTimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
+abstract type SparseDiscreteFunction{T,N,M} <:  DiscreteFunction{T,N,M} end
+
+struct SparseTimeFunction{T,N,M} <: SparseDiscreteFunction{T,N,M}
     o::PyObject
 end
 
@@ -871,6 +930,39 @@ function SparseTimeFunction(args...; kwargs...)
     SparseTimeFunction{T,N,M}(o)
 end
 
+struct SparseFunction{T,N,M} <: SparseDiscreteFunction{T,N,M}
+    o::PyObject
+end
+
+"""
+    SparseFunction(; kwargs...)
+
+Tensor symbol representing a sparse array in symbolic equations.
+
+See: https://www.devitoproject.org/devito/sparsefunction.html
+
+# Example
+```julia
+x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
+z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+grid = Grid(
+    dimensions = (x,z),
+    shape = (251,501), # assume x is first, z is second (i.e. z is fast in python)
+    origin = (0.0,0.0),
+    extent = (1250.0,2500.0),
+    dtype = Float32)
+
+src = SparseFunction(name="src", grid=grid, npoint=1)
+```
+"""
+function SparseFunction(args...; kwargs...)
+    o = pycall(devito.SparseFunction, PyObject, args...; kwargs...)
+    T = numpy_eltype(o.dtype)
+    N = length(o.shape)
+    M = ismpi_distributed(o)
+    SparseFunction{T,N,M}(o)
+end
+
 PyCall.PyObject(x::DiscreteFunction) = x.o
 
 """
@@ -881,7 +973,7 @@ Return the grid corresponding to the discrete function `f`.
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
 grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 
-function grid(x::SparseTimeFunction{T}) where {T}
+function grid(x::SparseDiscreteFunction{T}) where {T}
     N = length(x.o.grid.shape)
     Grid{T,N}(x.o.grid)
 end
@@ -929,9 +1021,9 @@ Return the size of the grid associated with `z`, inclusive the the Devito "inner
 """
 size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
 
-Base.size(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N} = size(data(x))
+Base.size(x::SparseDiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = size(data(x))
 
-size_with_halo(x::SparseTimeFunction) = size(x)
+size_with_halo(x::SparseDiscreteFunction) = size(x)
 
 localmask(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_domain[N-i+1].start)+1:convert(Int,x.o._mask_domain[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
 localmask_with_halo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_outhalo[N-i+1].start)+1:convert(Int,x.o._mask_outhalo[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
@@ -1202,6 +1294,15 @@ function data_allocated(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     DevitoMPITimeArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
 end
 
+function data_with_inhalo(x::SparseFunction{T,N,DevitoMPITrue}) where {T,N}
+    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
+    idxs = decomposition(x)[1][rnk+1]
+    topo = ntuple(i->i == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : 1, 1)
+    d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", idxs, decomposition(x), topo)
+    MPI.Barrier(MPI.COMM_WORLD)
+    d
+end
+
 # TODO - needed? <--
 function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
@@ -1215,13 +1316,13 @@ function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
     d
 end
 
-function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
+function data_with_inhalo(x::SparseDiscreteFunction{T,N,DevitoMPIFalse}) where {T,N}
     d = DevitoArray{T,N}(x.o."_data_allocated")
     d
 end
 
-data_with_halo(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
-data(x::SparseTimeFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
+data_with_halo(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
+data(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 # -->
 
 """
@@ -1231,13 +1332,13 @@ Returns a Devito array associated with the coordinates of a sparse time function
 Note that contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
 Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z.
 """
-function coordinates(x::SparseTimeFunction{T,N,DevitoMPIFalse}) where {T,N}
-    DevitoArray{T,N}(x.o.coordinates."_data_allocated")
+function coordinates(x::SparseDiscreteFunction{T,N,DevitoMPIFalse}) where {T,N}
+    DevitoArray{T,2}(x.o.coordinates."_data_allocated")
 end
 
-function coordinates(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
+function coordinates(x::SparseDiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
     topo = (1, MPI.Comm_size(MPI.COMM_WORLD)) # topo is not defined for sparse decompositions
-    DevitoMPIArray{T,N}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)), decomposition(SubFunction{T,N,DevitoMPITrue}(x.o.coordinates)), topo)
+    DevitoMPIArray{T,2}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,2,DevitoMPITrue}(x.o.coordinates)), decomposition(SubFunction{T,2,DevitoMPITrue}(x.o.coordinates)), topo)
 end
 
 export DevitoArray, localindices, SubFunction
@@ -1270,7 +1371,7 @@ function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N},SubDomain{N}}) wher
 end
 
 """
-    inject(x::SparseTimeFunction; kwargs...)
+    inject(x::SparseDiscreteFunction; kwargs...)
 
 Generate equations injecting an arbitrary expression into a field.
 
@@ -1292,10 +1393,10 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 src_term = inject(src; field=forward(p), expr=2*src)
 ```
 """
-inject(x::SparseTimeFunction, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
+inject(x::SparseDiscreteFunction, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
 
 """
-    interpolate(x::SparseTimeFunction; kwargs...)
+    interpolate(x::SparseDiscreteFunction; kwargs...)
 
 Generate equations interpolating an arbitrary expression into self.
 
@@ -1325,7 +1426,7 @@ rec_coords[2,:] .= δx*(0:nx-1)
 rec_term = interpolate(rec, expr=p)
 ```
 """
-interpolate(x::SparseTimeFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
+interpolate(x::SparseDiscreteFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
 
 """
 apply(    operator::Operator; kwargs...)
@@ -1746,12 +1847,12 @@ This is a wrapper around ``devito.solve``, which in turn is a wrapper around ``s
 solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
 
 """
-    name(x::Union{SubDomain, SparseTimeFunction, TimeFunction, Function, Constant, AbstractDimension, Operator})
+    name(x::Union{SubDomain, DiscreteFunction, TimeFunction, Function, Constant, AbstractDimension, Operator})
 
 returns the name of the Devito object
 """
-name(x::Union{SubDomain, SparseTimeFunction, TimeFunction, Function, Constant, AbstractDimension, Operator}) = x.o.name
+name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = x.o.name
 
-export Constant, DiscreteFunction, Grid, Function, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end

@@ -158,6 +158,39 @@ end
     @test length(n)+1 == ndims(p)
 end
 
+@testset "SparseFunction Construction, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+    g = Grid(shape=n, dtype=T)
+    sf = SparseFunction(name="sf", grid=g, npoint=npoint)
+    @test typeof(sf) <: SparseFunction{T,1}
+    @test sf.o === PyObject(sf)
+end
+
+@testset "SparseFunction grid method, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+    g = Grid(shape=n, dtype=T)
+    sf = SparseFunction(name="sf", grid=g, npoint=npoint)
+    @test grid(sf) == g
+end
+
+@testset "SparseFunction size methods, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+    g = Grid(shape=n, dtype=T)
+    sf = SparseFunction(name="sf", grid=g, npoint=npoint)
+    @test size(sf) == (npoint,)
+    @test Devito.size_with_inhalo(sf) == (npoint,)
+    @test size_with_halo(sf) == (npoint,)
+end
+
+@testset "Sparse function coordinates, n=$n" for n in ( (10,11), (10,11,12) )
+    grid = Grid(shape=n, dtype=Float32)
+    sf = SparseFunction(name="sf", npoint=10, grid=grid)
+    sf_coords = coordinates(sf)
+    @test isa(sf_coords, Devito.DevitoArray)
+    @test size(sf_coords) == (length(n),10)
+    x = rand(length(n),10)
+    sf_coords .= x
+    _sf_coords = coordinates(sf)
+    @test _sf_coords ≈ x
+end
+
 @testset "Sparse time function grid, n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
     N = length(n)
     grd = Grid(shape=n, dtype=T)
@@ -173,18 +206,6 @@ end
     @test isa(stf_coords, Devito.DevitoArray)
     @test size(stf_coords) == (length(n),10)
     x = rand(length(n),10)
-    stf_coords .= x
-    _stf_coords = coordinates(stf)
-    @test _stf_coords ≈ x
-end
-
-@testset "Sparse time function coordinates, 3D grid" begin
-    grid = Grid(shape=(10,11,12), dtype=Float32)
-    stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
-    stf_coords = coordinates(stf)
-    @test isa(stf_coords, Devito.DevitoArray)
-    @test size(stf_coords) == (3,10)
-    x = rand(3,10)
     stf_coords .= x
     _stf_coords = coordinates(stf)
     @test _stf_coords ≈ x
@@ -567,6 +588,17 @@ end
     @test stepping_dim(grid).o.is_Stepping
 end
 
+@testset "Sparse Function data with halo npoint=$npoint" for npoint in (1,5)
+    grid = Grid(shape=(5,5))
+    sf = SparseFunction(name="sf", grid=grid, npoint=npoint)
+    for i in 1:npoint
+        data(sf)[i] = Float32(i)
+    end
+    for i in 1:npoint
+        @test data_with_halo(sf)[i] == Float32(i)
+    end
+end
+
 @testset "Sparse Time Function data with halo npoint=$npoint" for npoint in (1,5)
     grid = Grid(shape=(5,5))
     nt = 10
@@ -579,7 +611,7 @@ end
     end
 end
 
-@testset "Sparse Inject and Interpolate" begin
+@testset "Sparse Time Function Inject and Interpolate" begin
     dt = 0.01
     nt = 101
     time_range = 0.0f0:dt:dt*(nt-1)
@@ -612,7 +644,37 @@ end
     @test data(p)[3,1,end-1] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
     @test data(rec)[1,end] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
     @test data(rec)[2,end] ≈ (nt-1)
-    
+end
+
+@testset "Sparse Function Inject and Interpolate" begin
+
+    grid = Grid(shape=(5,5),origin=(0.,0.),extent=(1.,1.))
+    f = Devito.Function(grid=grid,space_order=8,time_order=2,name="f")
+    y,x = dimensions(f)
+
+    src = SparseFunction(name="src", grid=grid, npoint=1)
+    @test typeof(dimensions(src)[1]) == Dimension
+    coords =  [0; 0.5]
+    src_coords = coordinates(src)
+    src_coords .= coords
+    src_data = data(src)
+    src_data .= 1
+    src_term = inject(src; field=f, expr=src)
+
+    rec = SparseFunction(name="rec", grid=grid, npoint=2)
+    rec_coords = coordinates(rec)
+    rec_coords[:,1] .= coords
+    rec_coords[:,2] .= reverse(coords)
+    rec_term = interpolate(rec, expr=f)
+
+    op = Operator([src_term,rec_term],name="SparseInjectInterp")
+    apply(op)
+    @test data(f)[3,1] == 1.0
+    # check that this was the only place where f became nonzero
+    data(f)[3,1] = 0.0
+    @test data(f) ≈ zeros(Float32,size(f)...)
+    @test data(rec)[1] == 1
+    @test data(rec)[2] == 0
 end
 
 @testset "Left and Right Derivatives" begin
@@ -814,6 +876,8 @@ end
     @test name(f) == "f"
     u = Devito.TimeFunction(name="u", grid=grid)
     @test name(u) == "u"
+    sf = SparseFunction(name="sf", npoint=1, grid=grid)
+    @test name(sf) == "sf"
     stf = SparseTimeFunction(name="stf", npoint=1, nt=10, grid=grid)
     @test name(stf) == "stf"
     op = Operator(Eq(f,1), name="op")
@@ -893,13 +957,15 @@ end
     npoint=6
     f = Devito.Function(name="f", grid=grd, space_order=space_order)
     u = TimeFunction(name="u", grid=grd, space_order=space_order, time_order=2)
+    sf = SparseFunction(name="sf", grid=grd, npoint=npoint)
     stf = SparseTimeFunction(name="stf", grid=grd, npoint=npoint, nt=nt)
-    for func in (f,u,stf)
+    for func in (f,u,sf,stf)
         data(func) .= 1.0
     end
     halo_n = (2*space_order) .+ n
     @test size(data_with_inhalo(f)) == halo_n
     @test size(data_with_inhalo(u)) == (halo_n...,time_order+1)
+    @test size(data_with_inhalo(sf)) == (npoint,)
     @test size(data_with_inhalo(stf)) == (npoint,nt)
     haloed_f = zeros(Float32, halo_n...)
     haloed_u = zeros(Float32, halo_n...,time_order+1)
@@ -912,5 +978,6 @@ end
     end
     @test data_with_inhalo(f) ≈ haloed_f
     @test data_with_inhalo(u) ≈ haloed_u
+    @test data_with_inhalo(sf) ≈ ones(Float32, npoint)
     @test data_with_inhalo(stf) ≈ ones(Float32, npoint, nt)
 end
