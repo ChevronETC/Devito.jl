@@ -810,6 +810,26 @@ end
     @test time_dim(f) == dimensions(f)[end]
 end
 
+@testset "Dimension ordering in Function and Time Function Constuction, n=$n" for n in ((5,6),(4,5,6))
+    g = Grid(shape=n)
+    dims = dimensions(g)
+    f = Devito.Function(name="f", grid=g, dimensions=dims)
+    @test dimensions(f) == dims
+    t = stepping_dim(g)
+    u = TimeFunction(name="u", grid=g, dimensions=(dims...,t))
+    @test typeof(dimensions(u)[end]) == Devito.SteppingDimension
+    @test dimensions(u) == (dims...,t)
+end
+
+@testset "Dimension ordering in SparseTimeFunction construction, n=$n" for n in ((5,6),(4,5,6))
+    g = Grid(shape=n)
+    p = Dimension(name="p")
+    t = time_dim(g)
+    dims = (p,t)
+    stf = SparseTimeFunction(name="stf", dimensions=dims, npoint=5, nt=4, grid=g)
+    @test dimensions(stf) == dims
+end
+
 @testset "Time Derivatives" begin
     grd = Grid(shape=(5,5))
     t = TimeDimension(name="t")
