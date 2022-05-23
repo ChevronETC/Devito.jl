@@ -850,7 +850,7 @@ b = Devito.Function(name="b", grid=grid, space_order=8)
 ```
 """
 function Function(args...; kwargs...)
-    o = pycall(devito.Function, PyObject, args...; kwargs...)
+    o = pycall(devito.Function, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     M = ismpi_distributed(o)
@@ -887,7 +887,7 @@ p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 ```
 """
 function TimeFunction(args...; kwargs...)
-    o = pycall(devito.TimeFunction, PyObject, args...; kwargs...)
+    o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     M = ismpi_distributed(o)
@@ -923,7 +923,7 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 ```
 """
 function SparseTimeFunction(args...; kwargs...)
-    o = pycall(devito.SparseTimeFunction, PyObject, args...; kwargs...)
+    o = pycall(devito.SparseTimeFunction, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     M = ismpi_distributed(o)
