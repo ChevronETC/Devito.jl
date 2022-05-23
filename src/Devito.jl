@@ -100,8 +100,6 @@ function Base.fill!(x::DevitoMPIAbstractArray, v)
     x
 end
 
-
-Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v, I::Vararg{Int,N}) where {T,N} = error("not implemented")
 Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
 
 struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N}
@@ -443,6 +441,81 @@ function Base.getindex(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,N}) where {T,
     end
     v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
     v
+end
+
+function Base.setindex!(x::Union{DevitoMPIArray{T,N},DevitoMPITimeArray{T,N}}, v::T, I::Vararg{Int,N}) where {T,N}
+    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
+    if myrank == 0
+        @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
+    end
+    wanted_rank = find_rank(x, I...)
+    if wanted_rank == 0
+        received_v = v
+    else
+        message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
+        source_rank = 0
+        send_mesg = [v]
+        recv_mesg = 0 .* send_mesg
+        rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
+        sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
+        stats = MPI.Waitall!([rreq, sreq])
+        received_v = recv_mesg[1]
+    end
+    if myrank == wanted_rank
+        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
+        setindex!(x.p, received_v, J...)
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+end
+
+function Base.setindex!(x::DevitoMPISparseTimeArray{T,N}, v::T, I::Vararg{Int,2}) where {T,N}
+    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
+    if myrank == 0
+        @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
+    end
+    wanted_rank = find_rank(x, I...)
+    if wanted_rank == 0
+        received_v = v
+    else
+        message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
+        source_rank = 0
+        send_mesg = [v]
+        recv_mesg = 0 .* send_mesg
+        rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
+        sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
+        stats = MPI.Waitall!([rreq, sreq])
+        received_v = recv_mesg[1]
+    end
+    if myrank == wanted_rank
+        J = (shift_localindicies( I[1], localindices(x)[1]), I[2])
+        setindex!(x.p, received_v, J...)
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
+end
+
+function Base.setindex!(x::DevitoMPISparseArray{T,N}, v::T, I::Vararg{Int,N}) where {T,N}
+    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
+    if myrank == 0
+        @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
+    end
+    wanted_rank = find_rank(x, I...)
+    if wanted_rank == 0
+        received_v = v
+    else
+        message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
+        source_rank = 0
+        send_mesg = [v]
+        recv_mesg = 0 .* send_mesg
+        rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
+        sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
+        stats = MPI.Waitall!([rreq, sreq])
+        received_v = recv_mesg[1]
+    end
+    if myrank == wanted_rank
+        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
+        setindex!(x.p, received_v, J...)
+    end
+    MPI.Barrier(MPI.COMM_WORLD)
 end
 
 #
