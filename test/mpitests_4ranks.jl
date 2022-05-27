@@ -147,8 +147,8 @@ end
     coords = zeros(Float32, 2, ny*nx)
     coords[1,:] .= cx
     coords[2,:] .= cy
-    copy!(coordinates(sx), coords)
-    copy!(coordinates(sy), coords)
+    copy!(coordinates_data(sx), coords)
+    copy!(coordinates_data(sy), coords)
 
     datx = reshape(Float32[ix for iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny, time_order+1)
     daty = reshape(Float32[iy for iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny, time_order+1)
@@ -201,9 +201,9 @@ end
     coords[1,:] .= cx
     coords[2,:] .= cy
     coords[3,:] .= cz
-    copy!(coordinates(sx), coords)
-    copy!(coordinates(sy), coords)
-    copy!(coordinates(sz), coords)
+    copy!(coordinates_data(sx), coords)
+    copy!(coordinates_data(sy), coords)
+    copy!(coordinates_data(sz), coords)
 
     datx = reshape(Float32[ix for iz = 1:nz, iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny*nz, time_order+1)
     daty = reshape(Float32[iy for iz = 1:nz, iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny*nz, time_order+1)
