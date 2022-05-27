@@ -1367,6 +1367,11 @@ function data_allocated(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     DevitoMPITimeArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
 end
 
+function data_allocated(x::SubFunction{T,2,DevitoMPITrue}) where {T}
+    topo = (1, MPI.Comm_size(MPI.COMM_WORLD)) # topo is not defined for sparse decompositions
+    d = DevitoMPIArray{T,2}(x.o."_data_allocated", localindices(x), decomposition(x), topo)
+end
+
 function data_with_inhalo(x::SparseFunction{T,N,DevitoMPITrue}) where {T,N}
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
     idxs = decomposition(x)[1][rnk+1]
@@ -1396,23 +1401,26 @@ end
 
 data_with_halo(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
 data(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data_with_inhalo(x)
+data(x::SubFunction{T,N,M}) where {T,N,M} = data_allocated(x)
 # -->
 
 """
-    coordinates(x::SparseTimeFunction)
+    coordinates(x::SparseDiscreteFunction)
+
+Returns a Devito function associated with the coordinates of a sparse time function.
+Note that contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
+Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z.
+"""
+coordinates(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = SubFunction{T,2,M}(x.o.coordinates)
+
+"""
+    coordinates_data(x::SparseDiscreteFunction)
 
 Returns a Devito array associated with the coordinates of a sparse time function.
 Note that contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
 Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z.
 """
-function coordinates(x::SparseDiscreteFunction{T,N,DevitoMPIFalse}) where {T,N}
-    DevitoArray{T,2}(x.o.coordinates."_data_allocated")
-end
-
-function coordinates(x::SparseDiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    topo = (1, MPI.Comm_size(MPI.COMM_WORLD)) # topo is not defined for sparse decompositions
-    DevitoMPIArray{T,2}(x.o.coordinates."_data_allocated", localindices(SubFunction{T,2,DevitoMPITrue}(x.o.coordinates)), decomposition(SubFunction{T,2,DevitoMPITrue}(x.o.coordinates)), topo)
-end
+coordinates_data(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data(coordinates(x))
 
 export DevitoArray, localindices, SubFunction
 function dimension(o::PyObject)
@@ -1491,7 +1499,7 @@ p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 time_range = 0.0f0:0.5f0:1000.0f0
 nz,nx,δz,δx = size(grid)...,spacing(grid)...
 rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
-rec_coords = coordinates(rec)
+rec_coords = coordinates_data(rec)
 rec_coords[1,:] .= 10.0
 rec_coords[2,:] .= δx*(0:nx-1)
 
@@ -1926,6 +1934,6 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = x.o.name
 
-export Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interior, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end

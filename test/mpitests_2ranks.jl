@@ -431,8 +431,8 @@ end
     coords = zeros(Float32, 2, ny*nx)
     coords[1,:] .= cx
     coords[2,:] .= cy
-    copy!(coordinates(sx), coords)
-    copy!(coordinates(sy), coords)
+    copy!(coordinates_data(sx), coords)
+    copy!(coordinates_data(sy), coords)
 
     datx = reshape(Float32[ix for iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny, time_order+1)
     daty = reshape(Float32[iy for iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny, time_order+1)
@@ -485,9 +485,9 @@ end
     coords[1,:] .= cx
     coords[2,:] .= cy
     coords[3,:] .= cz
-    copy!(coordinates(sx), coords)
-    copy!(coordinates(sy), coords)
-    copy!(coordinates(sz), coords)
+    copy!(coordinates_data(sx), coords)
+    copy!(coordinates_data(sy), coords)
+    copy!(coordinates_data(sz), coords)
 
     datx = reshape(Float32[ix for iz = 1:nz, iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny*nz, time_order+1)
     daty = reshape(Float32[iy for iz = 1:nz, iy = 1:ny, ix=1:nx, it = 1:time_order+1][:], nx*ny*nz, time_order+1)
@@ -519,7 +519,7 @@ end
 @testset "Sparse function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
     grid = Grid(shape=n, dtype=Float32)
     sf = SparseFunction(name="sf", npoint=npoint, grid=grid)
-    sf_coords = coordinates(sf)
+    sf_coords = coordinates_data(sf)
     @test isa(sf_coords, Devito.DevitoMPIArray)
     @test size(sf_coords) == (length(n),npoint)
 
@@ -546,7 +546,7 @@ end
     end
 
     # round trip
-    _sf_coords = convert(Array,coordinates(sf))
+    _sf_coords = convert(Array,coordinates_data(sf))
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         @test _sf_coords ≈ x
@@ -556,7 +556,7 @@ end
 @testset "Sparse time function coordinates, n=$n, npoint=$npoint" for n in ( (11,10), (12,11,10) ), npoint in (1, 5, 10)
     grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=npoint, nt=100, grid=grid)
-    stf_coords = coordinates(stf)
+    stf_coords = coordinates_data(stf)
     @test isa(stf_coords, Devito.DevitoMPIArray)
     @test size(stf_coords) == (length(n),npoint)
 
@@ -583,7 +583,7 @@ end
     end
 
     # round trip
-    _stf_coords = convert(Array,coordinates(stf))
+    _stf_coords = convert(Array,coordinates_data(stf))
 
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         @test _stf_coords ≈ x

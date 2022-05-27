@@ -182,12 +182,13 @@ end
 @testset "Sparse function coordinates, n=$n" for n in ( (10,11), (10,11,12) )
     grid = Grid(shape=n, dtype=Float32)
     sf = SparseFunction(name="sf", npoint=10, grid=grid)
-    sf_coords = coordinates(sf)
+    @test typeof(coordinates(sf)) <: SubFunction{Float32,2}
+    sf_coords = coordinates_data(sf)
     @test isa(sf_coords, Devito.DevitoArray)
     @test size(sf_coords) == (length(n),10)
     x = rand(length(n),10)
     sf_coords .= x
-    _sf_coords = coordinates(sf)
+    _sf_coords = coordinates_data(sf)
     @test _sf_coords ≈ x
 end
 
@@ -202,12 +203,13 @@ end
 @testset "Sparse time function coordinates, n=$n" for n in ( (10,11), (10,11,12) )
     grid = Grid(shape=n, dtype=Float32)
     stf = SparseTimeFunction(name="stf", npoint=10, nt=100, grid=grid)
-    stf_coords = coordinates(stf)
+    @test typeof(coordinates(stf)) <: SubFunction{Float32,2}
+    stf_coords = coordinates_data(stf)
     @test isa(stf_coords, Devito.DevitoArray)
     @test size(stf_coords) == (length(n),10)
     x = rand(length(n),10)
     stf_coords .= x
-    _stf_coords = coordinates(stf)
+    _stf_coords = coordinates_data(stf)
     @test _stf_coords ≈ x
 end
 
@@ -626,7 +628,7 @@ end
     src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=nt)
     @test typeof(dimensions(src)[1]) == Dimension
     coords =  [0; 0.5]
-    src_coords = coordinates(src)
+    src_coords = coordinates_data(src)
     src_coords .= coords
     src_data = data(src)
     src_data .= reshape(1e3*Base.sin.(time_range .* (3*pi/2)),1,:)
@@ -634,7 +636,7 @@ end
     src_term = inject(src; field=forward(p), expr=src*spacing(t)^2)
 
     rec = SparseTimeFunction(name="rec", grid=grid, npoint=2, nt=nt)
-    rec_coords = coordinates(rec)
+    rec_coords = coordinates_data(rec)
     rec_coords[:,1] .= coords
     rec_coords[:,2] .= reverse(coords)
     rec_term = interpolate(rec, expr=p)
@@ -655,14 +657,14 @@ end
     src = SparseFunction(name="src", grid=grid, npoint=1)
     @test typeof(dimensions(src)[1]) == Dimension
     coords =  [0; 0.5]
-    src_coords = coordinates(src)
+    src_coords = coordinates_data(src)
     src_coords .= coords
     src_data = data(src)
     src_data .= 1
     src_term = inject(src; field=f, expr=src)
 
     rec = SparseFunction(name="rec", grid=grid, npoint=2)
-    rec_coords = coordinates(rec)
+    rec_coords = coordinates_data(rec)
     rec_coords[:,1] .= coords
     rec_coords[:,2] .= reverse(coords)
     rec_term = interpolate(rec, expr=f)
