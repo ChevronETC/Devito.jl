@@ -53,7 +53,7 @@ end
 
     nz,ny,nx,δz,δy,δx = size(grid)...,spacing(grid)...
     rec = SparseTimeFunction(name="rec", grid=grid, npoint=nx, nt=length(time_range))
-    rec_coords = coordinates(rec)
+    rec_coords = coordinates_data(rec)
     _rec_coords = zeros(Float32, length(dimensions(p))-1, nx)
     _rec_coords[1,:] .= δx*(0:nx-1)
     _rec_coords[2,:] .= 605
