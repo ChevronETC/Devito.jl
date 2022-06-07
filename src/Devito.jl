@@ -851,7 +851,7 @@ Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
 spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
-spacing_map(x::Grid{T,N}) where {T,N} = Dict( key => convert( T, val) for (key, val) in pairs(PyDict(x.o."spacing_map")))
+spacing_map(x::Grid{T,N}) where {T,N} = Dict( Constant(key) => convert( T, val) for (key, val) in pairs(PyDict(x.o."spacing_map")))
 
 #
 # SubDomain
@@ -1691,7 +1691,7 @@ end
 # metaprogramming for symbolic operations on Devito dimensions
 for F in (:symbolic_min, :symbolic_max, :spacing, :symbolic_size)
     @eval begin
-        $F(x::AbstractDimension) = PyObject(x).$F
+        $F(x::AbstractDimension) = Constant(PyObject(x).$F)
         export $F
     end
 end
@@ -1937,7 +1937,6 @@ name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator
 Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = isequal(PyObject(x), PyObject(y))
 
 Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = hash(PyObject(x))
-
 
 export Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
