@@ -512,6 +512,29 @@ end
     end
 end
 
+@testset "isequal on Devito Objects" begin
+    a = Constant(name="a", dtype=Float32)
+    b = Constant(name="b", dtype=Float64)
+    @test ~isequal(a,b)
+    a1 = Constant(a.o)
+    @test isequal(a,a1)
+    x = SpaceDimension(name="x")
+    y = SpaceDimension(name="y")
+    g = Grid(shape=(5,4), dtype=Float32, dimensions=(y,x))
+    @test spacing(x) ∈ keys(spacing_map(g))
+    @test spacing(y) ∈ keys(spacing_map(g))
+    y1, x1 = dimensions(g)
+    @test isequal(x,x1)
+    @test isequal(y,y1)
+    f = Devito.Function(name="f", grid=g)
+    eq = Eq(f,1)
+    op = Operator(eq)
+    dict = Dict(f=>true, g=>true, op=>true, eq=>true)
+    for entry in (f, eq, op, g)
+        @test dict[entry] = true
+    end
+end
+
 @testset "Math on Dimensions" begin
     x = SpaceDimension(name="x")
     grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
