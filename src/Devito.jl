@@ -1873,6 +1873,17 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(subdom(name,instructions))    
 end
 
+struct Buffer
+    o::PyObject
+end
+
+"""
+    Buffer(value::Int)
+Construct a devito buffer.  This may be used as a save= keyword argument in the construction of TimeFunctions.
+"""
+Buffer(value::Int) = Buffer(pycall(devito.Buffer, PyObject, value))
+PyCall.PyObject(x::Buffer) = x.o
+
 """
     nsimplify(expr::PyObject; constants=(), tolerance=none, full=false, rational=none, rational_conversion="base10")
 
@@ -1938,6 +1949,6 @@ Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, 
 
 Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = hash(PyObject(x))
 
-export Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
