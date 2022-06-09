@@ -1026,3 +1026,12 @@ end
     @test data_with_inhalo(sf) ≈ ones(Float32, npoint)
     @test data_with_inhalo(stf) ≈ ones(Float32, npoint, nt)
 end
+
+@testset "Buffer construction and use, buffer size = $value" for value in (1,2,4)
+    b = Buffer(value)
+    @test typeof(b) == Buffer
+    shp = (5,6)
+    grd = Grid(shape=shp)
+    u = TimeFunction(name="u", grid=grd, save=b)
+    @test size(u) == (shp...,value)
+end
