@@ -1571,6 +1571,7 @@ Returns the symbol for the first derivative with respect to x if f is a Function
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dx end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dx)) = print(io,"∂x")
 
 """
     dy(f::DiscreteFunction, args...; kwargs...)
@@ -1579,6 +1580,7 @@ Returns the symbol for the first derivative with respect to yif f is a Function 
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dy end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dy)) = print(io,"∂y")
 
 """
     dz(f::DiscreteFunction, args...; kwargs...)
@@ -1588,6 +1590,7 @@ Otherwise returns 0.  Thus, the derivative of a function with respect to a dimen
 """
 
 function dz end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dz)) = print(io,"∂z")
 
 """
     dxl(f::DiscreteFunction, args...; kwargs...)
@@ -1596,6 +1599,7 @@ Returns the symbol for the first backward one-sided derivative with respect to x
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dxl end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dxl)) = print(io,"∂x₋")
 
 """
     dyl(f::DiscreteFunction, args...; kwargs...)
@@ -1604,6 +1608,7 @@ Returns the symbol for the first backward one-sided derivative with respect to y
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dyl end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dyl)) = print(io,"∂y₋")
 
 """
     dzl(f::DiscreteFunction, args...; kwargs...)
@@ -1612,6 +1617,7 @@ Returns the symbol for the first backward one-sided derivative with respect to z
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dzl end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dzl)) = print(io,"∂z₋")
 
 """
     dxr(f::DiscreteFunction, args...; kwargs...)
@@ -1620,6 +1626,7 @@ Returns the symbol for the first forward one-sided derivative with respect to x 
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dxr end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dxr)) = print(io,"∂x₊")
 
 """
     dyr(f::DiscreteFunction, args...; kwargs...)
@@ -1628,6 +1635,7 @@ Returns the symbol for the first forward one-sided derivative with respect to y 
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dyr end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dyr)) = print(io,"∂y₊")
 
 """
     dzr(f::DiscreteFunction, args...; kwargs...)
@@ -1635,7 +1643,8 @@ function dyr end
 Returns the symbol for the first forward one-sided derivative with respect to z if f is a Function with dimension z.
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
-function dz end
+function dzr end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dzr)) = print(io,"∂z₊")
 
 # metaprograming for various derivatives
 for F in (:dt,:dt2)
@@ -1651,6 +1660,7 @@ end
 Returns the symbol for the first time derivative of a time function
 """
 function dt end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dt)) = print(io,"∂t")
 
 """
     dt2(f::TimeFunction, args...; kwargs...)
@@ -1658,6 +1668,42 @@ function dt end
 Returns the symbol for the second time derivative of a time function
 """
 function dt2 end
+Base.show(io::IO, ::MIME"text/plain", d::typeof(dt2)) = print(io,"∂t²")
+
+# define multiplication for derivative objects
+DevitoDerivative = Union{typeof.((dx,dxl,dxr,dy,dyr,dyl,dz,dzr,dzl,dt,dt2))...}
+Base.:(*)(d::DevitoDerivative, f::Union{DiscreteFunction,Constant,Real}) = d(f)
+
+# define a PyObject zero
+Base.zero(::PyObject) = PyObject(0)
+
+# display functions and grids in a manner that is consistent with julia's ordering
+function Base.show(io::IO, ::MIME"text/plain", f::Union{DiscreteFunction,Grid})
+    pythonstr = repr(PyObject(f))
+    pythonstr = pythonstr[length("PyObject ")+1:end] # strip PyObject portion
+    i = 1
+    while i < length(pythonstr)
+        tuplestart = findnext("(",pythonstr,i)
+        tupleend = findnext(")",pythonstr,i)
+        if ((tuplestart === nothing) || (tupleend === nothing))
+            break
+        else
+            tup = pythonstr[tuplestart[1]+1:tupleend[1]-1]
+            j = length(tup)+1
+            @show tup
+            revtup = ""
+            while j > 1
+                commaposition = findprev(", ",tup,j-1)
+                commaposition = commaposition === nothing ? -1 : commaposition[1]
+                revtup = revtup*tup[commaposition+2:j-1]*", "
+                j = commaposition 
+            end
+            pythonstr = pythonstr[1:tuplestart[1]]*revtup[1:end-2]*pythonstr[tupleend[1]:end]
+            i = tupleend[1]+1
+        end
+    end
+    print(io, pythonstr)
+end
 
 # metaprogramming for basic operations
 for F in ( :+, :-, :*, :/, :^)
