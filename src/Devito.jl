@@ -851,7 +851,7 @@ Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
 spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
-spacing_map(x::Grid{T,N}) where {T,N} = Dict( key => convert( T, val) for (key, val) in pairs(PyDict(x.o."spacing_map")))
+spacing_map(x::Grid{T,N}) where {T,N} = Dict( Constant(key) => convert( T, val) for (key, val) in pairs(PyDict(x.o."spacing_map")))
 
 #
 # SubDomain
@@ -1691,7 +1691,7 @@ end
 # metaprogramming for symbolic operations on Devito dimensions
 for F in (:symbolic_min, :symbolic_max, :spacing, :symbolic_size)
     @eval begin
-        $F(x::AbstractDimension) = PyObject(x).$F
+        $F(x::AbstractDimension) = Constant(PyObject(x).$F)
         export $F
     end
 end

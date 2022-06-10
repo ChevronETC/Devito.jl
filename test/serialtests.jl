@@ -481,7 +481,7 @@ end
 @testset "Spacing Map" for T in (Float32,Float64)
     grid = Grid(shape=(5,6), dtype=T)
     smap = spacing_map(grid)
-    @test typeof(smap) == Dict{PyCall.PyObject, T}
+    @test typeof(smap) == Dict{Constant{T}, T}
     y,x = dimensions(grid)
     @test smap[spacing(y)] ≈ 1 / (size(grid)[1] - 1)
     @test smap[spacing(x)] ≈ 1 / (size(grid)[2] - 1)
@@ -718,6 +718,16 @@ end
     @test data(g2)[3] == -4.
     @test data(g1)[4] == -4.
     @test data(g2)[4] == 0.
+end
+
+@testset "spacing, symbolic_min, symbolic_max, and symbolic_size return Constants, dtype=$T" for T in (Float32,Float64)
+    g = Grid(shape=(5,4), dtype=T)
+    y, x = dimensions(g)
+    @test typeof(spacing(y)) == Constant{T}
+    @test typeof(spacing(x)) == Constant{T}
+    @test typeof(symbolic_min(x)) == Constant{Float64}
+    @test typeof(symbolic_max(x)) == Constant{Float64}
+    @test typeof(symbolic_size(x)) == Constant{Float64}
 end
 
 @testset "Derivatives on Constants" begin
