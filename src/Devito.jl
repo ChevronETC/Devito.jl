@@ -1670,9 +1670,19 @@ Returns the symbol for the second time derivative of a time function
 function dt2 end
 Base.show(io::IO, ::MIME"text/plain", d::typeof(dt2)) = print(io,"∂t²")
 
-# define multiplication for derivative objects
+# define multiplication and addition for derivative objects
 DevitoDerivative = Union{typeof.((dx,dxl,dxr,dy,dyr,dyl,dz,dzr,dzl,dt,dt2))...}
-Base.:(*)(d::DevitoDerivative, f::Union{DiscreteFunction,Constant,Real}) = d(f)
+Base.:(*)(d::DevitoDerivative, f::Union{DiscreteFunction,Constant,PyObject,Real}) = d(f)
+Base.:(*)(a::Real, d::DevitoDerivative) = field -> a*d(field)
+Base.:(+)(a::DevitoDerivative, b::DevitoDerivative) = field -> a*field + b*field
+Base.:(-)(a::DevitoDerivative, b::DevitoDerivative) = field -> a*field - b*field
+Base.:(+)(a::DevitoDerivative, b::Union{DiscreteFunction,Constant,Real}) = field -> a*field + b*field
+Base.:(+)(a::Union{DiscreteFunction,Constant,Real}, b::DevitoDerivative, ) = b+a
+# and the operations on the corresponding created methods
+Base.:(*)(d::typeof(dx+dy), b::Union{DiscreteFunction,Constant,PyObject,Real}) = d(b)
+Base.:(*)(d::typeof(dy+dx), b::Union{DiscreteFunction,Constant,PyObject,Real}) = d(b)
+Base.:(*)(d::typeof(dx-dy), b::Union{DiscreteFunction,Constant,PyObject,Real}) = d(b)
+
 
 # define a PyObject zero
 Base.zero(::PyObject) = PyObject(0)
