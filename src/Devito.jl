@@ -1682,6 +1682,7 @@ function Base.show(io::IO, ::MIME"text/plain", f::Union{DiscreteFunction,Grid})
     pythonstr = repr(PyObject(f))
     pythonstr = pythonstr[length("PyObject ")+1:end] # strip PyObject portion
     i = 1
+    # reverse tuples in display name to make appearance Julian
     while i < length(pythonstr)
         tuplestart = findnext("(",pythonstr,i)
         tupleend = findnext(")",pythonstr,i)
@@ -1690,7 +1691,6 @@ function Base.show(io::IO, ::MIME"text/plain", f::Union{DiscreteFunction,Grid})
         else
             tup = pythonstr[tuplestart[1]+1:tupleend[1]-1]
             j = length(tup)+1
-            @show tup
             revtup = ""
             while j > 1
                 commaposition = findprev(", ",tup,j-1)
