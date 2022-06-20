@@ -6,7 +6,7 @@ try
     run(`$pip install cython`) 
     run(`$pip install versioneer`) 
     run(`$pip install devito`)
-    run(`$pip install devito[mpi]`)
+    run(`$pip install devito["mpi"]`)
 catch e
     if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
         @warn unable to build
