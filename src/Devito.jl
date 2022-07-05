@@ -932,6 +932,17 @@ function Function(args...; kwargs...)
     Function{T,N,M}(o)
 end
 
+function Function(o::PyObject)
+    if (:is_Function ∈ propertynames(o)) && (o.is_Function == true)
+        T = numpy_eltype(o.dtype)
+        N = length(o.shape)
+        M = ismpi_distributed(o)
+        return Function{T,N,M}(o)
+    else
+        error("not implemented")
+    end
+end
+
 struct SubFunction{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
@@ -1003,6 +1014,17 @@ function SparseTimeFunction(args...; kwargs...)
     N = length(o.shape)
     M = ismpi_distributed(o)
     SparseTimeFunction{T,N,M}(o)
+end
+
+function SparseTimeFunction(o::PyObject)
+    if (:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true)
+        T = numpy_eltype(o.dtype)
+        N = length(o.shape)
+        M = ismpi_distributed(o)
+        return SparseTimeFunction{T,N,M}(o)
+    else
+        error("not implemented")
+    end     
 end
 
 struct SparseFunction{T,N,M} <: SparseDiscreteFunction{T,N,M}
@@ -1947,7 +1969,7 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = x.o.name
 
-Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = isequal(PyObject(x), PyObject(y))
+Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection, SparseDiscreteFunction}) = isequal(PyObject(x), PyObject(y))
 
 Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = hash(PyObject(x))
 
