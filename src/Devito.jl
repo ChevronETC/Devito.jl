@@ -857,11 +857,13 @@ spacing_map(x::Grid{T,N}) where {T,N} = Dict( key => convert( T, val) for (key, 
 # SubDomain
 #
 
-struct SubDomain{N}
+abstract type AbstractSubDomain{N} end
+
+struct SubDomain{N} <: AbstractSubDomain{N}
     o::PyObject
 end
 
-PyCall.PyObject(x::SubDomain) = x.o
+PyCall.PyObject(x::AbstractSubDomain) = x.o
 
 """
     subdomains(grid)
@@ -884,7 +886,7 @@ returns the interior subdomain of a Devito grid
 """
 interior(x::Grid{T,N}) where {T,N} = SubDomain{N}(x.o.interior)
 
-Base.:(==)(x::SubDomain,y::SubDomain) = x.o == y.o
+Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = x.o == y.o
 
 #
 # Functions
@@ -1447,7 +1449,7 @@ end
 
 Returns a tuple with the dimensions associated with the Devito grid.
 """
-function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N},SubDomain{N}}) where {T,N}
+function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N},AbstractSubDomain{N}}) where {T,N}
     ntuple(i->dimension(x.o.dimensions[N-i+1]), N)
 end
 
