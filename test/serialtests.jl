@@ -1035,3 +1035,17 @@ end
     u = TimeFunction(name="u", grid=grd, save=b)
     @test size(u) == (shp...,value)
 end
+
+@testset "Generate Function from PyObject, n=$n" for n in ((3,4),(3,4,5))
+    g = Grid(shape=n)
+    f1 = Devito.Function(name="f1", grid=g)
+    f2 = Devito.Function(PyObject(f1))
+    @test isequal(f1, f2)
+end
+
+@testset "Generate SparseTimeFunction from PyObject, n=$n" for n in ((3,4),(3,4,5))
+    g = Grid(shape=n)
+    s1 = SparseTimeFunction(name="s1", grid=g, nt=10, npoint=5)
+    s2 = SparseTimeFunction(PyObject(s1))
+    @test isequal(s1, s2)
+end
