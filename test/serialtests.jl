@@ -1041,6 +1041,16 @@ end
     f1 = Devito.Function(name="f1", grid=g)
     f2 = Devito.Function(PyObject(f1))
     @test isequal(f1, f2)
+    # try to make Functions from non-function objects
+    u = TimeFunction(name="u", grid=g)
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(u))
+    c = Constant(name="c")
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(c))
+    s = SparseFunction(name="s", grid=g, npoint=5)
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(s))
+    st = SparseTimeFunction(name="st", grid=g, npoint=5, nt=10)
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(st))
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(1))
 end
 
 @testset "Generate SparseTimeFunction from PyObject, n=$n" for n in ((3,4),(3,4,5))
@@ -1048,4 +1058,14 @@ end
     s1 = SparseTimeFunction(name="s1", grid=g, nt=10, npoint=5)
     s2 = SparseTimeFunction(PyObject(s1))
     @test isequal(s1, s2)
+    # try to make Functions from non-function objects
+    f = Devito.Function(name="f", grid=g)
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(f))
+    u = TimeFunction(name="u", grid=g)
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(u))
+    c = Constant(name="c")
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(c))
+    s = SparseFunction(name="s", grid=g, npoint=5)
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(s))
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(1))
 end

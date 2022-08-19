@@ -935,13 +935,17 @@ function Function(args...; kwargs...)
 end
 
 function Function(o::PyObject)
-    if (:is_Function ∈ propertynames(o)) && (o.is_Function == true)
+    # ensure pyobject corresponds to a devito function
+    isafunction = (:is_Function ∈ propertynames(o)) && (o.is_Function == true)
+    isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == true))
+    isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true))
+    if (isafunction && ~(isatimefunction || isasparsefunction))
         T = numpy_eltype(o.dtype)
         N = length(o.shape)
         M = ismpi_distributed(o)
         return Function{T,N,M}(o)
     else
-        error("not implemented")
+        error("PyObject is not a devito.Function")
     end
 end
 
@@ -1025,7 +1029,7 @@ function SparseTimeFunction(o::PyObject)
         M = ismpi_distributed(o)
         return SparseTimeFunction{T,N,M}(o)
     else
-        error("not implemented")
+        error("PyObject is not a devito.SparseTimeFunction")
     end     
 end
 
