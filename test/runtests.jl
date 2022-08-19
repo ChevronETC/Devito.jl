@@ -1,4 +1,4 @@
-for testscript in ("serialtests.jl", "gencodetests.jl")
+for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl")
     include(testscript)
 end
 

@@ -1973,6 +1973,52 @@ Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, 
 
 Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = hash(PyObject(x))
 
+# metaprogramming for unary ops
+for F in (:Byref, :Deref, :Cast)
+    @eval begin
+        struct $F
+            o::PyObject
+        end
+        $F(base::Union{DiscreteFunction,String}, kwargs...) = pycall(devito.symbolics.$F, $F, base, kwargs...) # Todo: support Sympy.Basic as well
+        PyCall.PyObject(x::$F) = x.o
+        Base.convert(::Type{$F}, x::PyObject) = $F(x)
+        export $F 
+    end
+end
+
+"""
+Symbolic representation of the C notation `&expr`.
+"""
+function Byref end
+
+"""
+Symbolic representation of the C notation `*expr`.
+"""
+function Deref end
+
+"""
+Symbolic representation of the C notation `(type)expr`.
+"""
+function Cast end
+
+# metaprograming for various devito types for use in C
+for F in (:Pointer,)
+    @eval begin
+        struct $F
+            o::PyObject
+        end
+        $F(args...; kwargs...) = pycall(devito.types.$F, $F, args...; kwargs...)
+        PyCall.PyObject(x::$F) = x.o
+        Base.convert(::Type{$F}, x::PyObject) = $F(x)
+        export $F 
+    end
+end
+
+"""
+Symbolic representation of a pointer in C
+"""
+function Pointer end
+
 export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
