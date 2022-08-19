@@ -1049,3 +1049,23 @@ end
     s2 = SparseTimeFunction(PyObject(s1))
     @test isequal(s1, s2)
 end
+
+@testset "Indexed Data n=$n, T=$T, space_order=$so" for n in ((3,4), (3,4,5)), T in (Float32, Float64), so in (4,8)
+    g = Grid(shape=n, dtype=T)
+    f = Devito.Function(name="f", grid=g, space_order=so)
+    fi = indexed(f)
+    @test typeof(fi) <: Devito.IndexedData
+    fi_index = fi[(n .- 1 )...]
+    @show fi_index
+    x = dimensions(g)[end]
+    fd_index = fi[(n[1:end-1] .- 2)..., x]
+    @test typeof(fi_index) <: Devito.Indexed
+    @test typeof(fd_index) <: Devito.Indexed
+    op = Operator([Eq(fi_index, 1), Eq(fd_index, 2)])
+    apply(op)
+    @test data(f)[(n .- 1 )...] == 1
+    data(f)[(n .- 1 )...] = 0
+    @test data(f)[(n[1:end-1] .- 2)...,:] ≈ 2 .* ones(T, n[end])
+    data(f)[(n[1:end-1] .- 2)...,:] .= 0
+    @test data(f) ≈ zeros(T, n...)
+end
