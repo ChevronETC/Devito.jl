@@ -746,7 +746,6 @@ function value!(x::Constant{T},y::Real) where {T}
     x.o.data = PyObject(convert(T,y))
 end
 
-    function SpaceDimension end
 """
     SpaceDimension(;kwargs...)
 
@@ -759,10 +758,10 @@ See https://www.devitoproject.org/devito/dimension.html?highlight=spacedimension
 x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 ````
 """
+function SpaceDimension end
 
 Base.:(==)(x::AbstractDimension,y::AbstractDimension) = x.o == y.o
 
-function Operator end
 """
     Opertor(expressions; kwargs...)
 
@@ -776,8 +775,8 @@ Assuming that one has constructed the following Devito expressions: `stencil_p`,
 op = Operator([stencil_p, src_term, rec_term]; name="opIso")
 ```
 """
+function Operator end
 
-function ConditionalDimension end
 """
     ConditionalDimension(;kwargs)
 
@@ -796,6 +795,8 @@ f  = Devito.Function(name="f", grid=grid, shape=(div(size,factor),), dimensions=
 op = Operator([Eq(g, 1), Eq(f, g)],name="Cond")
 ```
 """
+function ConditionalDimension end
+
 
 factor(x::ConditionalDimension) = x.o.factor
 export factor
@@ -839,6 +840,7 @@ PyCall.PyObject(x::Grid) = x.o
 Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = x.o == y.o
 Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
 extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,Float64})
+
 """
     origin(grid)
 
