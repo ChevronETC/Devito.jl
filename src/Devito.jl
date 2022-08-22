@@ -1841,6 +1841,38 @@ function Base.getindex(x::Union{TimeFunction,Function},args...)
    return py"indexobj"(x,reverse(args)...)
 end
 
+# helper functions for mapping arguments to python
+shiftarg(x::Int) = x-1
+shiftarg(x) = x
+
+function pygetindex(x::PyObject,args...)
+    py"""
+    def indexobj(x,*args):
+        return x[args]
+    """
+   return py"indexobj"(x,reverse(shiftarg.(args))...)
+end
+
+struct IndexedData
+    o::PyObject
+end
+
+"""
+The wrapped IndexedData object.
+"""
+indexed(x::DiscreteFunction) = IndexedData(x)
+IndexedData(x::DiscreteFunction) = IndexedData(x.o.indexed)
+PyCall.PyObject(x::IndexedData) = x.o
+
+Base.getindex(x::IndexedData,args...) = Indexed(pygetindex(x.o, args...))
+
+struct Indexed
+    o::PyObject
+    Indexed(o) = ( haskey(o, :is_Indexed) && getproperty(o, :is_Indexed) ? new(o) : error("not indexed"))
+end
+
+PyCall.PyObject(x::Indexed) = x.o
+
 """
     ccode(x::Operator; filename="")
 
@@ -1985,7 +2017,7 @@ for F in (:Byref, :Deref, :Cast)
         struct $F
             o::PyObject
         end
-        $F(base::Union{DiscreteFunction,String}, kwargs...) = pycall(devito.symbolics.$F, $F, base, kwargs...) # Todo: support Sympy.Basic as well
+        $F(base::Union{DiscreteFunction,IndexedData,Indexed,String}, kwargs...) = pycall(devito.symbolics.$F, $F, base, kwargs...) # Todo: support Sympy.Basic as well
         PyCall.PyObject(x::$F) = x.o
         Base.convert(::Type{$F}, x::PyObject) = $F(x)
         export $F 
@@ -2025,6 +2057,6 @@ Symbolic representation of a pointer in C
 """
 function Pointer end
 
-export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
