@@ -1243,7 +1243,14 @@ this also *collects* the data onto MPI rank 0.
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
+    # note: this is a workaround to avoid issues related to local_indicies attempting to call min() on an empty sequence for sparse functions where their memory is not allocated
+    # related to devito.py issue 2003: https://github.com/devitocodes/devito/issues/2003
+    local localinds
+    try
+        localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
+    catch
+        localinds = nothing
+    end
     if localinds === nothing
         return ntuple(i -> 0:-1, N)
     else
