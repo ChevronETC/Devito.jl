@@ -82,6 +82,16 @@ end
     @test b_data ≈ b_data_test
 end
 
+@testset "Function and TimeFunction, space_order, n=$n" for n in ( (4,5), (4,5,6) )
+    g = Grid(shape=n)
+    for so in (1,2,5,8)
+        f = Devito.Function(name="f", grid=g, space_order=so)
+        u = Devito.TimeFunction(name="u", grid=g, space_order=so)
+        @test space_order(f) == so
+        @test space_order(u) == so
+    end
+end
+
 @testset "Constant" begin
     a = Constant(name="a")
     @test isconst(a)
