@@ -1137,6 +1137,13 @@ localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = lo
 localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_inhalo(x)
 
 """
+    space_order(x::Union{TimeFunction,Function})
+
+Returns the space order for spatial derivatives defined on the associated TimeFunction or Function
+"""
+space_order(x::Union{TimeFunction,Function}) = x.o.space_order
+
+"""
     forward(x::TimeFunction)
 
 Returns the symbol for the time-forward state of the `TimeFunction`.
@@ -2064,6 +2071,6 @@ Symbolic representation of a pointer in C
 """
 function Pointer end
 
-export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
