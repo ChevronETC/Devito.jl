@@ -681,6 +681,18 @@ end
     @test data(rec)[2,end] ≈ (nt-1)
 end
 
+@testset "Function Inc, shape=$n" for n in ((4,5),(6,7,8),)
+    grid = Grid(shape=n)
+    A = Devito.Function(name="A", grid=grid)
+    v = Devito.Function(name="v", grid=grid, shape=size(grid)[1:end-1], dimensions=dimensions(grid)[1:end-1])
+    b = Devito.Function(name="b", grid=grid, shape=(size(grid)[end],), dimensions=(dimensions(grid)[end],))
+    data(v) .= 1.0
+    data(A) .= reshape([1:prod(size(grid));],size(grid)...)
+    op = Operator([Inc(b, A*v)], name="inctest")
+    apply(op)
+    @test data(b)[:] ≈ sum(data(A), dims=Tuple([1:length(n)-1;]))[:]
+end
+
 @testset "Sparse Function Inject and Interpolate" begin
 
     grid = Grid(shape=(5,5),origin=(0.,0.),extent=(1.,1.))
