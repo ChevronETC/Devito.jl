@@ -628,7 +628,7 @@ parent(xr)
 Base.parent(x::AbstractSubDimension) = x.o.parent
 
 # Python <-> Julia quick-and-dirty type/struct mappings
-for (M,F) in ((:devito,:Eq), (:devito,:Injection))
+for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito, :Inc))
 
     @eval begin
         struct $F
@@ -2021,9 +2021,9 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = x.o.name
 
-Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection, SparseDiscreteFunction}) = isequal(PyObject(x), PyObject(y))
+Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = isequal(PyObject(x), PyObject(y))
 
-Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Injection}) = hash(PyObject(x))
+Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection}) = hash(PyObject(x))
 
 # metaprogramming for unary ops
 for F in (:Byref, :Deref, :Cast)
