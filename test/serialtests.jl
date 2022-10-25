@@ -202,6 +202,36 @@ end
     @test _sf_coords ≈ x
 end
 
+@testset "SparseFunction from PyObject, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+    g = Grid(shape=n, dtype=T)
+    sf = SparseFunction(name="sf", grid=g, npoint=npoint)
+    @test SparseFunction(PyObject(sf)) === sf
+    stf = SparseTimeFunction(name="stf", grid=g, npoint=npoint, nt=5)
+    @test_throws ErrorException("PyObject is not a devito.SparseFunction") SparseFunction(PyObject(stf))
+end
+
+@testset "Multidimensional SparseFunction, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+    g = Grid(shape=n, dtype=T)
+    recdim = Dimension(name="recdim")
+    nfdim = 7
+    fdim = DefaultDimension(name="fdim",  default_value=nfdim)
+    sf = SparseFunction(name="sf", grid=g, dimensions=(recdim, fdim), npoint=npoint, shape=(npoint, nfdim))
+    @test dimensions(sf) == (recdim, fdim)
+    @test size(data(sf)) == (npoint, nfdim)
+    @test size(coordinates_data(sf)) == (length(n), npoint)
+end
+
+@testset "CoordSlowSparseFunction, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+    g = Grid(shape=n, dtype=T)
+    recdim = Dimension(name="recdim")
+    nfdim = 7
+    fdim = DefaultDimension(name="fdim",  default_value=nfdim)
+    sf = CoordSlowSparseFunction(name="sf", grid=g, dimensions=(fdim,recdim), npoint=npoint, shape=(nfdim,npoint))
+    @test dimensions(sf) == (fdim, recdim)
+    @test size(data(sf)) == (nfdim, npoint)
+    @test size(coordinates_data(sf)) == (length(n), npoint)
+end
+
 @testset "Sparse time function grid, n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
     N = length(n)
     grd = Grid(shape=n, dtype=T)

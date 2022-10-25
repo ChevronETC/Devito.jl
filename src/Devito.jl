@@ -1059,11 +1059,30 @@ src = SparseFunction(name="src", grid=grid, npoint=1)
 ```
 """
 function SparseFunction(args...; kwargs...)
-    o = pycall(devito.SparseFunction, PyObject, args...; kwargs...)
+    o = pycall(devito.SparseFunction, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     M = ismpi_distributed(o)
     SparseFunction{T,N,M}(o)
+end
+
+function SparseFunction(o::PyObject)
+    if ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true)) && ~((:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true))
+        T = numpy_eltype(o.dtype)
+        N = length(o.shape)
+        M = ismpi_distributed(o)
+        return SparseFunction{T,N,M}(o)
+    else
+        error("PyObject is not a devito.SparseFunction")
+    end     
+end
+
+function CoordSlowSparseFunction(args...; kwargs...)
+    @pydef mutable struct coordslowsparse <: devito.SparseFunction
+    
+        _sparse_position = 0
+    end
+    return SparseFunction(coordslowsparse(args...; reversedims(kwargs)...))
 end
 
 PyCall.PyObject(x::DiscreteFunction) = x.o
@@ -2071,6 +2090,6 @@ Symbolic representation of a pointer in C
 """
 function Pointer end
 
-export Buffer, Constant, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Buffer, Constant, CoordSlowSparseFunction, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
