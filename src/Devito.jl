@@ -117,12 +117,6 @@ function DevitoMPIArray{T,N}(o, idxs, decomp::D, topo) where {T,N,D}
     DevitoMPIArray{T,N,Array{T,N},D}(o, p, idxs, decomp, topo, n)
 end
 
-function count(x::DevitoMPIArray, mycoords)
-    d = decomposition(x)
-    n = size(x) # need size rather than localsize to account for empty ranks
-    mapreduce(idim->d[idim] === nothing ? n[idim] : length(d[idim][mycoords[idim]]), *, 1:length(d))
-end
-
 function convert_resort_array!(_y::Array{T,N}, y::Vector{T}, topology, decomposition) where {T,N}
     i = 1
     for block_idx in CartesianIndices(topology)
@@ -147,6 +141,7 @@ function Base.convert(::Type{Array}, x::DevitoMPIAbstractArray{T,N}) where {T,N}
     end
     
     _x = zeros(T, size(parent(x)))
+
     copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
                         
@@ -173,7 +168,6 @@ end
 
 function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
-    
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
         data_vbuffer = VBuffer(_y, _counts)
@@ -198,12 +192,6 @@ function DevitoMPITimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) wher
     p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
     n = _size_from_local_indices(idxs)
     DevitoMPITimeArray{T,N,Array{T,N},NM1,D}(o, p, idxs, decomp, topo, n)
-end
-
-function count(x::DevitoMPITimeArray, mycoords)
-    d = decomposition(x)
-    n = size(x)
-    mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
 function Base.convert(::Type{Array}, x::DevitoMPITimeArray{T,N}) where {T,N}
@@ -244,7 +232,6 @@ end
 
 function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) where {T,N}
     _counts = counts(dst)
-
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
         _y = copyto_resort_array!(Vector{T}(undef, length(src)), src, dst.topology, dst.decomposition)
         data_vbuffer = VBuffer(_y, _counts)
@@ -256,13 +243,13 @@ function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) whe
     copyto!(parent(dst), _dst)
 end
 
-struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
+struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,NM1}
     o::PyObject
-    p::Array{T,N}
-    local_indices::Array{Int,NM1}
+    p::Array{T,NM1}
+    local_indices::NTuple{NM1,Vector{Int}}
     decomposition::D
     topology::NTuple{NM1,Int}
-    size::NTuple{N,Int}
+    size::NTuple{NM1,Int}
 end
 
 function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
@@ -270,55 +257,41 @@ function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}
     if length(idxs) == 0
         p = Array{T,N}(undef, ntuple(_->0, N))
     else
-        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
+        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
     end
-    n = _size_for_sparse_time_array(o)
-    DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo, n)
+    DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo, globalsize(decomp))
 end
 
-localsize(x::DevitoMPISparseTimeArray{T,2}) where {T} = (length(x.local_indices), x.o.shape[1])
+localsize(x::DevitoMPISparseTimeArray) where {T} = length.(x.local_indices)
 
-function _size_for_sparse_time_array(o::PyObject)
-    n = MPI.Allreduce(o.shape[2], +, MPI.COMM_WORLD)
-    (n,o.shape[1])
-end
 
 struct DevitoMPISparseArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
     o::PyObject
-    p::Array{T,N}
-    local_indices::Array{Int,NM1}
+    p::Array{T,NM1}
+    local_indices::NTuple{NM1,Vector{Int}}
     decomposition::D
     topology::NTuple{NM1,Int}
-    size::NTuple{N,Int}
+    size::NTuple{NM1,Int}
 end
 
 function DevitoMPISparseArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
     local p
-    if length(idxs) == 0
+    if prod(length.(idxs)) == 0
         p = Array{T,N}(undef, ntuple(_->0, N))
     else
-        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
+        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
     end
-    n = _size_for_sparse_array(o)
-    DevitoMPISparseArray{T,N,NM1,D}(o, p, idxs, decomp, topo, n)
+    DevitoMPISparseArray{T,N,NM1,D}(o, p, idxs, decomp, topo, globalsize(decomp))
 end
 
-localsize(x::DevitoMPISparseArray{T,1}) where {T} = (length(x.local_indices),)
+localsize(x::DevitoMPISparseArray) = length.(x.local_indices)
 
-function _size_for_sparse_array(o::PyObject)
-    n = MPI.Allreduce(o.shape[1], +, MPI.COMM_WORLD)
-    (n,)
-end
+globalsize(decomp) = ntuple( i -> max(cat(decomp[i]..., dims=1)...) - min(cat(decomp[i]..., dims=1)...) + 1 , length(decomp))
 
-function count(x::DevitoMPISparseArray, mycoords)
-    d = decomposition(x)
-    mapreduce(idim->length(d[idim][mycoords[idim]]), *, 1:length(d))
-end
-
-function count(x::DevitoMPISparseTimeArray, mycoords)
+function count(x::Union{DevitoMPIArray,DevitoMPITimeArray,DevitoMPISparseArray,DevitoMPISparseTimeArray}, mycoords)
     d = decomposition(x)
     n = size(x)
-    mapreduce(idim->d[idim] === nothing ? n[end] : length(d[idim][mycoords[idim]]), *, 1:length(d))
+    mapreduce(idim->d[idim] === nothing ? n[idim] : length(d[idim][mycoords[idim]]), *, 1:length(d))
 end
 
 function Base.convert(::Type{Array}, x::Union{DevitoMPISparseTimeArray{T,N},DevitoMPISparseArray{T,N}}) where {T,N}
@@ -330,7 +303,6 @@ function Base.convert(::Type{Array}, x::Union{DevitoMPISparseTimeArray{T,N},Devi
         y = Array{T,N}(undef, ntuple(_->0, N))
         y_vbuffer = VBuffer(nothing)
     end
-
     _x = zeros(T, size(parent(x)))
     copyto!(_x, parent(x))
     MPI.Gatherv!(_x, y_vbuffer, 0, MPI.COMM_WORLD)
@@ -372,7 +344,7 @@ function helix_helper(tup::NTuple{N,Int}) where {N}
     return wrapper
 end
 
-function find_rank(x::DevitoMPIArray{T,N}, I::Vararg{Int,N}) where {T,N}
+function find_rank(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
     decomp = decomposition(x)
     rank_position = in_range.(I,decomp)
     helper = helix_helper(topology(x))
@@ -380,37 +352,11 @@ function find_rank(x::DevitoMPIArray{T,N}, I::Vararg{Int,N}) where {T,N}
     return rank
 end
 
-function find_rank(x::DevitoMPITimeArray{T,N}, I::Vararg{Int,N}) where {T,N}
-    decomp = decomposition(x)[1:end-1]
-    J = I[1:end-1]
-    rank_position = in_range.(J,decomp)
-    helper = helix_helper(topology(x))
-    rank = sum((rank_position .- 1) .* helper)
-    return rank
-end
-
-function find_rank(x::DevitoMPISparseTimeArray{T,N}, I::Vararg{Int,2}) where {T,N}
-    decomp = decomposition(x)[1:end-1]
-    J = I[1]
-    rank_position = in_range.(J,decomp)
-    helper = helix_helper(topology(x))
-    rank = sum((rank_position .- 1) .* helper)
-    return rank
-end
-
-function find_rank(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,1}) where {T,N}
-    decomp = decomposition(x)
-    rank_position = in_range.(I,decomp)
-    helper = helix_helper(topology(x))
-    rank = sum((rank_position .- 1) .* helper)
-    return rank
-end
-
-shift_localindicies(i::Int, indices::UnitRange{Int}) = i - indices[1] + 1
+shift_localindicies(i::Int, indices::Union{UnitRange{Int},Vector{Int}}) = i - indices[1] + 1
 
 shift_localindicies(i::Int, indices::Int) = i - indices + 1
 
-function Base.getindex(x::Union{DevitoMPIArray{T,N},DevitoMPITimeArray{T,N}}, I::Vararg{Int,N}) where {T,N}
+function Base.getindex(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {T,N}
     v = nothing
     wanted_rank = find_rank(x, I...)
     if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
@@ -421,79 +367,7 @@ function Base.getindex(x::Union{DevitoMPIArray{T,N},DevitoMPITimeArray{T,N}}, I:
     v
 end
 
-function Base.getindex(x::DevitoMPISparseTimeArray{T,N}, I::Vararg{Int,2}) where {T,N}
-    v = nothing
-    wanted_rank = find_rank(x, I...)
-    if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
-        J = (shift_localindicies( I[1], localindices(x)[1]), I[2])
-        v = getindex(x.p, J...)
-    end
-    v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
-    v
-end
-
-function Base.getindex(x::DevitoMPISparseArray{T,N}, I::Vararg{Int,N}) where {T,N}
-    v = nothing
-    wanted_rank = find_rank(x, I...)
-    if MPI.Comm_rank(MPI.COMM_WORLD) == wanted_rank
-        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
-        v = getindex(x.p, J...)
-    end
-    v = MPI.bcast(v, wanted_rank, MPI.COMM_WORLD)
-    v
-end
-
-function Base.setindex!(x::Union{DevitoMPIArray{T,N},DevitoMPITimeArray{T,N}}, v::T, I::Vararg{Int,N}) where {T,N}
-    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
-    if myrank == 0
-        @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
-    end
-    wanted_rank = find_rank(x, I...)
-    if wanted_rank == 0
-        received_v = v
-    else
-        message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
-        source_rank = 0
-        send_mesg = [v]
-        recv_mesg = 0 .* send_mesg
-        rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
-        sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
-        stats = MPI.Waitall!([rreq, sreq])
-        received_v = recv_mesg[1]
-    end
-    if myrank == wanted_rank
-        J = ntuple(idim-> shift_localindicies( I[idim], localindices(x)[idim]), N)
-        setindex!(x.p, received_v, J...)
-    end
-    MPI.Barrier(MPI.COMM_WORLD)
-end
-
-function Base.setindex!(x::DevitoMPISparseTimeArray{T,N}, v::T, I::Vararg{Int,2}) where {T,N}
-    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
-    if myrank == 0
-        @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
-    end
-    wanted_rank = find_rank(x, I...)
-    if wanted_rank == 0
-        received_v = v
-    else
-        message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
-        source_rank = 0
-        send_mesg = [v]
-        recv_mesg = 0 .* send_mesg
-        rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
-        sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
-        stats = MPI.Waitall!([rreq, sreq])
-        received_v = recv_mesg[1]
-    end
-    if myrank == wanted_rank
-        J = (shift_localindicies( I[1], localindices(x)[1]), I[2])
-        setindex!(x.p, received_v, J...)
-    end
-    MPI.Barrier(MPI.COMM_WORLD)
-end
-
-function Base.setindex!(x::DevitoMPISparseArray{T,N}, v::T, I::Vararg{Int,N}) where {T,N}
+function Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v::T, I::Vararg{Int,N}) where {T,N}
     myrank = MPI.Comm_rank(MPI.COMM_WORLD)
     if myrank == 0
         @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
@@ -1269,14 +1143,7 @@ this also *collects* the data onto MPI rank 0.
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    # note: this is a workaround to avoid issues related to local_indicies attempting to call min() on an empty sequence for sparse functions where their memory is not allocated
-    # related to devito.py issue 2003: https://github.com/devitocodes/devito/issues/2003
-    local localinds
-    try
-        localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
-    catch
-        localinds = nothing
-    end
+    localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
     if localinds === nothing
         return ntuple(i -> 0:-1, N)
     else
@@ -1295,15 +1162,78 @@ function one_based_decomposition(decomposition)
     decomposition
 end
 
-topology(x::DiscreteFunction) = reverse(x.o._distributor.topology)
-mycoords(x::DiscreteFunction) = reverse(x.o._distributor.mycoords) .+ 1
-decomposition(x::DiscreteFunction) = one_based_decomposition(reverse(x.o._decomposition))
-decomposition_with_halo(x::DiscreteFunction) = one_based_decomposition(reverse(x.o._decomposition_outhalo))
+function getdecomp(x::DiscreteFunction)
+    decomppre = reverse(x.o._decomposition)
+    funcshape = reverse(x.o.shape)
+    decompout = ()
+    # if the decomp at a level is nothing, replace it with decomp over whole dim
+    for i in 1:length(decomppre)
+        if decomppre[i] === nothing
+            decompout = (decompout..., ([0:funcshape[i]-1;],))
+        else
+            decompout = (decompout..., decomppre[i])
+        end
+    end
+    return decompout
+end
+
+function getdecompwithhalo(x::DiscreteFunction)
+    decomppre = reverse(x.o._decomposition_outhalo)
+    funcshape = reverse(x.o.shape_with_halo)
+    decompout = ()
+    # if the decomp at a level is nothing, replace it with decomp over whole dim
+    for i in 1:length(decomppre)
+        if decomppre[i] === nothing
+            decompout = (decompout..., ([0:funcshape[i]-1;],))
+        else
+            decompout = (decompout..., decomppre[i])
+        end
+    end
+    return decompout
+end
+
+function topology(x::DiscreteFunction)
+    # this checks for non-distributor dimensions and tacks them on in the right position
+    distributordims = reverse(x.o._distributor.dimensions)
+    functiondims    = reverse(x.o.dimensions)
+    topopre = reverse(x.o._distributor.topology)
+    topoout = ()
+    j = 1
+    for i in 1:length(functiondims)
+        if (j <= length(distributordims)) && (functiondims[i] == distributordims[j])
+            topoout = (topoout..., topopre[j])
+            j = j+1
+        else
+            topoout = (topoout..., 1)
+        end
+    end
+    return topoout
+end
+
+function mycoords(x::DiscreteFunction)
+    # this checks for non-distributor dimensions and tacks them on in the right position
+    distributordims = reverse(x.o._distributor.dimensions)
+    functiondims    = reverse(x.o.dimensions)
+    mycoordspre = reverse(x.o._distributor.mycoords) .+ 1
+    mycoordsout = ()
+    j = 1
+    for i in 1:length(functiondims)
+        if (j <= length(distributordims)) && (functiondims[i] == distributordims[j])
+            mycoordsout = (mycoordsout..., mycoordspre[j])
+            j = j+1
+        else
+            mycoordsout = (mycoordsout..., 1)
+        end
+    end
+    return mycoordsout
+end
+
+decomposition(x::DiscreteFunction) = one_based_decomposition(getdecomp(x))
+decomposition_with_halo(x::DiscreteFunction) = one_based_decomposition(getdecompwithhalo(x))
 
 function decomposition_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    _decomposition = reverse(x.o._decomposition)
+    _decomposition = getdecomp(x)
     h = inhalo(x)
-
     ntuple(
         idim->begin
             if _decomposition[idim] === nothing
@@ -1329,7 +1259,6 @@ function localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPITrue}) where 
     h = inhalo(x)
     localidxs = localindices(x)
     n = size_with_inhalo(x)
-
     _mycoords = mycoords(x)
     _decomposition = decomposition(x)
 
@@ -1435,24 +1364,21 @@ function data_allocated(x::SubFunction{T,2,DevitoMPITrue}) where {T}
     d = DevitoMPIArray{T,2}(x.o."_data_allocated", localindices(x), decomposition(x), topo)
 end
 
+sparsetopo(x::Union{SparseFunction{T,N,DevitoMPITrue},SparseTimeFunction{T,N,DevitoMPITrue}}) where {T,N} = ntuple(i-> length(decomposition(x)[i]) > 1 ? MPI.Comm_size(MPI.COMM_WORLD) : 1, N)
+
+localindxhelper(x) = length(x) > 1 ? x[MPI.Comm_rank(MPI.COMM_WORLD)+1] : x[1]
+
+sparseindices(x::Union{SparseFunction{T,N,DevitoMPITrue},SparseTimeFunction{T,N,DevitoMPITrue}}) where {T,N} = localindxhelper.(decomposition(x))
+
 function data_with_inhalo(x::SparseFunction{T,N,DevitoMPITrue}) where {T,N}
-    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
-    idxs = decomposition(x)[1][rnk+1]
-    topo = ntuple(i->i == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : 1, 1)
-    d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", idxs, decomposition(x), topo)
+    d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", sparseindices(x), decomposition(x), sparsetopo(x))
     MPI.Barrier(MPI.COMM_WORLD)
     d
 end
 
 # TODO - needed? <--
 function data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
-    rnk = MPI.Comm_rank(MPI.COMM_WORLD)
-    decomposition(x)[end] === nothing || error("Sam does not know what he is doing!")
-    idxs = decomposition(x)[1][rnk+1]
-
-    topo = ntuple(i->i == 1 ? MPI.Comm_size(MPI.COMM_WORLD) : 1, N-1)
-
-    d = DevitoMPISparseTimeArray{T,N}(x.o."_data_allocated", idxs, decomposition(x), topo)
+    d = DevitoMPISparseTimeArray{T,N}(x.o."_data_allocated", sparseindices(x), decomposition(x), sparsetopo(x))
     MPI.Barrier(MPI.COMM_WORLD)
     d
 end
