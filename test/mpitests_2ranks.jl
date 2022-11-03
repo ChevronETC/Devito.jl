@@ -275,14 +275,14 @@ end
 @testset "DevitoMPISparseArray localsize, n=$n, npoint=$npoint" for n in ((5,4),(6,5,4)), npoint in (1,5,10)
     g = Grid(shape=n)
     sf = SparseFunction(name="sf", grid=g, npoint=npoint)
-    @test localsize(data(sf)) == (length(Devito.localindices(data(sf))),)
+    @test localsize(data(sf)) == length.(Devito.localindices(data(sf)))
 end
 
 @testset "DevitoMPISparseTimeArray localsize, n=$n, npoint=$npoint" for n in ((5,4),(6,5,4)), npoint in (1,5,10)
     g = Grid(shape=n)
     nt = 11
     stf = SparseTimeFunction(name="stf", grid=g, nt=11, npoint=npoint)
-    @test localsize(data(stf)) == (length(Devito.localindices(data(stf))),nt)
+    @test localsize(data(stf)) == length.(Devito.localindices(data(stf)))
 end
 
 @testset "DevitoMPITimeArray, copy!, data, halo, n=$n" for n in ( (11,10), (12,11,10))
@@ -371,7 +371,57 @@ end
     end
 end
 
-@testset "convert data from rank 0 to DevitoMPITimeArray, then back, halo, n=$n" for n in ( (11,10), (12,11,10) )
+@testset "convert data from rank 0 to DevitoSparseMPIArray, then back, extra dimension n=$n, nextra=$nextra, npoint=$npoint, first=$first" for n in ( (11,10), (12,11,10) ), nextra in (1,2,5), first in (true,false), npoint in (1,2,5)
+    grid = Grid(shape = n, dtype = Float32)
+    extradim = Dimension(name="extra")
+    space_order = 2
+    prec = Dimension(name="prec")
+    npoint = 8
+    sparsedims = (extradim, prec)
+    sparseshape = (nextra, npoint)
+    if ~first
+        sparsedims = reverse(sparsedims)
+        sparseshape = reverse(sparseshape)
+        sf = SparseFunction(name="sf", grid=grid, dimensions=sparsedims, shape=sparseshape, npoint=npoint)
+    else
+        sf = CoordSlowSparseFunction(name="sf", grid=grid, dimensions=sparsedims, shape=sparseshape, npoint=npoint)
+    end
+
+    sf_data_test = zeros(Float32, sparseshape...)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        sf_data_test .= reshape(Float32[1:prod(sparseshape);], sparseshape)
+    end
+    copy!( data(sf), sf_data_test)
+    _sf_data_test = convert(Array, data(sf))
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test sf_data_test ≈ _sf_data_test
+    end
+end
+
+@testset "convert data from rank 0 to DevitoSparseMPITimeArray, then back, extra dimension n=$n, nextra=$nextra, npoint=$npoint, nt=$nt" for n in ( (11,10), (12,11,10) ), nextra in (1,2,5), npoint in (1,2,5), nt in (1,5,10)
+    grid = Grid(shape = n, dtype = Float32)
+    extradim = Dimension(name="extra")
+    space_order = 2
+    t = time_dim(grid)
+    prec = Dimension(name="prec")
+    npoint = 8
+    sparsedims = (prec, extradim, t)
+    sparseshape = (npoint, nextra, nt)
+    sf = SparseTimeFunction(name="sf", grid=grid, dimensions=sparsedims, shape=sparseshape, npoint=npoint, nt=nt)
+
+    sf_data_test = zeros(Float32, sparseshape...)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        sf_data_test .= reshape(Float32[1:prod(sparseshape);], sparseshape)
+    end
+    copy!( data(sf), sf_data_test)
+    _sf_data_test = convert(Array, data(sf))
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test sf_data_test ≈ _sf_data_test
+    end
+
+end
+
+@testset "convert data from rank 0 to DevitoMPIArray, then back, halo, n=$n" for n in ( (11,10), (12,11,10) )
     grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=2)
@@ -415,6 +465,126 @@ end
     end
 end
 
+@testset "convert data from rank 0 to DevitoMPIArray, then back, extra dimension, n=$n, nextra=$nextra, first=$first" for n in ( (11,10), (12,11,10) ), nextra in (1,2,5), first in (true,false)
+    grid = Grid(shape = n, dtype = Float32)
+    extradim = Dimension(name="extra")
+    space_order = 2
+    time = stepping_dim(grid)
+    if first 
+        funcdims = (extradim, dimensions(grid)...)
+        funcshap = (nextra, n...)
+    else
+        funcdims = (dimensions(grid)..., extradim)
+        funcshap = (n..., nextra)
+    end
+    timedims = (funcdims..., time)
+    timeshap = (funcshap..., 2)
+
+    b = Devito.Function(name="b", grid=grid, space_order=space_order, dimensions=funcdims, shape=funcshap)
+    p = TimeFunction(name="p", grid=grid, time_order=2, space_order=space_order, dimensions=timedims, shape=timeshap)
+    b_data = data(b)
+    p_data = data(p)
+
+    b_data_test = zeros(Float32, funcshap)
+    p_data_test = zeros(Float32, timeshap)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        b_data_test .= reshape(Float32[1:prod(funcshap);], funcshap)
+        p_data_test .= reshape(Float32[1:prod(timeshap);], timeshap)
+    end
+    copy!(b_data, b_data_test)
+    copy!(p_data, p_data_test)
+    b_data_test .= reshape(Float32[1:prod(funcshap);], funcshap)
+    p_data_test .= reshape(Float32[1:prod(timeshap);], timeshap)
+    _b_data_test = convert(Array, b_data)
+    _p_data_test = convert(Array, p_data)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test b_data_test ≈ _b_data_test
+        @test p_data_test ≈ _p_data_test
+    end
+end
+
+@testset "convert data from rank 0 to DevitoMPIArray, then back, extra dimensions inhalo, n=$n, nextra=$nextra, first=$first" for n in ( (11,10), (12,11,10) ), nextra in (1,2,5), first in (false,true)
+    grid = Grid(shape = n, dtype = Float32)
+    extradim = Dimension(name="extra")
+    space_order = 2
+    time = stepping_dim(grid)
+    padded = (length(n) == 2 ? (15, 18) : (16, 15, 18))
+    if first 
+        funcdims = (extradim, dimensions(grid)...)
+        funcshap = (nextra, n...)
+        arrayshap = (nextra, padded...)
+    else
+        funcdims = (dimensions(grid)..., extradim)
+        funcshap = (n..., nextra)
+        arrayshap = (padded..., nextra)
+    end
+    timedims = (funcdims..., time)
+    timeshap = (funcshap..., 2)
+    timearrayshap = (arrayshap..., 2)
+
+    b = Devito.Function(name="b", grid=grid, space_order=space_order, dimensions=funcdims, shape=funcshap)
+    p = TimeFunction(name="p", grid=grid, time_order=2, space_order=space_order, dimensions=timedims, shape=timeshap)
+    b_data = data_with_inhalo(b)
+    p_data = data_with_inhalo(p)
+    b_data_test = zeros(Float32, arrayshap)
+    p_data_test = zeros(Float32, timearrayshap)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        b_data_test .= reshape(Float32[1:prod(arrayshap);], arrayshap)
+        p_data_test .= reshape(Float32[1:prod(timearrayshap);], timearrayshap)
+    end
+    copy!(b_data, b_data_test)
+    copy!(p_data, p_data_test)
+    b_data_test .= reshape(Float32[1:prod(arrayshap);], arrayshap)
+    p_data_test .= reshape(Float32[1:prod(timearrayshap);], timearrayshap)
+    _b_data_test = convert(Array, b_data)
+    _p_data_test = convert(Array, p_data)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test b_data_test ≈ _b_data_test
+        @test p_data_test ≈ _p_data_test
+    end
+end
+
+@testset "convert data from rank 0 to DevitoMPIArray, then back, extra dimensions with halo, n=$n, nextra=$nextra, first=$first" for n in ( (11,10), (12,11,10) ), nextra in (1,2,5), first in (false,true)
+    grid = Grid(shape = n, dtype = Float32)
+    extradim = Dimension(name="extra")
+    space_order = 2
+    time = stepping_dim(grid)
+    padded = (length(n) == 2 ? (15, 14) : (16, 15, 14))
+    if first 
+        funcdims = (extradim, dimensions(grid)...)
+        funcshap = (nextra, n...)
+        arrayshap = (nextra, padded...)
+    else
+        funcdims = (dimensions(grid)..., extradim)
+        funcshap = (n..., nextra)
+        arrayshap = (padded..., nextra)
+    end
+    timedims = (funcdims..., time)
+    timeshap = (funcshap..., 2)
+    timearrayshap = (arrayshap..., 2)
+    
+    b = Devito.Function(name="b", grid=grid, space_order=space_order, dimensions=funcdims, shape=funcshap)
+    p = TimeFunction(name="p", grid=grid, time_order=2, space_order=space_order, dimensions=timedims, shape=timeshap)
+    b_data = data_with_halo(b)
+    p_data = data_with_halo(p)
+    b_data_test = zeros(Float32, arrayshap)
+    p_data_test = zeros(Float32, timearrayshap)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        b_data_test .= reshape(Float32[1:prod(arrayshap);], arrayshap)
+        p_data_test .= reshape(Float32[1:prod(timearrayshap);], timearrayshap)
+    end
+    copy!(b_data, b_data_test)
+    copy!(p_data, p_data_test)
+    b_data_test .= reshape(Float32[1:prod(arrayshap);], arrayshap)
+    p_data_test .= reshape(Float32[1:prod(timearrayshap);], timearrayshap)
+    _b_data_test = convert(Array, b_data)
+    _p_data_test = convert(Array, p_data)
+    if MPI.Comm_rank(MPI.COMM_WORLD) == 0
+        @test b_data_test ≈ _b_data_test
+        @test p_data_test ≈ _p_data_test
+    end
+end
+
 @testset "DevitoMPITimeArray coordinates check, 2D" begin
     ny,nx = 4,6
 
@@ -431,6 +601,7 @@ end
     coords = zeros(Float32, 2, ny*nx)
     coords[1,:] .= cx
     coords[2,:] .= cy
+
     copy!(coordinates_data(sx), coords)
     copy!(coordinates_data(sy), coords)
 
