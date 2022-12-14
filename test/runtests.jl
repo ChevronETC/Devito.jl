@@ -4,8 +4,3 @@ end
 
 run(`mpirun -n 2 julia --code-coverage mpitests_2ranks.jl`)
 run(`mpirun -n 4 julia --code-coverage mpitests_4ranks.jl`)
-
-if Devito.has_devitopro()
-    @info "Running DevitoPro Tests"
-    include("devitopro_tests.jl")
-end
