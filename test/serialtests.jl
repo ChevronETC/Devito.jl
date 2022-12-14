@@ -366,7 +366,7 @@ end
             data(f) .= vals
             apply(op)
             for i in 1:length(vals)
-                @test data(g)[i] ≈ Base.$F(vals[i])
+                @test abs(data(g)[i] - Base.$F(vals[i])) < eps(Float32)
             end
         end
     end
@@ -381,7 +381,7 @@ end
             data(f) .= vals
             apply(op)
             for i in 1:length(vals)
-                @test data(g)[i] ≈ Base.$B(vals[i])
+                @test abs(data(g)[i] - Base.$B(vals[i])) < eps(Float32)
             end
         end
     end
@@ -396,7 +396,7 @@ end
             data(f) .= vals
             apply(op)
             for i in 1:length(vals)
-                @test data(g)[i] ≈ Base.$F(vals[i])
+                @test abs(data(g)[i] - Base.$F(vals[i])) < eps(Float32)
             end
         end
     end
@@ -411,7 +411,7 @@ end
             data(f) .= vals
             apply(op)
             for i in 1:length(vals)
-                @test data(g)[i] ≈ Base.$B(vals[i])
+                @test abs(data(g)[i] - Base.$B(vals[i])) < eps(Float32)
             end
         end
     end  
