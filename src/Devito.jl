@@ -5,12 +5,16 @@ using LinearAlgebra, MPI, PyCall, Strided
 const numpy = PyNULL()
 const sympy = PyNULL()
 const devito = PyNULL()
+const devitopro = PyNULL()
 const seismic = PyNULL()
+
+has_devitopro() = get(ENV, "DEVITO_PRO", "") != ""
 
 function __init__()
     copy!(numpy, pyimport("numpy"))
     copy!(sympy, pyimport("sympy"))
     copy!(devito, pyimport("devito"))
+    copy!(devitopro, (has_devitopro() ? pyimport("devitopro") : pyimport("devito")))
     copy!(seismic, pyimport("examples.seismic"))
 end
 
@@ -2015,6 +2019,59 @@ end
 Symbolic representation of a pointer in C
 """
 function Pointer end
+
+struct ABox{N} <: Devito.AbstractSubDomain{N}
+    o::PyObject
+end
+
+function ABox(src::Union{Devito.SparseTimeFunction,Nothing}, rcv::Union{Devito.SparseTimeFunction,Nothing}, vp::Devito.Function{T,N}, space_order::Int; kwargs...) where {T,N}
+    o = pycall(devitopro.ABox, PyObject, src, rcv, vp, space_order; kwargs...)
+    ABox{N}(o)
+end
+
+vp(abox::ABox) = Devito.Function(abox.o.vp)
+eps(abox::ABox) = abox.o.eps
+src(abox::ABox) = (typeof(abox.o.src) <: Nothing ? nothing : Devito.SparseTimeFunction(abox.o.src))
+rcv(abox::ABox) = (typeof(abox.o.rcv) <: Nothing ? nothing : Devito.SparseTimeFunction(abox.o.rcv))
+grid(abox::ABox) = Devito.grid(vp(abox))
+subdomains(abox::ABox) = Devito.SubDomain.(abox.o._subdomains)
+compute(abox::ABox; dt) = abox.o._compute(; dt=dt)
+
+export ABox
+
+struct CCall
+    o::PyObject
+end
+
+PyCall.PyObject(x::CCall) = x.o
+
+function CCall(name::String; header=nothing, header_dirs = (), libs = (), lib_dirs = (), target = "host", types = ())
+    classname = Symbol(uppercasefirst(name))
+    @eval begin
+        @pydef mutable struct $classname <: devitopro.CCall
+            name = $name
+            header = $header
+            header_dirs = $header_dirs
+            libs = $libs
+            lib_dirs = $lib_dirs
+            target = $target
+            types = $types
+        end
+        return CCall($classname)
+    end
+end
+
+name(x::CCall) = x.o.name
+header(x::CCall) = x.o.header
+header_dirs(x::CCall) = x.o.header_dirs
+libs(x::CCall) = x.o.libs
+lib_dirs(x::CCall) = x.o.lib_dirs
+target(x::CCall) = x.o.target
+types(x::CCall) = x.o.types
+
+(f::CCall)(args...; kwargs...) = f.o(args...; kwargs...)
+
+export CCall
 
 export Buffer, Constant, CoordSlowSparseFunction, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
