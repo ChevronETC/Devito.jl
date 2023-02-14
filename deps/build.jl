@@ -1,11 +1,16 @@
 using Conda
 
+dpro_repo = get(ENV, "DEVITO_PRO", "")
 try
     Conda.add("pip")
     pip = joinpath(Conda.BINDIR, "pip")
     run(`$pip install cython`) 
     run(`$pip install versioneer`) 
-    run(`$pip install git+https://github.com/devitocodes/devito.git`)
+    if dpro_repo != ""
+        run(`$pip install git+$(dpro_repo)`)
+    else
+        run(`$pip install git+https://github.com/devitocodes/devito.git`)
+    end
     run(`$pip install mpi4py`)
     run(`$pip install ipyparallel`)
 catch e
@@ -15,5 +20,3 @@ catch e
         throw(e)
     end
 end
-#run(`$pip install devito`)
-#run(`$pip install devito[extras]`)
