@@ -1925,7 +1925,6 @@ SubDomain(name::String, instructions::Tuple{Vararg{Tuple}}) = SubDomain(name, in
 function SubDomain(name::String, instructions...)
     # copy and reverse instructions
     instructions = reverse(instructions)
-    @show instructions
     N = length(instructions)
     @pydef mutable struct subdom <: devito.SubDomain
         function __init__(self, name, instructions)
