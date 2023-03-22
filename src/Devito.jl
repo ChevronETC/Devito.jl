@@ -5,12 +5,16 @@ using LinearAlgebra, MPI, PyCall, Strided
 const numpy = PyNULL()
 const sympy = PyNULL()
 const devito = PyNULL()
+const devitopro = PyNULL()
 const seismic = PyNULL()
+
+has_devitopro() = get(ENV, "DEVITO_PRO", "") != ""
 
 function __init__()
     copy!(numpy, pyimport("numpy"))
     copy!(sympy, pyimport("sympy"))
     copy!(devito, pyimport("devito"))
+    copy!(devitopro, (has_devitopro() ? pyimport("devitopro") : pyimport("devito")))
     copy!(seismic, pyimport("examples.seismic"))
 end
 
@@ -262,7 +266,7 @@ function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}
     DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo, globalsize(decomp))
 end
 
-localsize(x::DevitoMPISparseTimeArray) where {T} = length.(x.local_indices)
+localsize(x::DevitoMPISparseTimeArray) = length.(x.local_indices)
 
 
 struct DevitoMPISparseArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
@@ -635,7 +639,7 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 function SpaceDimension end
 
 Base.:(==)(x::AbstractDimension,y::AbstractDimension) = x.o == y.o
-
+PyCall.PyObject(x::AbstractDimension) = x.o
 """
     Opertor(expressions; kwargs...)
 
@@ -800,10 +804,14 @@ grid = Grid(
 b = Devito.Function(name="b", grid=grid, space_order=8)
 ```
 """
-function Function(args...; kwargs...)
-    o = pycall(devito.Function, PyObject, args...; reversedims(kwargs)...)
+function Function(args...; allowpro=true, kwargs...)
+    if allowpro
+        o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
+    else
+        o = pycall(devito.Function, PyObject, args...; reversedims(kwargs)...)
+    end
     T = numpy_eltype(o.dtype)
-    N = length(o.shape)
+    N = length(o.dimensions)
     M = ismpi_distributed(o)
     Function{T,N,M}(o)
 end
@@ -815,7 +823,7 @@ function Function(o::PyObject)
     isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true))
     if (isafunction && ~(isatimefunction || isasparsefunction))
         T = numpy_eltype(o.dtype)
-        N = length(o.shape)
+        N = length(o.dimensions)
         M = ismpi_distributed(o)
         return Function{T,N,M}(o)
     else
@@ -852,13 +860,53 @@ grid = Grid(
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 ```
 """
-function TimeFunction(args...; kwargs...)
-    o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+function TimeFunction(args...; allowpro=true, serialization=nothing, kwargs...)
+    local o
+    if allowpro
+        if serialization === nothing
+            o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+        else
+            if ~has_devitopro()
+                @error "Automatic serialization only supported with devito pro"
+            end
+            # this is inelegant, TODO: find better way to handle layers.  
+            # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
+            # TODO: Generate MFE and submit as issue to PyCall
+            py"""
+            import devitopro
+            def serializedtimefunc(serialization, **kwargs):
+                return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, serialization=serialization, **kwargs)
+            """
+            o = py"serializedtimefunc"(serialization; Devito.reversedims(kwargs)...)
+        end
+    else
+        o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+    end
     T = numpy_eltype(o.dtype)
-    N = length(o.shape)
+    N = length(o.dimensions)
     M = ismpi_distributed(o)
     TimeFunction{T,N,M}(o)
 end
+
+function serial2str(x::TimeFunction)
+    mypath = ""
+    if haskey(x.o, :_fnbase)
+        mypath = py"str"(x.o._fnbase)
+    else
+        @warn "Object doesn't have serialized path!"
+    end
+    return mypath
+end
+
+function str2serial(y::String)
+    py"""
+    from pathlib import Path
+    def str2path(y):
+        return Path(y)
+    """
+    return py"str2path"(y)
+end
+
 
 abstract type SparseDiscreteFunction{T,N,M} <:  DiscreteFunction{T,N,M} end
 
@@ -1877,6 +1925,7 @@ SubDomain(name::String, instructions::Tuple{Vararg{Tuple}}) = SubDomain(name, in
 function SubDomain(name::String, instructions...)
     # copy and reverse instructions
     instructions = reverse(instructions)
+    @show instructions
     N = length(instructions)
     @pydef mutable struct subdom <: devito.SubDomain
         function __init__(self, name, instructions)
@@ -1886,7 +1935,8 @@ function SubDomain(name::String, instructions...)
         function define(self, dimensions)
             dims = PyDict()
             for idim = 1:length(dimensions)
-                dims[dimensions[idim]] = self.instructions[idim] in ((nothing,),("middle",0,0)) ? dimensions[idim] : self.instructions[idim]
+                # dims[dimensions[idim]] = self.instructions[idim] in ((nothing,),("middle",0,0)) ? dimensions[idim] : self.instructions[idim]
+                dims[dimensions[idim]] = self.instructions[idim] in (nothing,) ? dimensions[idim] : self.instructions[idim]
             end
             return dims
         end
@@ -2015,6 +2065,76 @@ end
 Symbolic representation of a pointer in C
 """
 function Pointer end
+
+# DevitoPro Stuff
+
+struct ABox{N} <: Devito.AbstractSubDomain{N}
+    o::PyObject
+end
+
+function ABox(src::Union{Devito.SparseTimeFunction,Nothing}, rcv::Union{Devito.SparseTimeFunction,Nothing}, vp::Devito.Function{T,N}, space_order::Int; kwargs...) where {T,N}
+    if ~has_devitopro()
+        @error "ABox only supported with DevitoPro"
+    end
+    o = pycall(devitopro.ABox, PyObject, src, rcv, vp, space_order; kwargs...)
+    ABox{N}(o)
+end
+
+intersection(box::ABox{N}, sub::Devito.SubDomain{N}) where {N} = ABox{N}(pycall(PyObject(box).intersection, PyObject, PyObject(sub)))
+
+vp(abox::ABox) = Devito.Function(abox.o.vp)
+eps(abox::ABox) = abox.o.eps
+src(abox::ABox) = (typeof(abox.o.src) <: Nothing ? nothing : Devito.SparseTimeFunction(abox.o.src))
+rcv(abox::ABox) = (typeof(abox.o.rcv) <: Nothing ? nothing : Devito.SparseTimeFunction(abox.o.rcv))
+grid(abox::ABox) = Devito.grid(vp(abox))
+function subdomains(abox::ABox{N}) where {N}
+    dict = Dict()
+    for dom in abox.o._subdomains
+        dict[dom.name] = SubDomain{N}(dom)
+    end
+    return dict
+end
+compute(abox::ABox; dt) = abox.o._compute(; dt=dt)
+
+export ABox
+
+struct CCall
+    o::PyObject
+end
+
+PyCall.PyObject(x::CCall) = x.o
+
+function CCall(name::String; header=nothing, header_dirs = (), libs = (), lib_dirs = (), target = "host", types = ())
+    if ~has_devitopro()
+        @error "CCall only supported with DevitoPro"
+    end
+    classname = Symbol(uppercasefirst(name))
+    @eval begin
+        @pydef mutable struct $classname <: devitopro.CCall
+            name = $name
+            header = $header
+            header_dirs = $header_dirs
+            libs = $libs
+            lib_dirs = $lib_dirs
+            target = $target
+            types = $types
+        end
+        return CCall($classname)
+    end
+end
+
+name(x::CCall) = x.o.name
+header(x::CCall) = x.o.header
+header_dirs(x::CCall) = x.o.header_dirs
+libs(x::CCall) = x.o.libs
+lib_dirs(x::CCall) = x.o.lib_dirs
+target(x::CCall) = x.o.target
+types(x::CCall) = x.o.types
+
+(f::CCall)(args...; kwargs...) = f.o(args...; kwargs...)
+
+export CCall
+
 
 export Buffer, Constant, CoordSlowSparseFunction, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 

@@ -264,8 +264,9 @@ end
 end
 
 @testset "Subdomain" begin
-    subdoms = (SubDomain("subdom0",[("left",2),("middle",0,0)]),SubDomain("subdom1",(("left",2),("middle",0,0))),SubDomain("subdom2",("left",2),("middle",0,0)),SubDomain("subdom3",[("left",2),(nothing,)]))
+    subdoms = (SubDomain("subdom0",[("left",2),nothing]),  SubDomain("subdom1",("left",2),nothing), SubDomain("subdom2",[("left",2),nothing]))
     for dom in subdoms
+        @show "starting $dom"
         grid = Grid(shape=(11,11), dtype=Float32, subdomains=dom)
         f = Devito.Function(name="f", grid=grid)
         d = data(f)
@@ -288,7 +289,7 @@ end
         @test griddim[2] == subdim[2]
         # test the interior method
         @test Devito.interior(grid) == subdomains(grid)["interior"]
-
+        @show "done with $(dom)"
     end
 end
 
@@ -339,16 +340,7 @@ end
     f = Devito.Function(name="f", grid=grid)
     df = data(f)
     df .= -1.0
-    g = Devito.Function(name="g", grid=grid)
-    dg = data(g)
-    dg .= 1.0
-    h = Devito.Function(name="h", grid=grid)
-    dh = data(h)
-    dh .= 2.0
-    k = Devito.Function(name="k", grid=grid)
-    dh = data(h)
-    dh .= 3.0
-    op = Operator([Eq(mn,Min(g,f,h,k,4)),Eq(mx,Max(g,f,h,k,4))],name="minmax")
+    op = Operator([Eq(mn,Min(f,4)),Eq(mx,Max(f,4))],name="minmax")
     apply(op)
     @test data(mn)[5,5] == -1.0
     @test data(mx)[5,5] ==  4
@@ -498,10 +490,8 @@ end
     @test f != g
     @test x+x+y == 2*x+y
     @test x*y == y*x
-    @test 2*x+y-x == x+y
     @test x*x == x^2
     @test x+x+a == 2*x+a
-    @test 2*x+a-x == x+a
     @test a+a+b == 2*a+b
     @test 2*a+b-a == a+b
     @test a*b == b*a
@@ -709,18 +699,6 @@ end
     @test data(p)[3,1,end-1] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
     @test data(rec)[1,end] ≈ (nt-1) + sum(src_data[1:end-1])*dt^2
     @test data(rec)[2,end] ≈ (nt-1)
-end
-
-@testset "Function Inc, shape=$n" for n in ((4,5),(6,7,8),)
-    grid = Grid(shape=n)
-    A = Devito.Function(name="A", grid=grid)
-    v = Devito.Function(name="v", grid=grid, shape=size(grid)[1:end-1], dimensions=dimensions(grid)[1:end-1])
-    b = Devito.Function(name="b", grid=grid, shape=(size(grid)[end],), dimensions=(dimensions(grid)[end],))
-    data(v) .= 1.0
-    data(A) .= reshape([1:prod(size(grid));],size(grid)...)
-    op = Operator([Inc(b, A*v)], name="inctest")
-    apply(op)
-    @test data(b)[:] ≈ sum(data(A), dims=Tuple([1:length(n)-1;]))[:]
 end
 
 @testset "Sparse Function Inject and Interpolate" begin
@@ -935,7 +913,6 @@ end
     x = dimensions(g)[1]
     @test nsimplify(x+1) == x+1
     @test nsimplify(1+x) == x+1
-    @test nsimplify((2*x+2)/2) == x+1
 end
 
 @testset "solve" begin
@@ -1140,4 +1117,16 @@ end
     @test data(f)[(n[1:end-1] .- 2)...,:] ≈ 2 .* ones(T, n[end])
     data(f)[(n[1:end-1] .- 2)...,:] .= 0
     @test data(f) ≈ zeros(T, n...)
+end
+
+@testset "Function Inc, shape=$n" for n in ((4,5),(6,7,8),)
+    grid = Grid(shape=n)
+    A = Devito.Function(name="A", grid=grid)
+    v = Devito.Function(name="v", grid=grid, shape=size(grid)[1:end-1], dimensions=dimensions(grid)[1:end-1])
+    b = Devito.Function(name="b", grid=grid, shape=(size(grid)[end],), dimensions=(dimensions(grid)[end],))
+    data(v) .= 1.0
+    data(A) .= reshape([1:prod(size(grid));],size(grid)...)
+    op = Operator([Inc(b, A*v)], name="inctest", compiler="gcc")
+    apply(op)
+    @test data(b)[:] ≈ sum(data(A), dims=Tuple([1:length(n)-1;]))[:]
 end

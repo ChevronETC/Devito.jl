@@ -590,8 +590,9 @@ end
 
     grd = Grid(shape=(ny,nx), extent=(ny-1,nx-1), dtype=Float32)
     time_order = 1
-    fx = TimeFunction(name="fx", grid=grd, time_order=time_order, save=time_order+1)
-    fy = TimeFunction(name="fy", grid=grd, time_order=time_order, save=time_order+1)
+    fx = TimeFunction(name="fx", grid=grd, time_order=time_order, save=time_order+1, allowpro=false)
+    fy = TimeFunction(name="fy", grid=grd, time_order=time_order, save=time_order+1, allowpro=false)
+    
     sx = SparseTimeFunction(name="sx", grid=grd, npoint=ny*nx, nt=time_order+1)
     sy = SparseTimeFunction(name="sy", grid=grd, npoint=ny*nx, nt=time_order+1)
 
@@ -641,9 +642,9 @@ end
 
     grd = Grid(shape=(nz,ny,nx), extent=(nz-1,ny-1,nx-1), dtype=Float32)
     time_order = 1
-    fx = TimeFunction(name="fx", grid=grd, time_order=time_order, save=time_order+1)
-    fy = TimeFunction(name="fy", grid=grd, time_order=time_order, save=time_order+1)
-    fz = TimeFunction(name="fz", grid=grd, time_order=time_order, save=time_order+1)
+    fx = TimeFunction(name="fx", grid=grd, time_order=time_order, allowpro=false, save=time_order+1)
+    fy = TimeFunction(name="fy", grid=grd, time_order=time_order, allowpro=false, save=time_order+1)
+    fz = TimeFunction(name="fz", grid=grd, time_order=time_order, allowpro=false, save=time_order+1)
     sx = SparseTimeFunction(name="sx", grid=grd, npoint=nz*ny*nx, nt=time_order+1)
     sy = SparseTimeFunction(name="sy", grid=grd, npoint=nz*ny*nx, nt=time_order+1)
     sz = SparseTimeFunction(name="sz", grid=grd, npoint=nz*ny*nx, nt=time_order+1)
@@ -929,7 +930,7 @@ end
     nt = 5
     rnk = MPI.Comm_rank(MPI.COMM_WORLD)
     grid = Grid(shape=n, dtype=Float32)
-    f = TimeFunction(name="f", grid=grid, save=nt)
+    f = TimeFunction(name="f", grid=grid, save=nt, allowpro=false)
     arr = reshape(1f0*[1:prod(size(data(f)));], size(data(f)))
     copy!(data(f), arr)
     nchecks = 10
