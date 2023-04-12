@@ -26,3 +26,6 @@ eqns1 = [
     devito.Eq(vsave, v),    # xcor
 ]
 op1 = devito.Operator(eqns1, opt=('advanced'))
+
+op0.apply(time_M=nt)
+op1.apply(time_M=nt-1)
