@@ -150,7 +150,7 @@ end
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=space_order, dimensions=timedims, shape=timeshap)
     b_data = data(b)
     p_data = data(p)
-
+    @debug "making test data on rank $(MPI.Comm_rank(MPI.COMM_WORLD))"
     b_data_test = zeros(Float32, funcshap)
     p_data_test = zeros(Float32, timeshap)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -192,7 +192,6 @@ end
     p = TimeFunction(name="p", grid=grid, time_order=2, space_order=space_order, dimensions=timedims, shape=timeshap)
     b_data = data_with_inhalo(b)
     p_data = data_with_inhalo(p)
-    @show size(b_data)
     b_data_test = zeros(Float32, arrayshap)
     p_data_test = zeros(Float32, timearrayshap)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
