@@ -781,7 +781,7 @@ struct Function{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
 
-ismpi_distributed(o::PyObject) = o._distributor.nprocs == 1 ? DevitoMPIFalse : DevitoMPITrue  # TODO - when should should o._distributed == None ??
+ismpi_distributed(o::PyObject) = (o._distributor === nothing) || (o._distributor.nprocs == 1) ? DevitoMPIFalse : DevitoMPITrue 
 
 """
     Devito.Function(; kwargs...)

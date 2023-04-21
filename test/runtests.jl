@@ -1,3 +1,4 @@
+using Devito
 for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl")
     include(testscript)
 end
