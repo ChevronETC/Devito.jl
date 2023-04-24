@@ -1,3 +1,10 @@
+# this is a workaround for using nvc with MPI.
+# issue is that libgomp.so.1 will not actually load, causing OpenMP to fail silently.
+# the dlopen method must be applied before using Devito or MPI for this workaround to function.
+if get(ENV,"DEVITO_ARCH","") == "nvc"
+    using Libdl
+    Libdl.dlopen("libgomp.so.1", Libdl.RTLD_GLOBAL)
+end
 
 using Devito, LinearAlgebra, MPI, Random, Strided, Test
 
