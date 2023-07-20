@@ -118,3 +118,23 @@ end
     end
     rm(filename, force=true)
 end
+
+@testset "Custom CCall" begin
+    configuration!("compiler","gcc")
+    configuration!("language","C")
+    myprog = CCall("doubler", header="myhead.h")
+    nx = 4
+    ny = 3
+    # note -- if defining custom methods that operate on devito arrays, 
+    # be wary of the padding caused by having a non-zero space order
+    # you need to include that in your program for non-zero space order functions
+    space_order=0
+    grid = Grid(shape=(nx, ny))
+    f = Devito.Function(name="f", grid=grid, space_order=space_order)
+    data(f) .= 10
+    # data starts at 10, has 2 added by devito, then is doubled
+    eqns = [Eq(f,f+2), myprog([Pointer(indexed(f)), nx, ny]),]
+    op = Operator(eqns, name="myprogram")
+    apply(op)
+    @test data(f) ≈ 24 .* ones(Float32, nx, ny)
+end
