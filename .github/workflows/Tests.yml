@@ -21,8 +21,10 @@ jobs:
         run: wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
       - name: run install
         run: bash Miniconda3-latest-Linux-x86_64.sh -b -p ~/miniconda
+
       - name: run path export
         run: export PATH=~/miniconda/bin:${PATH}
+      - run: echo `julia -e 'using Conda; print(joinpath(Conda.PYTHONDIR,"python3"))'`
       - run: julia --color=yes --project -e 'using Pkg; if VERSION >= v"1.1.0-rc1"; Pkg.build(verbose=true); else Pkg.build(); end'
         shell: bash
         env:
