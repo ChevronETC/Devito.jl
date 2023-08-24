@@ -25,7 +25,7 @@ jobs:
       - name: run path export
         run: export PATH=~/miniconda/bin:${PATH}
       - run: julia --color=yes --project -e 'import Pkg; Pkg.add("Conda"); using Conda; print(joinpath(Conda.PYTHONDIR,"python3"))'
-      - run: export PYTHON='~/miniconda/bin/python3'
+      - run: export PYTHON=`julia --color=yes --project -e 'import Pkg; Pkg.add("Conda"); using Conda; print(joinpath(Conda.PYTHONDIR,"python3"))'`
       - run: julia --color=yes --project -e 'using Pkg; if VERSION >= v"1.1.0-rc1"; Pkg.build(verbose=true); else Pkg.build(); end'
       - run: julia --color=yes --project -e 'using Pkg; Pkg.build("PyCall")'
       - run: julia --color=yes --check-bounds=yes --inline=yes --project -e 'using Pkg; Pkg.test(coverage=true)'
