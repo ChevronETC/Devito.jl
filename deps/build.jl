@@ -12,6 +12,7 @@ try
         run(`$pip install git+https://github.com/devitocodes/devito.git`)
     end
     run(`$pip install pytest`)
+    run(`$pip install scipy`)
     run(`$pip install mpi4py`)
     run(`$pip install ipyparallel`)
 catch e
