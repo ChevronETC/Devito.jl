@@ -11,11 +11,19 @@ const seismic = PyNULL()
 has_devitopro() = get(ENV, "DEVITO_PRO", "") != ""
 
 function __init__()
-    copy!(numpy, pyimport("numpy"))
-    copy!(sympy, pyimport("sympy"))
-    copy!(devito, pyimport("devito"))
-    copy!(devitopro, (has_devitopro() ? pyimport("devitopro") : pyimport("devito")))
-    copy!(seismic, pyimport("examples.seismic"))
+    try
+        copy!(numpy, pyimport("numpy"))
+        copy!(sympy, pyimport("sympy"))
+        copy!(devito, pyimport("devito"))
+        copy!(devitopro, (has_devitopro() ? pyimport("devitopro") : pyimport("devito")))
+        copy!(seismic, pyimport("examples.seismic"))
+    catch e
+        if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
+            @warn unable to pyimport
+        else
+            throw(e)
+        end
+    end   
 end
 
 numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
