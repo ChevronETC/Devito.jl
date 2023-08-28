@@ -11,7 +11,7 @@ try
 
 catch e
     if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
-        @warn unable to build
+        @warn "unable to build"
     else
         throw(e)
     end
