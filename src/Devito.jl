@@ -19,7 +19,7 @@ function __init__()
         copy!(seismic, pyimport("examples.seismic"))
     catch e
         if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
-            @warn unable to pyimport
+            @warn "unable to pyimport"
         else
             throw(e)
         end
