@@ -10,7 +10,7 @@ try
     end
 
 catch e
-    if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
+    if ((get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true") || (get(ENV, "MERGE_NEW_PACKAGES", "false") == "true"))
         @warn unable to build
     else
         throw(e)
