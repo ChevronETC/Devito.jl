@@ -2071,7 +2071,7 @@ struct ABox{N} <: Devito.AbstractSubDomain{N}
     o::PyObject
 end
 
-function ABox(src::Union{Devito.SparseTimeFunction,Nothing}, rcv::Union{Devito.SparseTimeFunction,Nothing}, vp::Devito.Function{T,N}, space_order::Int; kwargs...) where {T,N}
+function ABox(src::Union{Devito.SparseTimeFunction,Devito.SparseFunction,Nothing}, rcv::Union{Devito.SparseTimeFunction,Devito.SparseFunction,Nothing}, vp::Devito.Function{T,N}, space_order::Int; kwargs...) where {T,N}
     if ~has_devitopro()
         @error "ABox only supported with DevitoPro"
     end
