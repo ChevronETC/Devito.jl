@@ -898,7 +898,7 @@ end
 
 function serial2str(x::TimeFunction)
     mypath = ""
-    if haskey(x.o, :_fnbase)
+    if hasproperty(x.o, :_fnbase)
         mypath = py"str"(x.o._fnbase)
     else
         @warn "Object doesn't have serialized path!"
@@ -1883,7 +1883,7 @@ Base.getindex(x::IndexedData,args...) = Indexed(pygetindex(x.o, args...))
 
 struct Indexed
     o::PyObject
-    Indexed(o) = ( haskey(o, :is_Indexed) && getproperty(o, :is_Indexed) ? new(o) : error("not indexed"))
+    Indexed(o) = ( hasproperty(o, :is_Indexed) && getproperty(o, :is_Indexed) ? new(o) : error("not indexed"))
 end
 
 PyCall.PyObject(x::Indexed) = x.o

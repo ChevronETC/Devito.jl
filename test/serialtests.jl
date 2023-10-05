@@ -630,8 +630,8 @@ end
         @test parent(subdim) == d
         @test PyObject(subdim) == subdim.o
     end
-    @test (thickness(dl)[1][2], thickness(dl)[2][2]) == (2, 0)
-    @test (thickness(dr)[1][2], thickness(dr)[2][2]) == (0, 3)
+    @test (thickness(dl)[1][2], thickness(dl)[2][2]) == (2, nothing)
+    @test (thickness(dr)[1][2], thickness(dr)[2][2]) == (nothing, 3)
     @test (thickness(dm)[1][2], thickness(dr)[2][2]) == (2, 3)
 end
 
