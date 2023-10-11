@@ -3,7 +3,9 @@ using Conda
 dpro_repo = get(ENV, "DEVITO_PRO", "")
 try
     Conda.pip_interop(true)
-    Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@reduction-atimic")
+    # Conda.pip("install",       "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@reduction-atimic")
+    Conda.pip("install", "-U", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@master")
+
     # optional devito pro installation
     if dpro_repo != ""
         Conda.pip("install","git+$(dpro_repo)")
