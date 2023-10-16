@@ -1,9 +1,11 @@
 using Conda
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
+which_devito = get(ENV,"WHICH_DEVITO", "master")
 try
     Conda.pip_interop(true)
-    Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@master")
+    @info "Building devito from branch $(which_devito)"
+    Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@$(which_devito)")
     # optional devito pro installation
     if dpro_repo != ""
         Conda.pip("install","git+$(dpro_repo)")
