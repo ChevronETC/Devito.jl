@@ -1,7 +1,7 @@
 using Conda
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
-which_devito = get(ENV,"WHICH_DEVITO", "master")
+which_devito = get(ENV,"DEVITO_BRANCH", "master")
 try
     Conda.pip_interop(true)
     @info "Building devito from branch $(which_devito)"
