@@ -750,6 +750,37 @@ end
     @test data(g2)[4] == 0.
 end
 
+@testset "Derivative Operator and Mixed Derivatives" begin
+    grid = Grid(shape=(12,16))
+    f  = Devito.Function(grid=grid, name="f", space_order=8)
+    y, x = dimensions(f)
+    g1 = Devito.Function(grid=grid, name="g1", space_order=8)
+    g2 = Devito.Function(grid=grid, name="g2", space_order=8)
+    h1 = Devito.Function(grid=grid, name="h1", space_order=8)
+    h2 = Devito.Function(grid=grid, name="h2", space_order=8)
+    j1 = Devito.Function(grid=grid, name="j1", space_order=8)
+    j2 = Devito.Function(grid=grid, name="j2", space_order=8)
+
+    data(f) .= rand(Float32, size(f)...)
+    eq1a = Eq(g1, dx2(f))
+    eq1b = Eq(g2, Derivative(f, (x,2)))
+    eq2a = Eq(h1, dy2(f))
+    eq2b = Eq(h2, Derivative(f, (y,2)))
+    eq3a = Eq(j1, dx(dy(f)))
+    eq3b = Eq(j2, Derivative(f, y, x))
+    
+    derivop = Operator([eq1a, eq1b, eq2a, eq2b, eq3a, eq3b], name="derivOp")
+    
+    apply(derivop)
+
+    @test data(g1) ≈ data(g2)
+    @test norm(data(g1)) > 0
+    @test data(h1) ≈ data(h2)
+    @test norm(data(h1)) > 0
+    @test data(j1) ≈ data(j2)
+    @test norm(data(j1)) > 0
+end
+
 @testset "Derivatives on Constants" begin
     for x in (Constant(name="a", value=2), Constant(name="b", dtype=Float64, value=2), 1, -1.0, π)
         @test dx(x) == 0
@@ -761,6 +792,9 @@ end
         @test dz(x) == 0
         @test dzl(x) == 0
         @test dzr(x) == 0
+        @test dx2(x) == 0
+        @test dy2(x) == 0
+        @test Derivative(x) == 0
         @test dx(dx(x)+1) == 0
         @test dxl(dxl(x)+1) == 0
         @test dxr(dxr(x)+1) == 0
@@ -770,6 +804,8 @@ end
         @test dz(dz(x)+1) == 0
         @test dzl(dzl(x)+1) == 0
         @test dzr(dzr(x)+1) == 0
+        @test dx2(dx2(x)+1) == 0
+        @test dy2(dy2(x)+1) == 0
     end
 end
 
