@@ -1601,8 +1601,71 @@ function apply(x::Operator, args...; kwargs...)
     summary
 end
 
-# metaprograming for various derivatives
-for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl)
+# derivative function
+"""
+    Derivative(x::Union{Constant, Number}, args...; kwargs...)
+
+Returns the derivative of a constant or number, which is zero.
+"""
+Derivative(x::Union{Constant, Number}, args...; kwargs...) = PyObject(0)
+
+
+"""
+    Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...)
+
+
+    An unevaluated Derivative, which carries metadata (Dimensions,
+    derivative order, etc) describing how the derivative will be expanded
+    upon evaluation.
+
+    Parameters
+    ----------
+    expr : expr-like
+        Expression for which the Derivative is produced.
+    dims : Dimension or tuple of Dimension
+        Dimenions w.r.t. which to differentiate.
+    fd_order : int or tuple of int, optional
+        Coefficient discretization order. Note: this impacts the width of
+        the resulting stencil. Defaults to 1.
+    deriv_order: int or tuple of int, optional
+        Derivative order. Defaults to 1.
+    side : Side or tuple of Side, optional
+        Side of the finite difference location, centered (at x), left (at x - 1)
+        or right (at x +1). Defaults to ``centered``.
+    transpose : Transpose, optional
+        Forward (matvec=direct) or transpose (matvec=transpose) mode of the
+        finite difference. Defaults to ``direct``.
+    subs : dict, optional
+        Substitutions to apply to the finite-difference expression after evaluation.
+    x0 : dict, optional
+        Origin (where the finite-difference is evaluated at) for the finite-difference
+        scheme, e.g. Dict(x=> x, y => y + spacing(y)/2).
+
+    Examples
+    --------
+    Creation
+
+    ```julia
+    using Devito
+    grid = Grid((10, 10))
+    y, x = dimensions(grid)
+    u = Devito.Function(name="u", grid=grid, space_order=2)
+    Derivative(u, x)
+    
+    # You can also specify the order as a keyword argument
+
+    Derivative(u, x, deriv_order=2)
+    
+    # Or as a tuple
+
+    Derivative(u, (x, 2))
+    ```
+    
+"""
+Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(devito.Derivative, PyObject, PyObject(x), args...; reversedims(kwargs)...)
+
+# metaprograming for various derivative shorthands
+for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dx2,:dy2)
     @eval begin
         $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = ( hasproperty(PyObject(x),Symbol($F)) ? pycall(PyObject(x).$F, PyObject, args...; kwargs...) : PyObject(0) )
         $F(x::Union{Constant,Number}, args...; kwargs...) = PyObject(0)
@@ -1620,7 +1683,7 @@ function dx end
 """
     dy(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first derivative with respect to yif f is a Function with dimension y.
+Returns the symbol for the first derivative with respect to y if f is a Function with dimension y.
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dy end
@@ -1628,7 +1691,7 @@ function dy end
 """
     dz(f::DiscreteFunction, args...; kwargs...)
 
-Returns the symbol for the first derivative with respect to zif f is a Function with dimension z.
+Returns the symbol for the first derivative with respect to z if f is a Function with dimension z.
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 
@@ -1681,6 +1744,22 @@ Returns the symbol for the first forward one-sided derivative with respect to z 
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
 """
 function dz end
+
+"""
+    dx2(f::Union{DiscreteFunction,PyObject,Constant,Number}, args...; kwargs...)
+
+Returns the symbol for the second derivative with respect to x if f is a Function with dimension x.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
+"""
+function dx2 end
+
+"""
+    dy2(f::DiscreteFunction, args...; kwargs...)
+
+Returns the symbol for the second derivative with respect to y if f is a Function with dimension y.
+Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
+"""
+function dy2 end
 
 # metaprograming for various derivatives
 for F in (:dt,:dt2)
@@ -2143,6 +2222,6 @@ types(x::CCall) = x.o.types
 export CCall
 
 
-export Buffer, Constant, CoordSlowSparseFunction, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Buffer, Constant, CoordSlowSparseFunction, Derivative, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 
 end
