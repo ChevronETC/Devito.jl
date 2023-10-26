@@ -766,7 +766,7 @@ end
     eq1b = Eq(g2, Derivative(f, (x,2)))
     eq2a = Eq(h1, dy2(f))
     eq2b = Eq(h2, Derivative(f, (y,2)))
-    eq3a = Eq(j1, dx(dy(f)))
+    eq3a = Eq(j1, dxdy(f))
     eq3b = Eq(j2, Derivative(f, y, x))
     
     derivop = Operator([eq1a, eq1b, eq2a, eq2b, eq3a, eq3b], name="derivOp")

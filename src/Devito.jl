@@ -1665,7 +1665,7 @@ Derivative(x::Union{Constant, Number}, args...; kwargs...) = PyObject(0)
 Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(devito.Derivative, PyObject, PyObject(x), args...; reversedims(kwargs)...)
 
 # metaprograming for various derivative shorthands
-for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dx2,:dy2)
+for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dx2,:dy2,:dz2,:dxdy,:dxdz,:dydz)
     @eval begin
         $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = ( hasproperty(PyObject(x),Symbol($F)) ? pycall(PyObject(x).$F, PyObject, args...; kwargs...) : PyObject(0) )
         $F(x::Union{Constant,Number}, args...; kwargs...) = PyObject(0)
