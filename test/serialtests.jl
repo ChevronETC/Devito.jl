@@ -760,6 +760,8 @@ end
     h2 = Devito.Function(grid=grid, name="h2", space_order=8)
     j1 = Devito.Function(grid=grid, name="j1", space_order=8)
     j2 = Devito.Function(grid=grid, name="j2", space_order=8)
+    k1 = Devito.Function(grid=grid, name="k1", space_order=8)
+    k2 = Devito.Function(grid=grid, name="k2", space_order=8)
 
     data(f) .= rand(Float32, size(f)...)
     eq1a = Eq(g1, dx2(f))
@@ -768,8 +770,10 @@ end
     eq2b = Eq(h2, Derivative(f, (y,2)))
     eq3a = Eq(j1, dxdy(f))
     eq3b = Eq(j2, Derivative(f, y, x))
+    eq4a = Eq(k1, dy(dx2(f)))
+    eq4b = Eq(k2, Derivative(f, x, y, deriv_order=(2,1)))
     
-    derivop = Operator([eq1a, eq1b, eq2a, eq2b, eq3a, eq3b], name="derivOp")
+    derivop = Operator([eq1a, eq1b, eq2a, eq2b, eq3a, eq3b, eq4a, eq4b], name="derivOp")
     
     apply(derivop)
 
@@ -779,6 +783,8 @@ end
     @test norm(data(h1)) > 0
     @test data(j1) ≈ data(j2)
     @test norm(data(j1)) > 0
+    @test data(k1) ≈ data(k2)
+    @test norm(data(k1)) > 0
 end
 
 @testset "Derivatives on Constants" begin

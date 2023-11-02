@@ -1662,7 +1662,7 @@ Derivative(x::Union{Constant, Number}, args...; kwargs...) = PyObject(0)
     ```
     
 """
-Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(devito.Derivative, PyObject, PyObject(x), args...; reversedims(kwargs)...)
+Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(devito.Derivative, PyObject, PyObject(x), args...; kwargs...)
 
 # metaprograming for various derivative shorthands
 for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dx2,:dy2,:dz2,:dxdy,:dxdz,:dydz)
