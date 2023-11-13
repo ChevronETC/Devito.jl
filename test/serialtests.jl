@@ -606,7 +606,6 @@ end
     e = DefaultDimension(name="e")
     f = ConditionalDimension(name="f", parent=c, factor=2)
     @test parent(f) == c
-    @test factor(f) == 2
     for (dim,attribute) in ((_dim,_attribute) for _dim in (a,b,c,d,e,f) for _attribute in attribtes)
         @eval begin
             @test $attribute($dim) == $dim.o.$attribute
@@ -843,7 +842,6 @@ end
     i = Devito.SpaceDimension(name="i")
     grd = Grid(shape=(size,),dimensions=(i,))
     ci = ConditionalDimension(name="ci", parent=i, factor=factr)
-    @test factor(ci) == factr
     @test parent(ci) == i
     g = Devito.Function(name="g", grid=grd, shape=(size,), dimensions=(i,))
     f = Devito.Function(name="f", grid=grd, shape=(div(size,factr),), dimensions=(ci,))

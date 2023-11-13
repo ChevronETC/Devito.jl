@@ -853,7 +853,7 @@ end
 Tensor symbol representing a discrete function in symbolic equations.
 
 See https://www.devitoproject.org/devito/timefunction.html?highlight=timefunction#devito.types.TimeFunction.
-
+Note that setting lazy=false will force all of the time steps to be serialized to disk and disable lazy streaming.
 # Example
 ```julia
 x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
@@ -868,10 +868,10 @@ grid = Grid(
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 ```
 """
-function TimeFunction(args...; allowpro=true, serialization=nothing, kwargs...)
+function TimeFunction(args...; allowpro=true, lazy=true, kwargs...)
     local o
     if allowpro
-        if serialization === nothing
+        if lazy
             o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
         else
             if ~has_devitopro()
@@ -883,7 +883,7 @@ function TimeFunction(args...; allowpro=true, serialization=nothing, kwargs...)
             py"""
             import devitopro
             def serializedtimefunc(serialization, **kwargs):
-                return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, serialization=serialization, **kwargs)
+                return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, **kwargs)
             """
             o = py"serializedtimefunc"(serialization; Devito.reversedims(kwargs)...)
         end
