@@ -9,6 +9,7 @@ try
         Conda.pip("install", "git+$(dpro_repo)")
         # Currently separate as very platform dependent
         Conda.pip("install", "mpi4py")
+        Conda.pip("install", "sympy")
     elseif which_devito != ""
         @info "Building devito from branch $(which_devito)"
         Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@$(which_devito)")
