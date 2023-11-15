@@ -4,18 +4,16 @@ dpro_repo = get(ENV, "DEVITO_PRO", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
 try
     Conda.pip_interop(true)
-    if which_devito != ""
+    # optional devito pro installation
+    if dpro_repo != ""
+        Conda.pip("install", "git+$(dpro_repo)")
+    elseif which_devito != ""
         @info "Building devito from branch $(which_devito)"
         Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@$(which_devito)")
     else
         @info "Building devito from latest release"
         Conda.pip("install", "devito[tests,extras,mpi]")
     end
-    # optional devito pro installation
-    if dpro_repo != ""
-        Conda.pip("install","git+$(dpro_repo)")
-    end
-
 catch e
     if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
         @warn "unable to build"

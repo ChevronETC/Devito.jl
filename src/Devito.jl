@@ -8,7 +8,7 @@ const devito = PyNULL()
 const devitopro = PyNULL()
 const seismic = PyNULL()
 
-has_devitopro() = get(ENV, "DEVITO_PRO", "") != ""
+has_devitopro() = haskey(PyCall.Conda._installed_packages_dict(), "devitopro")
 
 function __init__()
     try
