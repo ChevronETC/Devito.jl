@@ -9,7 +9,7 @@ try
         Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@$(which_devito)")
     else
         @info "Building devito from latest release"
-        Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito")
+        Conda.pip("install", "devito[tests,extras,mpi]")
     end
     # optional devito pro installation
     if dpro_repo != ""
