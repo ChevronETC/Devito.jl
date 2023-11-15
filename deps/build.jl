@@ -7,6 +7,8 @@ try
     # optional devito pro installation
     if dpro_repo != ""
         Conda.pip("install", "git+$(dpro_repo)")
+        # Currently separate as very platform dependent
+        Conda.pip("install", "mpi4py")
     elseif which_devito != ""
         @info "Building devito from branch $(which_devito)"
         Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@$(which_devito)")
