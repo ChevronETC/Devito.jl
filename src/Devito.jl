@@ -882,10 +882,10 @@ function TimeFunction(args...; allowpro=true, lazy=true, kwargs...)
             # TODO: Generate MFE and submit as issue to PyCall
             py"""
             import devitopro
-            def serializedtimefunc(serialization, **kwargs):
+            def serializedtimefunc(**kwargs):
                 return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, **kwargs)
             """
-            o = py"serializedtimefunc"(serialization; Devito.reversedims(kwargs)...)
+            o = py"serializedtimefunc"(; Devito.reversedims(kwargs)...)
         end
     else
         o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
