@@ -26,10 +26,24 @@ function __init__()
     end   
 end
 
-numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
+function numpy_eltype(dtype) 
+    if dtype == numpy.float32 
+        return Float32
+    elseif dtype == numpy.float64 
+        return Float64
+    elseif dtype == numpy.uint8
+        return UInt8
+    elseif dtype == numpy.uint16
+        return UInt16
+    else
+        @error("dtype $dtype not currently supported by Devito.jl")
+    end
+end
 
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
+PyCall.PyObject(::Type{UInt8})   = numpy.uint8
+PyCall.PyObject(::Type{UInt16})  = numpy.uint16
 
 """
     configuration!(key, value)
@@ -526,6 +540,24 @@ for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito, :Inc))
         export $F
     end
 end
+
+# reduced precision options for DevitoPro
+if has_devitopro()
+    for (M,F) in ((:devitopro, :Float8), (:devitopro, :Float16), (:devitopro, :FloatX))
+
+        @eval begin
+            struct $F
+                o::PyObject
+            end
+            PyCall.PyObject(x::$F) = x.o
+            Base.convert(::Type{$F}, x::PyObject) = $F(x)
+            $F(args...; kwargs...) = pycall($M.$F, $F, args...; kwargs...)
+            # we choose not to export the methods
+            # export $F
+        end
+    end
+end
+
 
 Base.:(==)(x::Eq,y::Eq) = x.o == y.o
 
@@ -1084,6 +1116,12 @@ localmask_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(
 localindices(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask(x)
 localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_halo(x)
 localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_inhalo(x)
+compression(f::DiscreteFunction) = f.o.compression
+has_compression(f::DiscreteFunction) = ~(compression(f) === nothing)
+compression_offset(f::DiscreteFunction) = has_compression(f) ? compression(f).offset : 0. 
+compression_scale(f::DiscreteFunction)= has_compression(f) ? compression(f).scale : 1.
+# has_compression(f::Union{Devito.Function{UInt8}.Devito.Function{UInt16}}) = 
+
 
 """
     space_order(x::Union{TimeFunction,Function})
@@ -1158,8 +1196,14 @@ of type `DevitoArray`.  In the case of the MPI Devito, this returns an array of 
 The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
 this also *collects* the data onto MPI rank 0.
 """
-data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x)...)
+function data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} 
+    if has_compression(x)
+        return view(DevitoArray{T,N}(x.o."_data_allocated") .* compression_scale(x) .+ compression_offset(x), localindices(x)...)
+    else
+        return view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x)...)
+    end
 
+end
 """
     data_with_halo(x::DiscreteFunction)
 
