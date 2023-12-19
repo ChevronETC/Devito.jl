@@ -1116,11 +1116,6 @@ localmask_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(
 localindices(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask(x)
 localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_halo(x)
 localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_inhalo(x)
-compression(f::DiscreteFunction) = f.o.compression
-has_compression(f::DiscreteFunction) = ~(compression(f) === nothing)
-compression_offset(f::DiscreteFunction) = has_compression(f) ? compression(f).offset : 0. 
-compression_scale(f::DiscreteFunction)= has_compression(f) ? compression(f).scale : 1.
-# has_compression(f::Union{Devito.Function{UInt8}.Devito.Function{UInt16}}) = 
 
 
 """
@@ -1196,14 +1191,8 @@ of type `DevitoArray`.  In the case of the MPI Devito, this returns an array of 
 The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
 this also *collects* the data onto MPI rank 0.
 """
-function data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} 
-    if has_compression(x)
-        return view(DevitoArray{T,N}(x.o."_data_allocated") .* compression_scale(x) .+ compression_offset(x), localindices(x)...)
-    else
-        return view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x)...)
-    end
+data(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices(x)...)
 
-end
 """
     data_with_halo(x::DiscreteFunction)
 
@@ -2265,6 +2254,21 @@ types(x::CCall) = x.o.types
 
 export CCall
 
+# tools for writing data to compressed arrays
+compression(f::DiscreteFunction) = f.o.compression
+has_compression(f::DiscreteFunction) = ~(compression(f) === nothing)
+compression_offset(f::DiscreteFunction)::Float32 = has_compression(f) ? compression(f).offset : 0. 
+compression_scale( f::DiscreteFunction)::Float32 = has_compression(f) ? compression(f).scale : 1.
+function copy_compressed!(f::DiscreteFunction{T1,N}, x::Array{T2,N}) where {T1,T2,N}
+    if ~(has_compression(f))
+        @assert T1 == T2
+        copy!(data(f), x)
+    else
+        copy!(data(f), T1.(round.(x .- compression_offset(f)) .* compression_scale(f)))
+    end
+end
+
+export copy_compressed!
 
 export Buffer, Constant, CoordSlowSparseFunction, Derivative, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
 

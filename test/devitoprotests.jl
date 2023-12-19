@@ -118,3 +118,37 @@ end
     end
     rm(filename, force=true)
 end
+
+@testset "copy_compressed! to Float8, shape=$shape" for shape in ((5,6), (4,5,6))
+    grid = Grid(shape=shape)
+    f = Devito.Function(grid=grid, name="f", dtype=Devito.Float8(1,256))
+    g = Devito.Function(grid=grid, name="g")
+    write_operator = Operator(Eq(g,f), name="write_operator")
+    apply(write_operator)
+    # test that the array is initialized to its minimum value
+    @test data(g) ≈ ones(Float32,shape...)
+    copy_compressed!(f, 5.6 .* ones(Float32,shape...))
+    apply(write_operator)
+    # test that the compression rounding functions properly
+    @test data(g) ≈ 6 .* ones(Float32,shape...)
+    # test behavior of copy method to non-compressed function
+    copy_compressed!(g, Float32(5.6) .* ones(Float32,shape...))
+    @test data(g) ≈ 5.6 .* ones(Float32,shape...)
+end
+
+@testset "copy_compressed! to Float16, shape=$shape" for shape in ((5,6), (4,5,6))
+    grid = Grid(shape=shape)
+    f = Devito.Function(grid=grid, name="f", dtype=Devito.Float16(1,65536))
+    g = Devito.Function(grid=grid, name="g")
+    write_operator = Operator(Eq(g,f), name="write_operator")
+    apply(write_operator)
+    # test that the array is initialized to its minimum value
+    @test data(g) ≈ ones(Float32,shape...)
+    copy_compressed!(f, 5.6 .* ones(Float32,shape...))
+    apply(write_operator)
+    # test that the compression rounding functions properly
+    @test data(g) ≈ 6 .* ones(Float32,shape...)
+    # test behavior of copy method to non-compressed function
+    copy_compressed!(g, Float32(5.6) .* ones(Float32,shape...))
+    @test data(g) ≈ 5.6 .* ones(Float32,shape...)
+end
