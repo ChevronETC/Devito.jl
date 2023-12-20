@@ -2268,7 +2268,9 @@ function copy_compressed!(f::DiscreteFunction{T1,N}, x::Array{T2,N}) where {T1,T
         @assert T1 == T2
         copy!(data(f), x)
     else
-        copy!(data(f), T1.(round.((x .- compression_offset(f)) ./ compression_scale(f))))
+        scale = (abs(compression_scale(f)) > Base.eps(T2) ? compression_scale(f) : 1) #avoid division by zero
+        offset = compression_offset(f)
+        copy!(data(f), T1.(round.((x .- offset) ./ scale)))
     end
 end
 
