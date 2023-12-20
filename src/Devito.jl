@@ -35,6 +35,10 @@ function numpy_eltype(dtype)
         return UInt8
     elseif dtype == numpy.uint16
         return UInt16
+    elseif dtype == numpy.int8
+        return Int8 
+    elseif dtype == numpy.int16
+        return Int16 
     else
         @error("dtype $dtype not currently supported by Devito.jl")
     end
