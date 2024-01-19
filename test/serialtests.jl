@@ -947,6 +947,8 @@ end
     grid = Grid(shape=(5,5))
     f = TimeFunction(;name="u",grid)
     @test t.o.time_order == 1
+    g = TimeFunction(;name="u",grid,time_order=2)
+    @test t.o.time_order == 2
 end
 
 @testset "nsimplify" begin
