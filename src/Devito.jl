@@ -868,7 +868,7 @@ grid = Grid(
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 ```
 """
-function TimeFunction(args...; allowpro=true, lazy=true, kwargs...)
+function TimeFunction(args...; allowpro=true, lazy=true, time_order=1, kwargs...)
     local o
     if allowpro
         if lazy

@@ -943,6 +943,12 @@ end
     @test data(f3)[3,3,2] == (data(f1)[3,3,3] - 2*data(f1)[3,3,2] + data(f1)[3,3,1] )/t_spacing^2
 end
 
+@testset "Time Derivatives, default time_order" begin
+    grid = Grid(shape=(5,5))
+    f = TimeFunction(;name="u",grid)
+    @test t.o.time_order == 1
+end
+
 @testset "nsimplify" begin
     @test nsimplify(0) == 0
     @test nsimplify(-1) == -1
