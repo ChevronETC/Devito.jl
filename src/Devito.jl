@@ -872,7 +872,7 @@ function TimeFunction(args...; allowpro=true, lazy=true, time_order=1, kwargs...
     local o
     if allowpro
         if lazy
-            o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+            o = pycall(devitopro.TimeFunction, PyObject, args...; time_order, reversedims(kwargs)...)
         else
             if ~has_devitopro()
                 @error "Automatic serialization only supported with devito pro"
@@ -885,10 +885,10 @@ function TimeFunction(args...; allowpro=true, lazy=true, time_order=1, kwargs...
             def serializedtimefunc(**kwargs):
                 return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, **kwargs)
             """
-            o = py"serializedtimefunc"(; Devito.reversedims(kwargs)...)
+            o = py"serializedtimefunc"(; time_order, Devito.reversedims(kwargs)...)
         end
     else
-        o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+        o = pycall(devito.TimeFunction, PyObject, args...; time_order, reversedims(kwargs)...)
     end
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
