@@ -2093,7 +2093,7 @@ This is a wrapper around ``devito.solve``, which in turn is a wrapper around ``s
 ## kwargs
 * Symbolic optimizations applied while rearranging the equation. For more information. refer to `sympy.solve.__doc__`.
 """
-solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
+solve(eq::Union{PyObject, Eq}, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
 
 """
     name(x::Union{SubDomain, DiscreteFunction, TimeFunction, Function, Constant, AbstractDimension, Operator})
