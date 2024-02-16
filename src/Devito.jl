@@ -42,11 +42,10 @@ configuration!("mpi", false)
 ```
 """
 function configuration!(key, value)
-    c = PyDict(devito."configuration")
-    c[key] = value
-    c[key]
+    set!(devito."configuration", key, value)
+    get(devito."configuration", key)
 end
-configuration(key) = PyDict(devito."configuration")[key]
+configuration(key) = get(devito."configuration", key)
 configuration() = PyDict(devito."configuration")
 
 _reverse(argument::Tuple) = reverse(argument)
