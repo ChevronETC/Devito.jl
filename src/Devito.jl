@@ -758,7 +758,7 @@ PyCall.PyObject(x::AbstractSubDomain) = x.o
 returns subdomains associated with a Devito grid
 """
 function subdomains(x::Grid{T,N}) where {T,N}
-    dictpre =  PyDict(x.o."subdomains")
+    dictpre =  x.o.subdomains
     dict = Dict()
     for key in keys(dictpre)
         dict[key] = SubDomain{N}(dictpre[key])
