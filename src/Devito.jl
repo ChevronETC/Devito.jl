@@ -558,6 +558,8 @@ export Operator
 Generate, JIT-compile and run C code starting from an ordered sequence of symbolic expressions,
 and where you provide a list of `expressions` defining the computation.
 
+See: https://www.devitoproject.org/devito/operator.html?highlight=operator#devito.operator.operator.Operator""
+
 # Optional named arguments
 * `name::String` Name of the Operator, defaults to “Kernel”.
 * `subs::Dict` Symbolic substitutions to be applied to expressions.
@@ -565,6 +567,12 @@ and where you provide a list of `expressions` defining the computation.
 * `language::String` The target language for shared-memory parallelism. Defaults to configuration["language"].
 * `platform::String` The architecture the code is generated for. Defaults to configuration["platform"].
 * `compiler::String` The backend compiler used to jit-compile the generated code. Defaults to configuration["compiler"].
+
+# Example
+Assuming that one has constructed the following Devito expressions: `stencil_p`, `src_term` and `rec_term`,
+```julia
+op = Operator([stencil_p, src_term, rec_term]; name="opIso")
+```
 """
 function Operator end
 
@@ -647,20 +655,6 @@ function SpaceDimension end
 
 Base.:(==)(x::AbstractDimension,y::AbstractDimension) = x.o == y.o
 PyCall.PyObject(x::AbstractDimension) = x.o
-"""
-    Opertor(expressions; kwargs...)
-
-Generate, JIT-compile and run C code starting from an ordered sequence of symbolic expressions.
-
-See: https://www.devitoproject.org/devito/operator.html?highlight=operator#devito.operator.operator.Operator""
-
-# Example
-Assuming that one has constructed the following Devito expressions: `stencil_p`, `src_term` and `rec_term`,
-```julia
-op = Operator([stencil_p, src_term, rec_term]; name="opIso")
-```
-"""
-function Operator end
 
 """
     ConditionalDimension(;kwargs)
