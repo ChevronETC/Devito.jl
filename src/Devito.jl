@@ -46,7 +46,7 @@ function configuration!(key, value)
     get(devito."configuration", key)
 end
 configuration(key) = get(devito."configuration", key)
-configuration() = PyDict(devito."configuration")
+configuration() = devito.configuration
 
 _reverse(argument::Tuple) = reverse(argument)
 _reverse(argument) = argument
