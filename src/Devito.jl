@@ -42,12 +42,11 @@ configuration!("mpi", false)
 ```
 """
 function configuration!(key, value)
-    c = PyDict(devito."configuration")
-    c[key] = value
-    c[key]
+    set!(devito."configuration", key, value)
+    get(devito."configuration", key)
 end
-configuration(key) = PyDict(devito."configuration")[key]
-configuration() = PyDict(devito."configuration")
+configuration(key) = get(devito."configuration", key)
+configuration() = devito.configuration
 
 _reverse(argument::Tuple) = reverse(argument)
 _reverse(argument) = argument
@@ -759,7 +758,7 @@ PyCall.PyObject(x::AbstractSubDomain) = x.o
 returns subdomains associated with a Devito grid
 """
 function subdomains(x::Grid{T,N}) where {T,N}
-    dictpre =  PyDict(x.o."subdomains")
+    dictpre =  x.o.subdomains
     dict = Dict()
     for key in keys(dictpre)
         dict[key] = SubDomain{N}(dictpre[key])
