@@ -15,19 +15,3 @@ MPI = "0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.20"
 PyCall = "1"
 Strided = "1"
 julia = "1.9"
-
-[extras]
-Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
-Libdl = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
-MPIClusterManagers = "e7922434-ae4b-11e9-05c5-9780451d2c66"
-MPIPreferences = "3da0fdf6-3ccc-4f1b-acd9-58baa6c99267"
-PkgBenchmark = "32113eaa-f34f-5b0d-bd6c-c81e245fc73d"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-benchmark = ["PkgBenchmark"]
-build = ["Conda"]
-demo = ["MPIClusterManagers"]
-test = ["Libdl", "MPIPreferences", "Random", "Test"]
