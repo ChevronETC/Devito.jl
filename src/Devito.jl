@@ -26,10 +26,23 @@ function __init__()
     end   
 end
 
-numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
+function numpy_eltype(dtype)
+
+    if dtype == numpy.float32
+        return Float32 
+    elseif dtype == numpy.float64
+        return Float64
+    elseif dtype == numpy.uintc
+        return UInt32
+    else
+        error("Only Float32, Float64, and UInt32 currently supported")
+    end
+
+end
 
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
+PyCall.PyObject(::Type{UInt32}) = numpy.uintc
 
 """
     configuration!(key, value)
@@ -1110,13 +1123,22 @@ Returns the time dimension for the associated object.
 """
 time_dim(x::Union{Grid,TimeFunction}) = dimension(x.o.time_dim)
 
+
+"""
+    get_time_symbol(x::Grid) 
+
+Return the symbol `time` for lowering to time index
+"""
+get_time_symbol(x::Grid) = x.o.time_dim
+
+
 """
     stepping_dim(x::Grid)
 
 Returns the stepping dimension for the associated grid.
 """
 stepping_dim(x::Grid) = dimension(x.o.stepping_dim)
-export time_dim, stepping_dim
+export time_dim, stepping_dim, get_time_symbol
 
 """
     subs(f::DiscreteFunction{T,N,M},dict::Dict)
