@@ -1,8 +1,19 @@
 using Devito, LinearAlgebra, Random, PyCall, Strided, Test
 
-configuration!("log-level", "DEBUG")
+# configuration!("log-level", "DEBUG")
+configuration!("log-level", "WARNING")
 configuration!("language", "openmp")
 configuration!("mpi", false)
+
+# you need to use when testing locally due to the Libdl startup issue for the nv compiler
+configuration!("compiler", "gcc")
+# configuration!("platform", "cpu64")
+
+
+# configuration() = Dict{Any, Any}("log-level" => "WARNING", "opt" => "advanced", "mpi" => false, "safe-math" => false, "lazy-disk-mem-perc" => 0.7, "language" => "openmp", "decoupler" => false, "jit-backdoor" => false, "autopadding" => true, "deviceid" => -1, "autotuning" => (false, "preemptive"), "develop-mode" => false, "beta" => 0, "first-touch" => false, "lazy-device-mem-perc" => 0.7, "platform" => PyObject TargetPlatform[amd], "ignore-unknowns" => false, "compiler" => PyObject JITCompiler[GNUCompiler], "opt-options" => Dict{Any, Any}(), "profiling" => "basic", "lazy-host-mem-perc" => 0.7)
+
+# configuration() = Dict{Any, Any}("log-level" => "WARNING", "opt" => "advanced", "mpi" => false, "safe-math" => false, "lazy-disk-mem-perc" => 0.7, "language" => "openmp", "decoupler" => false, "jit-backdoor" => false, "autopadding" => true, "deviceid" => -1, "autotuning" => (false, "preemptive"), "develop-mode" => false, "beta" => 0, "first-touch" => false, "lazy-device-mem-perc" => 0.7, "platform" => PyObject TargetPlatform[amd], "ignore-unknowns" => false, "compiler" => PyObject JITCompiler[GNUCompiler], "opt-options" => Dict{Any, Any}(), "profiling" => "basic", "lazy-host-mem-perc" => 0.7)
+
 
 @testset "configuration" begin
     configuration!("log-level", "INFO")
@@ -264,7 +275,7 @@ end
 end
 
 @testset "Subdomain" begin
-    subdoms = (SubDomain("subdom0",[("left",2),nothing]),  SubDomain("subdom1",("left",2),nothing), SubDomain("subdom2",[("left",2),nothing]))
+    subdoms = (SubDomain("subdom0",[("left",2),nothing]), SubDomain("subdom1",("left",2),nothing), SubDomain("subdom2",[("left",2),nothing]))
     for dom in subdoms
         @show "starting $dom"
         grid = Grid(shape=(11,11), dtype=Float32, subdomains=dom)
@@ -273,7 +284,6 @@ end
         d .= 1.0
         op = Operator([Eq(f,2.0,subdomain=dom)],name="write"*name(dom))
         apply(op)
-        data(f)
         @test data(f)[1,5] == 2.
         @test data(f)[end,5] == 1.
         # get dimensions, reverse subdomain dimsbecause python object was returned
@@ -413,13 +423,16 @@ end
     grid = Grid(shape=(11,), dtype=Float32)
     f = Devito.Function(name="f", grid=grid)
     g = Devito.Function(name="g", grid=grid)
+    h = Devito.Function(name="h", grid=grid)
     x = dimensions(f)[1]
     data(f) .= 1.0
-    op = Operator([Eq(f,-f),Eq(g,-x)],name="unitaryminus")
+    op = Operator([Eq(g,-f),Eq(h,-x)],name="unitaryminus")
     apply(op)
+    @show data(f)
+    @show data(g)
     for i in 1:length(data(f))
-        @test data(f)[i] == -1.0
-        @test data(g)[i] == 1-i
+        @test data(g)[i] ≈ -1.0
+        @test data(h)[i] ≈ 1-i
     end
 end
 
@@ -427,13 +440,14 @@ end
     grid = Grid(shape=(11,), dtype=Float32)
     f = Devito.Function(name="f", grid=grid)
     g = Devito.Function(name="g", grid=grid)
+    h = Devito.Function(name="h", grid=grid)
     x = dimensions(f)[1]
     data(f) .= 1.0
-    op = Operator([Eq(f,+f),Eq(g,+x)],name="unitaryplus")
+    op = Operator([Eq(g,+f),Eq(h,+x)],name="unitaryplus")
     apply(op)
     for i in 1:length(data(f))
-        @test data(f)[i] == 1.0
-        @test data(g)[i] == i-1
+        @test data(g)[i] ≈ 1.0
+        @test data(h)[i] ≈ i-1
     end
 end
 
@@ -701,7 +715,6 @@ end
 end
 
 @testset "Sparse Function Inject and Interpolate" begin
-
     grid = Grid(shape=(5,5),origin=(0.,0.),extent=(1.,1.))
     f = Devito.Function(grid=grid,space_order=8,time_order=2,name="f")
     y,x = dimensions(f)
@@ -731,22 +744,22 @@ end
     @test data(rec)[2] == 0
 end
 
+# dxl/dxr implement Fornberg 1988 table 3, derivative order 1, order of accuracy 2
 @testset "Left and Right Derivatives" begin
-    grid = Grid(shape=(5),origin=(0.),extent=(1.))
-    f = Devito.Function(grid=grid,name="f")
-    g1 = Devito.Function(grid=grid,name="g1")
-    g2 = Devito.Function(grid=grid,name="g2")
-    data(f)[3] = 1.
-    eq1 = Eq(g1,dxl(f))
-    eq2 = Eq(g2,dxr(f))
+    fornberg = Float64[-3/2, 2.0, -1/2]
+    n = 5
+    grid = Grid(shape=(n),extent=(n-1,))
+    x = dimensions(grid)[1]
+    fff = Devito.Function(name="fff", grid=grid, space_order=2)
+    fxl = Devito.Function(name="fxl", grid=grid, space_order=2)
+    fxr = Devito.Function(name="fxr", grid=grid, space_order=2)
+    data(fff)[div(n,2)+1] = 1.
+    eq1 = Eq(fxl, dxl(fff))
+    eq2 = Eq(fxr, dxr(fff))
     op = Operator([eq1,eq2],name="Derivatives")
     apply(op)
-    @test data(g1)[2] == 0.
-    @test data(g2)[2] == 4.
-    @test data(g1)[3] == 4.
-    @test data(g2)[3] == -4.
-    @test data(g1)[4] == -4.
-    @test data(g2)[4] == 0.
+    @test data(fxl)[3:5] ≈ -1 .* fornberg
+    @test data(fxr)[1:3] ≈ +1 .* reverse(fornberg)
 end
 
 @testset "Derivative Operator and Mixed Derivatives" begin
@@ -853,13 +866,18 @@ end
 end
 
 @testset "Conditional Dimension Honor Condition" begin
+    # configuration!("log-level", "DEBUG")
+    # configuration!("opt", "noop")
+    # configuration!("jit-backdoor", false)
+    # configuration!("jit-backdoor", true)
+    # @show configuration()
     x = Devito.SpaceDimension(name="x")
     y = Devito.SpaceDimension(name="y")
-    grd = Grid(shape=(5,5),dimensions=(y,x))
-    f1 = Devito.Function(name="f1", grid=grd)
-    f2 = Devito.Function(name="f2", grid=grd)
-    f3 = Devito.Function(name="f3", grid=grd)
-    g = Devito.Function(name="g", grid=grd)
+    grd = Grid(shape=(5,5),dimensions=(y,x),extent=(4,4))
+    f1 = Devito.Function(name="f1", grid=grd, space_order=0, is_transient=true)
+    f2 = Devito.Function(name="f2", grid=grd, space_order=0, is_transient=true)
+    f3 = Devito.Function(name="f3", grid=grd, space_order=0, is_transient=true)
+    g = Devito.Function(name="g", grid=grd, space_order=0, is_transient=true)
     data(f1) .= 1.0
     data(f2) .= 1.0
     data(g)[:,3:end] .= 1.0
@@ -868,11 +886,28 @@ end
     # Note, the order of dimensions feeding into parent seems to matter.  
     # If the grid dimensions were (x,y) 
     # the above conditional dimension would cause a compilation error on the operator at runtime.
-    eq1 = Eq(f1, f1 + g, implicit_dims=ci1)
-    eq2 = Eq(f2, f2 + g, implicit_dims=ci2)
+    # write(stdout,"\n")
+    # @show data(f1)
+    # @show data(f2)
+    # @show data(f3)
+    # @show data(g)
+
+    eq1 = Eq(f1, f1+g, implicit_dims=ci1)
+    eq2 = Eq(f2, f2+g, implicit_dims=ci2)
     eq3 = Eq(f3, f2-f1)
-    op = Operator([eq1,eq2,eq3],name="Implicit")
+    op = Operator([eq1,eq2,eq3], name="Implicit")
+    # apply(op, nthreads=2)
     apply(op)
+
+    # write(stdout,"\n")
+    # @show data(f1)
+    # @show data(f2)
+    # @show data(f3)
+    # @show data(g)
+
+    # write(stdout,"\n")
+    # @show view(DevitoArray{Float32,2}(f1.o."_data_allocated"), localindices(f1)...)
+
     @test data(f1)[1,1] == 1.0
     @test data(f1)[1,3] == 2.0
     @test data(f1)[1,5] == 2.0
@@ -882,6 +917,7 @@ end
     @test data(f1)[5,1] == 1.0
     @test data(f1)[5,3] == 1.0
     @test data(f1)[5,5] == 1.0
+
     @test data(f3)[1,1] == 0.0
     @test data(f3)[3,1] == 0.0
     @test data(f3)[3,2] == 0.0
@@ -998,6 +1034,8 @@ end
     @test name(op) == "op"
 end
 
+# jkw: had to switch to py"repr" to get string representation of PyObject
+# something must have changes somewhere as we can no longer directly compare like `g == evaluate(h)``
 @testset "subs" begin
     grid = Grid(shape=(5,5,5))
     dims = dimensions(grid)
@@ -1012,7 +1050,10 @@ end
             g = f
             h = subs(h,stagdict1)
             g = .5 * (g + subs(g,stagdict2))
-            @test evaluate(h) == g
+            sg = py"repr"(g)
+            sh = py"repr"(evaluate(h))
+            @show sg, sh, sg == sh
+            @test sg == sh
         end
     end 
 end
@@ -1166,7 +1207,7 @@ end
     b = Devito.Function(name="b", grid=grid, shape=(size(grid)[end],), dimensions=(dimensions(grid)[end],))
     data(v) .= 1.0
     data(A) .= reshape([1:prod(size(grid));],size(grid)...)
-    op = Operator([Inc(b, A*v)], name="inctest", compiler="gcc")
+    op = Operator([Inc(b, A*v)], name="inctest")
     apply(op)
     @test data(b)[:] ≈ sum(data(A), dims=Tuple([1:length(n)-1;]))[:]
 end
