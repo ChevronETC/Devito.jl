@@ -7,13 +7,7 @@ configuration!("mpi", false)
 
 # you need to use when testing locally due to the Libdl startup issue for the nv compiler
 configuration!("compiler", "gcc")
-# configuration!("platform", "cpu64")
-
-
-# configuration() = Dict{Any, Any}("log-level" => "WARNING", "opt" => "advanced", "mpi" => false, "safe-math" => false, "lazy-disk-mem-perc" => 0.7, "language" => "openmp", "decoupler" => false, "jit-backdoor" => false, "autopadding" => true, "deviceid" => -1, "autotuning" => (false, "preemptive"), "develop-mode" => false, "beta" => 0, "first-touch" => false, "lazy-device-mem-perc" => 0.7, "platform" => PyObject TargetPlatform[amd], "ignore-unknowns" => false, "compiler" => PyObject JITCompiler[GNUCompiler], "opt-options" => Dict{Any, Any}(), "profiling" => "basic", "lazy-host-mem-perc" => 0.7)
-
-# configuration() = Dict{Any, Any}("log-level" => "WARNING", "opt" => "advanced", "mpi" => false, "safe-math" => false, "lazy-disk-mem-perc" => 0.7, "language" => "openmp", "decoupler" => false, "jit-backdoor" => false, "autopadding" => true, "deviceid" => -1, "autotuning" => (false, "preemptive"), "develop-mode" => false, "beta" => 0, "first-touch" => false, "lazy-device-mem-perc" => 0.7, "platform" => PyObject TargetPlatform[amd], "ignore-unknowns" => false, "compiler" => PyObject JITCompiler[GNUCompiler], "opt-options" => Dict{Any, Any}(), "profiling" => "basic", "lazy-host-mem-perc" => 0.7)
-
+configuration!("platform", "cpu64")
 
 @testset "configuration" begin
     configuration!("log-level", "INFO")
