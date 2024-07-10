@@ -1,4 +1,4 @@
-using Devito, LinearAlgebra, MPI, Random, Strided, Test
+using Devito, MPI, Random, Strided, Test
 
 MPI.Init()
 configuration!("log-level", "DEBUG")

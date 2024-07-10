@@ -102,7 +102,7 @@ function python_test_subdomains()
 
             def define(self, dimensions):
                 x, y = dimensions
-                return {x: x, y: ("left", 1)}
+                return {x: ("middle", 0, 0), y: ("left", 1)}
 
         grid = Grid(shape=(4,4), dtype=np.float32, subdomains=(fs1()))
 
@@ -214,7 +214,7 @@ end
     python_test_subdomains() 
 
     # julia with Devito.jl implementation
-    fs = SubDomain("fs", [("left",1), nothing])
+    fs = SubDomain("fs", [("left",1), ("middle",0,0)])
     grid = Devito.Grid(shape=(4,4), dtype=Float32, subdomains=(fs,))
     f = Devito.Function(name="f", grid=grid, space_order=4)
     fs  = subdomains(grid)["fs"]

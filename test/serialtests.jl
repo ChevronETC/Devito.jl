@@ -1,4 +1,4 @@
-using Devito, LinearAlgebra, Random, PyCall, Strided, Test
+using Devito, Random, PyCall, Strided, Test
 
 # configuration!("log-level", "DEBUG")
 configuration!("log-level", "WARNING")
@@ -269,32 +269,50 @@ end
 end
 
 @testset "Subdomain" begin
-    subdoms = (SubDomain("subdom0",[("left",2),nothing]), SubDomain("subdom1",("left",2),nothing), SubDomain("subdom2",[("left",2),nothing]))
-    for dom in subdoms
-        @show "starting $dom"
-        grid = Grid(shape=(11,11), dtype=Float32, subdomains=dom)
-        f = Devito.Function(name="f", grid=grid)
-        d = data(f)
-        d .= 1.0
-        op = Operator([Eq(f,2.0,subdomain=dom)],name="write"*name(dom))
-        apply(op)
-        @test data(f)[1,5] == 2.
-        @test data(f)[end,5] == 1.
-        # get dimensions, reverse subdomain dimsbecause python object was returned
-        griddim = dimensions(grid)
-        subdim  = dimensions(subdomains(grid)[name(dom)])
-        # test that a new subdimension created on first axis
-        @test griddim[1] != subdim[1]
-        # and that it is is derived 
-        @test is_Derived(subdim[1]) == true 
-        # and that the griddim not derived 
-        @test is_Derived(griddim[1]) == false 
-        # test that the complete second axis is same dimension
-        @test griddim[2] == subdim[2]
-        # test the interior method
-        @test Devito.interior(grid) == subdomains(grid)["interior"]
-        @show "done with $(dom)"
-    end
+    n1,n2 = 5,7
+    subdom_mid = SubDomain("subdom_mid", [("middle",1,1), ("middle",2,2)] )
+    subdom_lft = SubDomain("subdom_top", [("middle",0,0), ("left",div(n2,2)+1)] )
+    subdom_rgt = SubDomain("subdom_bot", [("middle",0,0), ("right",div(n2,2)+1)] )
+    subdom_top = SubDomain("subdom_lft", [("left",div(n1,2)+1), ("middle",0,0)] )
+    subdom_bot = SubDomain("subdom_rgt", [("right",div(n1,2)+1), ("middle",0,0)] )
+    
+    grid = Grid(shape=(n1,n2), dtype=Float32, subdomains=(subdom_mid, subdom_lft, subdom_rgt, subdom_top, subdom_bot))
+    f0 = Devito.Function(name="f0", grid=grid)
+    f1 = Devito.Function(name="f1", grid=grid)
+    f2 = Devito.Function(name="f2", grid=grid)
+    f3 = Devito.Function(name="f3", grid=grid)
+    f4 = Devito.Function(name="f4", grid=grid)
+    f5 = Devito.Function(name="f5", grid=grid)
+    f6 = Devito.Function(name="f6", grid=grid)
+    data(f0) .= 1
+
+    eqns = []
+    push!(eqns, Eq(f1,f0,subdomain=subdom_mid))
+    push!(eqns, Eq(f2,f0,subdomain=subdom_lft))
+    push!(eqns, Eq(f3,f0,subdomain=subdom_rgt))
+    push!(eqns, Eq(f4,f0,subdomain=subdom_top))
+    push!(eqns, Eq(f5,f0,subdomain=subdom_bot))
+
+    op = Operator(name="op", eqns)
+    apply(op)
+
+    _mid = zeros(n1,n2)
+    _lft = zeros(n1,n2)
+    _rgt = zeros(n1,n2)
+    _top = zeros(n1,n2)
+    _bot = zeros(n1,n2)
+
+    _mid[2:4,3:5] .= 1
+    _lft[:,1:4] .= 1
+    _rgt[:,4:7] .= 1
+    _top[1:3,:] .= 1
+    _bot[3:5,:] .= 1
+
+    @test data(f1) ≈ _mid 
+    @test data(f2) ≈ _lft 
+    @test data(f3) ≈ _rgt 
+    @test data(f4) ≈ _top 
+    @test data(f5) ≈ _bot 
 end
 
 @testset "Equation Equality, shape=$shape, T=$T" for shape in ((11,11),(11,11,11)), T in (Float32, Float64)
@@ -783,14 +801,15 @@ end
     
     apply(derivop)
 
+    @test sum(abs.(data(g1))) > 0
+    @test sum(abs.(data(h1))) > 0
+    @test sum(abs.(data(j1))) > 0
+    @test sum(abs.(data(k1))) > 0
+
     @test data(g1) ≈ data(g2)
-    @test norm(data(g1)) > 0
     @test data(h1) ≈ data(h2)
-    @test norm(data(h1)) > 0
     @test data(j1) ≈ data(j2)
-    @test norm(data(j1)) > 0
     @test data(k1) ≈ data(k2)
-    @test norm(data(k1)) > 0
 end
 
 @testset "Derivatives on Constants" begin
@@ -1205,3 +1224,5 @@ end
     apply(op)
     @test data(b)[:] ≈ sum(data(A), dims=Tuple([1:length(n)-1;]))[:]
 end
+
+nothing

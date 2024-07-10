@@ -1,21 +1,26 @@
 module Devito
 
-using LinearAlgebra, MPI, PyCall, Strided
+using MPI, PyCall, Strided
 
 const numpy = PyNULL()
 const sympy = PyNULL()
 const devito = PyNULL()
 const devitopro = PyNULL()
 const seismic = PyNULL()
+const utils = PyNULL()
 
-has_devitopro() = haskey(PyCall.Conda._installed_packages_dict(), "devitopro")
+has_devitopro() = devitopro != devito
 
 function __init__()
     try
         copy!(numpy, pyimport("numpy"))
         copy!(sympy, pyimport("sympy"))
         copy!(devito, pyimport("devito"))
-        copy!(devitopro, (has_devitopro() ? pyimport("devitopro") : pyimport("devito")))
+        try
+            copy!(devitopro, pyimport("devitopro"))
+        catch e
+            copy!(devitopro, pyimport("devito"))
+        end
         copy!(seismic, pyimport("examples.seismic"))
     catch e
         if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
@@ -23,7 +28,13 @@ function __init__()
         else
             throw(e)
         end
-    end   
+    end
+    # Utilities. Need to both load and also add to PYTHONPATH
+    # so that spawned python subprocesses find it as well
+    ppath = get(ENV, "PYTHONPATH", "")
+    upath = join(split(@__DIR__, "/")[1:end-1], "/")
+    pushfirst!(PyVector(pyimport("sys")."path"), upath)
+    copy!(utils, pyimport("src"))
 end
 
 numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
@@ -417,6 +428,7 @@ for (M,F) in ((:devito,:SpaceDimension),
               (:devito,:TimeDimension), 
               (:devito,:ConditionalDimension),
               (:devito,:Dimension),
+              (:devito,:Spacing),
               (:devito,:DefaultDimension))
     @eval begin
         struct $F <: AbstractDimension
@@ -806,11 +818,7 @@ b = Devito.Function(name="b", grid=grid, space_order=8)
 ```
 """
 function Function(args...; allowpro=true, kwargs...)
-    if allowpro
-        o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
-    else
-        o = pycall(devito.Function, PyObject, args...; reversedims(kwargs)...)
-    end
+    o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
     M = ismpi_distributed(o)
@@ -873,15 +881,10 @@ function TimeFunction(args...; allowpro=true, lazy=true, kwargs...)
             # this is inelegant, TODO: find better way to handle layers.  
             # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
             # TODO: Generate MFE and submit as issue to PyCall
-            py"""
-            import devitopro
-            def serializedtimefunc(**kwargs):
-                return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, **kwargs)
-            """
-            o = py"serializedtimefunc"(; Devito.reversedims(kwargs)...)
+            o = utils."serializedtimefunc"(; Devito.reversedims(kwargs)...)
         end
     else
-        o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+        o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
     end
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
@@ -899,14 +902,7 @@ function serial2str(x::TimeFunction)
     return mypath
 end
 
-function str2serial(y::String)
-    py"""
-    from pathlib import Path
-    def str2path(y):
-        return Path(y)
-    """
-    return py"str2path"(y)
-end
+str2serial(y::String) = utils."str2path"(y)
 
 
 abstract type SparseDiscreteFunction{T,N,M} <:  DiscreteFunction{T,N,M} end
@@ -1798,7 +1794,7 @@ for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Deriv
     end
 end
 # metaprogramming for devito conditionals
-for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Ge),(:devito,:Lt),(:devito,:Le))
+for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Ge),(:devito,:Lt),(:devito,:Le),(:devito,:jCondEq))
     @eval begin
         $F(x::Union{Real,DiscreteFunction,PyObject,AbstractDimension},y::Union{Real,DiscreteFunction,PyObject,AbstractDimension}) = $M.$F(PyObject(x),PyObject(y))
         export $F
@@ -1921,11 +1917,7 @@ export Mod
 
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)
-    py"""
-    def indexobj(x,*args):
-        return x[args]
-    """
-   return py"indexobj"(x,reverse(args)...)
+   return utils."indexobj"(x,reverse(args)...)
 end
 
 # helper functions for mapping arguments to python
@@ -1933,11 +1925,7 @@ shiftarg(x::Int) = x-1
 shiftarg(x) = x
 
 function pygetindex(x::PyObject,args...)
-    py"""
-    def indexobj(x,*args):
-        return x[args]
-    """
-   return py"indexobj"(x,reverse(shiftarg.(args))...)
+   return utils."indexobj"(x,reverse(shiftarg.(args))...)
 end
 
 struct IndexedData
@@ -1967,15 +1955,7 @@ Print the ccode associated with a devito operator.
 If filename is provided, writes ccode to disk using that filename
 """
 function ccode(x::Operator; filename="")
-    py"""
-    def ccode(x, filename):
-        if filename == "":
-            return print(x)
-        else:
-            with open(filename, 'w') as f:
-                print(x,file=f)
-    """
-   py"ccode"(x.o,filename)
+   utils."ccode"(x.o,filename)
    return nothing
 end
 
@@ -2002,25 +1982,12 @@ SubDomain("subdomain_name",("right",2),("left",1))
 """
 SubDomain(name::String, instructions::Vector) = SubDomain(name, instructions...)
 SubDomain(name::String, instructions::Tuple{Vararg{Tuple}}) = SubDomain(name, instructions...)
+
 function SubDomain(name::String, instructions...)
     # copy and reverse instructions
     instructions = reverse(instructions)
     N = length(instructions)
-    @pydef mutable struct subdom <: devito.SubDomain
-        function __init__(self, name, instructions)
-            self.name = name
-            self.instructions = instructions
-        end
-        function define(self, dimensions)
-            dims = PyDict()
-            for idim = 1:length(dimensions)
-                # dims[dimensions[idim]] = self.instructions[idim] in ((nothing,),("middle",0,0)) ? dimensions[idim] : self.instructions[idim]
-                dims[dimensions[idim]] = self.instructions[idim] in (nothing,) ? dimensions[idim] : self.instructions[idim]
-            end
-            return dims
-        end
-    end
-    return SubDomain{N}(subdom(name,instructions))    
+    return SubDomain{N}(utils."subdom"(name,instructions))    
 end
 
 struct Buffer

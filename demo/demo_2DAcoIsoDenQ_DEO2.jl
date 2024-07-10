@@ -4,10 +4,10 @@ using Devito
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
-configuration!("mpi", false)
+# configuration!("mpi", false)
 
-x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
-z = SpaceDimension(name="z", spacing=Constant(name="h_z", value=5.0))
+x = SpaceDimension(name="x", spacing=Spacing(name="h_x", is_const=true))
+z = SpaceDimension(name="z", spacing=Spacing(name="h_z", is_const=true))
 
 function ricker!(src, f, _t, t₀)
     t = reshape(_t, size(src))
@@ -85,6 +85,8 @@ d = data(rec)
 
 figure();imshow(_p[:,:,1])
 display(gcf())
+savefig("p.png", bbox_inches="tight", dpi=150)
 
 figure();imshow(d, aspect="auto",cmap="gray",clim=.1*[-1,1]*maximum(abs,d))
 display(gcf())
+savefig("d.png", bbox_inches="tight", dpi=150)
