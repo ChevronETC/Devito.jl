@@ -4,3 +4,4 @@ benchmark/tune.json
 docs/build
 operator*.c
 *.cov
+__pycache__
