@@ -1,7 +1,7 @@
 name = "Devito"
 uuid = "06ed14b1-0e40-4084-abdf-764a285f8c42"
 authors = ["Sam Kaplan <Sam.Kaplan@chevron.com>"]
-version = "0.12.2"
+version = "0.13.0"
 
 [deps]
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
