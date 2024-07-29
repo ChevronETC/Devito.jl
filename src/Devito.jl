@@ -1,6 +1,7 @@
 module Devito
 
-using MPI, PyCall, Strided
+# using MPI, PyCall, Strided
+using PyCall, Strided
 
 const numpy = PyNULL()
 const sympy = PyNULL()
@@ -37,10 +38,63 @@ function __init__()
     copy!(utils, pyimport("src"))
 end
 
-numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
+using MPI
 
+# numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
+PyCall.PyObject(::Type{Int8}) = numpy.int8
+PyCall.PyObject(::Type{Int16}) = numpy.int16
+PyCall.PyObject(::Type{Int32}) = numpy.int32
+PyCall.PyObject(::Type{Int64}) = numpy.int64
+PyCall.PyObject(::Type{ComplexF32}) = numpy.complex64
+PyCall.PyObject(::Type{ComplexF64}) = numpy.complex128
+# Add more conversions as needed
+ 
+# function numpy_eltype(dtype)
+#     if occursin("float32", string(dtype))
+#         return Float32
+#     elseif occursin("float64", string(dtype))
+#         return Float64
+#     elseif occursin("int8", string(dtype))
+#         return Int8
+#     elseif occursin("int16", string(dtype))
+#         return Int16
+#     elseif occursin("int32", string(dtype))
+#         return Int32
+#     elseif occursin("int64", string(dtype))
+#         return Int64
+#     elseif occursin("complex64", string(dtype))
+#         return ComplexF32
+#     elseif occursin("complex128", string(dtype))
+#         return ComplexF64
+#     else
+#         error("Unsupported NumPy data type: $(dtype)") # Throw an error
+#     end
+# end
+
+function numpy_eltype(dtype)
+    if dtype == numpy.float32
+        return Float32
+    elseif dtype == numpy.float64
+        return Float64
+    elseif dtype == numpy.int8
+        return Int8
+    elseif dtype == numpy.int16
+        return Int16
+    elseif dtype == numpy.int32
+        return Int32
+    elseif dtype == numpy.int64
+        return Int64
+    elseif dtype == numpy.complex64
+        return ComplexF32
+    elseif dtype == numpy.complex128
+        return ComplexF64
+    else
+        error("Unsupported NumPy data type: $(dtype)")
+    end
+end
+
 
 """
     configuration!(key, value)
@@ -890,6 +944,21 @@ function TimeFunction(args...; allowpro=true, lazy=true, kwargs...)
     N = length(o.dimensions)
     M = ismpi_distributed(o)
     TimeFunction{T,N,M}(o)
+end
+
+function TimeFunction(o::PyObject)
+    # ensure pyobject corresponds to a devito timefunction
+    isafunction = (:is_Function ∈ propertynames(o)) && (o.is_Function == true)
+    isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == true))
+    isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true))
+    if (isatimefunction)
+        T = numpy_eltype(o.dtype)
+        N = length(o.dimensions)
+        M = ismpi_distributed(o)
+        return TimeFunction{T,N,M}(o)
+    else
+        error("PyObject is not a devito.TimeFunction")
+    end
 end
 
 function serial2str(x::TimeFunction)
