@@ -60,7 +60,7 @@ try
         Sys.which("git") === nothing && error("git is not installed")
         run(`git clone https://github.com/devitocodes/devito $(dir)`)
         
-        Conda.pip("install", "$(dir)[tests,mpi]")
+        Conda.pip("install", "$(dir)[tests,extras,mpi]")
         rm(dir, recursive=true, force=true)
         
         ENV["CC"] = "gcc"
