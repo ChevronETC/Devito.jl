@@ -53,15 +53,19 @@ try
 
     else
         @info "Building devito from latest release"
+        Conda.pip("uninstall -y", "devitopro")
         Conda.pip("uninstall -y", "devito")
         
         dir = "$(tempname())-devito"
         Sys.which("git") === nothing && error("git is not installed")
         run(`git clone https://github.com/devitocodes/devito $(dir)`)
         
-        Conda.pip("install", "$(dir)[tests,extras,mpi]")
+        Conda.pip("install", "$(dir)[tests,mpi]")
         rm(dir, recursive=true, force=true)
         
+        ENV["CC"] = "gcc"
+        ENV["CFLAGS"] = ""
+        ENV["MPICC"] = "mpicc"
         Conda.pip("uninstall -y", "mpi4py")
         Conda.pip("install", "mpi4py")
     end
