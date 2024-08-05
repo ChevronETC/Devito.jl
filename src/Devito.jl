@@ -1,7 +1,6 @@
 module Devito
 
-# using MPI, PyCall, Strided
-using PyCall, Strided
+using MPI, PyCall, Strided
 
 const numpy = PyNULL()
 const sympy = PyNULL()
@@ -38,9 +37,6 @@ function __init__()
     copy!(utils, pyimport("src"))
 end
 
-using MPI
-
-# numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
 PyCall.PyObject(::Type{Int8}) = numpy.int8
@@ -49,30 +45,7 @@ PyCall.PyObject(::Type{Int32}) = numpy.int32
 PyCall.PyObject(::Type{Int64}) = numpy.int64
 PyCall.PyObject(::Type{ComplexF32}) = numpy.complex64
 PyCall.PyObject(::Type{ComplexF64}) = numpy.complex128
-# Add more conversions as needed
  
-# function numpy_eltype(dtype)
-#     if occursin("float32", string(dtype))
-#         return Float32
-#     elseif occursin("float64", string(dtype))
-#         return Float64
-#     elseif occursin("int8", string(dtype))
-#         return Int8
-#     elseif occursin("int16", string(dtype))
-#         return Int16
-#     elseif occursin("int32", string(dtype))
-#         return Int32
-#     elseif occursin("int64", string(dtype))
-#         return Int64
-#     elseif occursin("complex64", string(dtype))
-#         return ComplexF32
-#     elseif occursin("complex128", string(dtype))
-#         return ComplexF64
-#     else
-#         error("Unsupported NumPy data type: $(dtype)") # Throw an error
-#     end
-# end
-
 function numpy_eltype(dtype)
     if dtype == numpy.float32
         return Float32
