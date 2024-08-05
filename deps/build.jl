@@ -43,9 +43,9 @@ try
         delete!(ENV,"CFLAGS")
 
         # and finally ... mpi4py
-        # ENV["CFLAGS"] = "-noswitcherror -tp=px"
-        # Conda.pip("uninstall -y", "mpi4py")
-        # Conda.pip("install --no-cache-dir", "mpi4py")
+        ENV["CFLAGS"] = "-noswitcherror -tp=px"
+        Conda.pip("uninstall -y", "mpi4py")
+        Conda.pip("install --no-cache-dir", "mpi4py")
 
     elseif which_devito != ""
         @info "Building devito from branch $(which_devito)"
