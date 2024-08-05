@@ -43,9 +43,9 @@ try
         delete!(ENV,"CFLAGS")
 
         # and finally ... mpi4py
-        # ENV["CFLAGS"] = "-noswitcherror -tp=px"
-        # Conda.pip("uninstall -y", "mpi4py")
-        # Conda.pip("install --no-cache-dir", "mpi4py")
+        ENV["CFLAGS"] = "-noswitcherror -tp=px"
+        Conda.pip("uninstall -y", "mpi4py")
+        Conda.pip("install --no-cache-dir", "mpi4py")
 
     elseif which_devito != ""
         @info "Building devito from branch $(which_devito)"
@@ -60,7 +60,7 @@ try
         Sys.which("git") === nothing && error("git is not installed")
         run(`git clone https://github.com/devitocodes/devito $(dir)`)
         
-        Conda.pip("install", "$(dir)[tests,mpi]")
+        Conda.pip("install", "$(dir)[tests,extras,mpi]")
         rm(dir, recursive=true, force=true)
         
         ENV["CC"] = "gcc"

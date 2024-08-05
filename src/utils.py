@@ -10,15 +10,8 @@ except ImportError:
     Disk = None
 
 
-__all__ = ['serializedtimefunc', 'str2path', 'indexobj', 'ccode', 'subdom']
+__all__ = ['str2path', 'indexobj', 'ccode', 'subdom']
 
-
-# see tutorial on lazy streaming here
-# https://dev.azure.com/chevron/ETC-ESD-COFIICloud/_git/devitopro-chevron?path=/demos/tutorials/data_streaming.ipynb&_a=preview
-# def serializedtimefunc(**kwargs):
-#     return TimeFunction(layers=Disk, **kwargs)
-def serializedtimefunc(**kwargs):
-    return TimeFunction(layers=DiskHost, **kwargs)
 
 def str2path(y):
     return Path(y)
