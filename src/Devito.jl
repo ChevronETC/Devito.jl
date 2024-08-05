@@ -846,7 +846,7 @@ grid = Grid(
 b = Devito.Function(name="b", grid=grid, space_order=8)
 ```
 """
-function Function(args...; allowpro=true, kwargs...)
+function Function(args...; kwargs...)
     o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
@@ -883,7 +883,6 @@ end
 Tensor symbol representing a discrete function in symbolic equations.
 
 See https://www.devitoproject.org/devito/timefunction.html?highlight=timefunction#devito.types.TimeFunction.
-Note that setting lazy=false will force all of the time steps to be serialized to disk and disable lazy streaming.
 # Example
 ```julia
 x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
@@ -898,23 +897,9 @@ grid = Grid(
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 ```
 """
-function TimeFunction(args...; allowpro=true, lazy=true, kwargs...)
+function TimeFunction(args...; kwargs...)
     local o
-    if allowpro
-        if lazy
-            o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
-        else
-            if ~has_devitopro()
-                @error "Automatic serialization only supported with devito pro"
-            end
-            # this is inelegant, TODO: find better way to handle layers.  
-            # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
-            # TODO: Generate MFE and submit as issue to PyCall
-            o = utils."serializedtimefunc"(; Devito.reversedims(kwargs)...)
-        end
-    else
-        o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
-    end
+    o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
     M = ismpi_distributed(o)
