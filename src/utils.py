@@ -10,7 +10,11 @@ except ImportError:
     Disk = None
 
 
-__all__ = ['str2path', 'indexobj', 'ccode', 'subdom']
+__all__ = ['serializedtimefunc', 'str2path', 'indexobj', 'ccode', 'subdom']
+
+
+def serializedtimefunc(**kwargs):
+    return TimeFunction(layers=Disk, **kwargs)
 
 
 def str2path(y):
