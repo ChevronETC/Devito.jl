@@ -8,6 +8,7 @@ const devito = PyNULL()
 const devitopro = PyNULL()
 const seismic = PyNULL()
 const utils = PyNULL()
+const enriched = PyNULL()
 
 has_devitopro() = devitopro != devito
 
@@ -22,6 +23,10 @@ function __init__()
             copy!(devitopro, pyimport("devito"))
         end
         copy!(seismic, pyimport("examples.seismic"))
+
+        if has_devitopro()
+            copy!(enriched, pyimport("devitopro.types.enriched"))
+        end
 
         # Utilities. Need to both load and also add to PYTHONPATH
         # so that spawned python subprocesses find it as well
@@ -897,9 +902,27 @@ grid = Grid(
 p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 ```
 """
-function TimeFunction(args...; kwargs...)
-    local o
-    o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+# function TimeFunction(args...; kwargs...)
+#     local o
+#     o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+#     T = numpy_eltype(o.dtype)
+#     N = length(o.dimensions)
+#     M = ismpi_distributed(o)
+#     TimeFunction{T,N,M}(o)
+# end
+
+function TimeFunction(args...; lazy=false, kwargs...)
+    if lazy
+        o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+    else
+        if ~has_devitopro()
+            @error "Automatic serialization only supported with devito pro"
+        end
+        # this is inelegant, TODO: find better way to handle layers.  
+        # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
+        # TODO: Generate MFE and submit as issue to PyCall
+        o = utils."serializedtimefunc"(; Devito.reversedims(kwargs)...)
+    end
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
     M = ismpi_distributed(o)
@@ -908,9 +931,7 @@ end
 
 function TimeFunction(o::PyObject)
     # ensure pyobject corresponds to a devito timefunction
-    isafunction = (:is_Function ∈ propertynames(o)) && (o.is_Function == true)
     isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == true))
-    isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true))
     if (isatimefunction)
         T = numpy_eltype(o.dtype)
         N = length(o.dimensions)
