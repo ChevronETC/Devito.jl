@@ -2,6 +2,12 @@ module Devito
 
 using MPI, PyCall, Strided
 
+# Remove subnormals warnings: getlimits.py:89: UserWarning: The value of the smallest subnormal for <class 'numpy.float64'> type is zero.
+py"""
+import warnings
+warnings.filterwarnings("ignore", message="The value of the smallest subnormal")
+"""
+
 const numpy = PyNULL()
 const sympy = PyNULL()
 const devito = PyNULL()
