@@ -1,0 +1,8 @@
+[deps]
+pytest = ""
+packaging = ""
+numpy = ""
+scipy = ""
+
+[pip.deps]
+devito = ""
