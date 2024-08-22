@@ -1,22 +1,25 @@
 module Devito
 
-using LinearAlgebra, MPI, PyCall, Strided
+using LinearAlgebra, MPI, PythonCall, Strided
 
-const numpy = PyNULL()
-const sympy = PyNULL()
-const devito = PyNULL()
-const devitopro = PyNULL()
-const seismic = PyNULL()
+const pathlib = Ref{Py}()
+const numpy = Ref{Py}()
+const sympy = Ref{Py}()
+const devito = Ref{Py}()
+const devitopro = Ref{Py}()
+const seismic = Ref{Py}()
 
-has_devitopro() = get(ENV, "DEVITO_PRO", "") != ""
+# has_devitopro() = get(ENV, "DEVITO_PRjO", "") != ""
+has_devitopro() = false
 
 function __init__()
     try
-        copy!(numpy, pyimport("numpy"))
-        copy!(sympy, pyimport("sympy"))
-        copy!(devito, pyimport("devito"))
-        copy!(devitopro, (has_devitopro() ? pyimport("devitopro") : pyimport("devito")))
-        copy!(seismic, pyimport("examples.seismic"))
+        pathlib[] = pyimport("pathlib")
+        numpy[] = pyimport("numpy")
+        sympy[] = pyimport("sympy")
+        devito[] = pyimport("devito")
+        devitopro[] = (has_devitopro() ? pyimport("devitopro") : pyimport("devito"))
+        seismic[] = pyimport("examples.seismic")
     catch e
         if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
             @warn "unable to pyimport"
@@ -26,10 +29,10 @@ function __init__()
     end   
 end
 
-numpy_eltype(dtype) = dtype == numpy.float32 ? Float32 : Float64
+numpy_eltype(dtype) = pytruth(pyeq(dtype, numpy[].float32)) ? Float32 : Float64
 
-PyCall.PyObject(::Type{Float32}) = numpy.float32
-PyCall.PyObject(::Type{Float64}) = numpy.float64
+PythonCall.Py(::Type{Float32}) = numpy[].float32
+PythonCall.Py(::Type{Float64}) = numpy[].float64
 
 """
     configuration!(key, value)
@@ -42,12 +45,12 @@ configuration!("mpi", false)
 ```
 """
 function configuration!(key, value)
-    c = PyDict(devito."configuration")
-    c[key] = value
-    c[key]
+    c = PyDict(devito[].configuration)
+    c[Py(key)] = Py(value)
+    pyconvert(Any, value)
 end
-configuration(key) = PyDict(devito."configuration")[key]
-configuration() = PyDict(devito."configuration")
+configuration(key) = pyconvert(String, devito[].configuration[Py(key)])
+configuration() = pyconvert(Dict, devito[].configuration)
 
 _reverse(argument::Tuple) = reverse(argument)
 _reverse(argument) = argument
@@ -59,13 +62,14 @@ function reversedims(arguments)
     (; zip(keys, values)...)
  end
 
+
 struct DevitoArray{T,N,A<:AbstractArray{T,N}} <: AbstractArray{T,N}
-    o::PyObject # Python object for the numpy array
+    o::Py # Python object for the numpy array
     p::A # copy-free
 end
 
 function DevitoArray{T,N}(o) where {T,N}
-    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), reverse(o.shape); own=false)
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(pyconvert(UInt64, o.__array_interface__["data"][0])), reverse(pyconvert(NTuple{N,Int}, o.shape)); own=false)
     DevitoArray{T,N,Array{T,N}}(o, p)
 end
 
@@ -115,7 +119,7 @@ end
 Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
 
 struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N}
-    o::PyObject
+    o::Py
     p::A
     local_indices::NTuple{N,UnitRange{Int}}
     decomposition::D
@@ -192,7 +196,7 @@ function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {
 end
 
 struct DevitoMPITimeArray{T,N,A<:AbstractArray{T,N},NM1,D} <: DevitoMPIAbstractArray{T,N}
-    o::PyObject
+    o::Py
     p::A
     local_indices::NTuple{N,UnitRange{Int}}
     decomposition::D
@@ -256,7 +260,7 @@ function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) whe
 end
 
 struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,NM1}
-    o::PyObject
+    o::Py
     p::Array{T,NM1}
     local_indices::NTuple{NM1,Vector{Int}}
     decomposition::D
@@ -278,7 +282,7 @@ localsize(x::DevitoMPISparseTimeArray) = length.(x.local_indices)
 
 
 struct DevitoMPISparseArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
-    o::PyObject
+    o::Py
     p::Array{T,NM1}
     local_indices::NTuple{NM1,Vector{Int}}
     decomposition::D
@@ -421,27 +425,27 @@ for (M,F) in ((:devito,:SpaceDimension),
               (:devito,:DefaultDimension))
     @eval begin
         struct $F <: AbstractDimension
-            o::PyObject
+            o::Py
         end
-        PyCall.PyObject(x::$F) = x.o
-        Base.convert(::Type{$F}, x::PyObject) = $F(x)
-        $F(args...; kwargs...) = pycall($M.$F, $F, args...; kwargs...)
+        PythonCall.Py(x::$F) = x.o
+        PythonCall.pyconvert(::Type{$F}, x::Py) = $F(x)
+        $F(args...; kwargs...) = pyconvert($F, $M[].$F(args...; kwargs...))
         export $F
     end
 end
 
 # subdimensions, generated using subdimension helper functions for simplicity 
 abstract type AbstractSubDimension <: AbstractDimension end
-for (M,F,G) in ((:devito,:SubDimensionLeft,:left), 
-                (:devito,:SubDimensionRight, :right), 
-                (:devito,:SubDimensionMiddle, :middle))
+for (M,F,G) in ((:devito, :SubDimensionLeft, :left),
+                (:devito, :SubDimensionRight, :right),
+                (:devito, :SubDimensionMiddle, :middle))
     @eval begin
         struct $F <: AbstractSubDimension
-            o::PyObject
+            o::Py
         end
-        PyCall.PyObject(x::$F) = x.o
-        Base.convert(::Type{$F}, x::PyObject) = $F(x) 
-        $F(args...; kwargs...) = pycall($M.SubDimension.$G, $F, args...; kwargs...)
+        PythonCall.Py(x::$F) = x.o
+        PythonCall.pyconvert(::Type{$F}, x::Py) = $F(x)
+        $F(args...; kwargs...) = pyconvert($F, $M[].SubDimension.$G(args...; kwargs...))
         export $F
     end
 end
@@ -518,39 +522,39 @@ for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito, :Inc))
 
     @eval begin
         struct $F
-            o::PyObject
+            o::Py
         end
-        PyCall.PyObject(x::$F) = x.o
-        Base.convert(::Type{$F}, x::PyObject) = $F(x)
-        $F(args...; kwargs...) = pycall($M.$F, $F, args...; kwargs...)
+        PythonCall.Py(x::$F) = x.o
+        PythonCall.pyconvert(::Type{$F}, x::Py) = $F(x)
+        $F(args...; kwargs...) = pyconvert($F, $M[].$F(args...; kwargs...))
         export $F
     end
 end
 
-Base.:(==)(x::Eq,y::Eq) = x.o == y.o
+Base.:(==)(x::Eq,y::Eq) = pytruth(x.o == y.o)
 
 struct Operator
-    o::PyObject
+    o::Py
 
     function Operator(args...; kwargs...)
         if :name ∈ keys(kwargs)
-            new(pycall(devito.Operator, PyObject, args...; kwargs...))
+            new(devito[].Operator(args...; kwargs...))
         else
-            new(pycall(devito.Operator, PyObject, args...; name="Kernel", kwargs...))
+            new(devito[].Operator(args...; name="Kernel", kwargs...))
         end
     end
     
-    function Operator(op::PyObject)
+    function Operator(op::Py)
         if (:apply ∈ propertynames(op)) && (:ccode ∈ propertynames(op))
             new(op)
         else
-            error("PyObject is not an operator")
+            error("Py is not an operator")
         end
     end
     
 end
-PyCall.PyObject(x::Operator) = x.o
-Base.convert(::Type{Operator}, x::PyObject) = Operator(x)
+PythonCall.Py(x::Operator) = x.o
+PythonCall.pyconvert(::Type{Operator}, x::Py) = Operator(x)
 export Operator
 
 """
@@ -570,7 +574,7 @@ and where you provide a list of `expressions` defining the computation.
 function Operator end
 
 struct Constant{T}
-    o::PyObject
+    o::Py
 end
 
 """
@@ -585,22 +589,22 @@ A Constant carries a scalar value.
 * `dtype::Type{AbstractFloat}` choose from `Float32` or `Float64`.  Default is `Float32`
 """
 function Constant(args...; kwargs...)
-    o =  pycall(devito.Constant, PyObject, args...; kwargs...)
+    o =  devito[].Constant(args...; kwargs...)
     T = numpy_eltype(o.dtype)
     Constant{T}(o)
 end
 
-function Constant(o::PyObject)
-    if (:is_const ∈ propertynames(o) ) && (o.is_const)
+function Constant(o::Py)
+    if pyhasattr(o, "is_const") && pytruth(o.is_const)
         T = numpy_eltype(o.dtype)
         Constant{T}(o)
     else
-        error("PyObject is not a Constant")
+        error("o::Py is not a Constant")
     end
 end
 
-PyCall.PyObject(x::Constant{T}) where {T} = x.o
-Base.convert(::Type{Constant}, x::PyObject) = Constant(x)
+PythonCall.Py(x::Constant{T}) where {T} = x.o
+PythonCall.pyconvert(::Type{Constant}, x::Py) = Constant(x)
 
 """
     data(x::Constant{T})
@@ -614,14 +618,14 @@ data(x::Constant) = value(x)
 
 Returns the value of a devito constant. Can not be used to change constant value, for that use value!(x,y)
 """
-value(x::Constant{T}) where {T} = convert(T,x.o._value)
+value(x::Constant{T}) where {T} = pyconvert(T,x.o._value)
 
 """
     isconst(x::Constant)
 
 True if the symbol value cannot be modified within an Operator (and thus its value is provided by the user directly from Python-land), False otherwise.
 """
-Base.isconst(x::Constant) = x.o.is_const
+Base.isconst(x::Constant) = pyconvert(Bool, x.o.is_const)
 
 """
     value!(x::Constant{T},y::T)
@@ -629,7 +633,7 @@ Base.isconst(x::Constant) = x.o.is_const
 Change the numerical value of a constant, x, after creation to y, after converting y to datatype T of constant x.
 """
 function value!(x::Constant{T},y::Real) where {T}
-    x.o.data = PyObject(convert(T,y))
+    x.o.data = Py(convert(T,y))
 end
 
 """
@@ -646,22 +650,8 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 """
 function SpaceDimension end
 
-Base.:(==)(x::AbstractDimension,y::AbstractDimension) = x.o == y.o
-PyCall.PyObject(x::AbstractDimension) = x.o
-"""
-    Opertor(expressions; kwargs...)
-
-Generate, JIT-compile and run C code starting from an ordered sequence of symbolic expressions.
-
-See: https://www.devitoproject.org/devito/operator.html?highlight=operator#devito.operator.operator.Operator""
-
-# Example
-Assuming that one has constructed the following Devito expressions: `stencil_p`, `src_term` and `rec_term`,
-```julia
-op = Operator([stencil_p, src_term, rec_term]; name="opIso")
-```
-"""
-function Operator end
+Base.:(==)(x::AbstractDimension,y::AbstractDimension) = pytruth(x.o == y.o)
+PythonCall.Py(x::AbstractDimension) = x.o
 
 """
     ConditionalDimension(;kwargs)
@@ -684,15 +674,15 @@ op = Operator([Eq(g, 1), Eq(f, g)],name="Cond")
 function ConditionalDimension end
 
 
-factor(x::ConditionalDimension) = x.o.factor
+factor(x::ConditionalDimension) = pyconvert(Any, x.o.factor) # TODO
 export factor
-Base.parent(x::Union{ConditionalDimension,SteppingDimension}) = x.o.parent
+Base.parent(x::Union{ConditionalDimension,SteppingDimension}) = pyconvert(Any, x.o.parent) # TODO
 
 #
 # Grid
 #
 struct Grid{T,N}
-    o::PyObject
+    o::Py
 end
 
 """
@@ -715,30 +705,30 @@ grid = Grid(
 ```
 """
 function Grid(args...; kwargs...)
-    o = pycall(devito.Grid, PyObject, args...; reversedims(kwargs)...)
+    o = devito[].Grid(args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     Grid{T,N}(o)
 end
 
-PyCall.PyObject(x::Grid) = x.o
+PythonCall.Py(x::Grid) = x.o
 
-Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = x.o == y.o
-Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
-extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,Float64})
+Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = pytruth(x.o == y.o)
+Base.size(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, grid.o.shape))
+extent(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, grid.o.extent))
 
 """
     origin(grid)
 
 returns the tuple corresponding to the grid's origin
 """
-origin(grid::Grid{T,N}) where {T,N} = reverse((grid.o.origin)::NTuple{N,Float64})
+origin(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, grid.o.origin))
 size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->size(grid)[i] + h[i][1] + h[i][2], N)
 Base.size(grid::Grid, i::Int) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
-spacing(x::Grid{T,N}) where {T,N} = reverse(x.o.spacing)
+spacing(x::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,T}, x.o.spacing))
 spacing_map(x::Grid{T,N}) where {T,N} = Dict( key => convert( T, val) for (key, val) in pairs(PyDict(x.o."spacing_map")))
 
 #
@@ -748,10 +738,10 @@ spacing_map(x::Grid{T,N}) where {T,N} = Dict( key => convert( T, val) for (key, 
 abstract type AbstractSubDomain{N} end
 
 struct SubDomain{N} <: AbstractSubDomain{N}
-    o::PyObject
+    o::Py
 end
 
-PyCall.PyObject(x::AbstractSubDomain) = x.o
+PythonCall.Py(x::AbstractSubDomain) = x.o
 
 """
     subdomains(grid)
@@ -774,7 +764,7 @@ returns the interior subdomain of a Devito grid
 """
 interior(x::Grid{T,N}) where {T,N} = SubDomain{N}(x.o.interior)
 
-Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = x.o == y.o
+Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = pytruth(x.o == y.o)
 
 #
 # Functions
@@ -786,10 +776,12 @@ struct DevitoMPIFalse <: DevitoMPI end
 abstract type DiscreteFunction{T,N,M} end
 
 struct Function{T,N,M} <: DiscreteFunction{T,N,M}
-    o::PyObject
+    o::Py
 end
 
-ismpi_distributed(o::PyObject) = (o._distributor === nothing) || (o._distributor.nprocs == 1) ? DevitoMPIFalse : DevitoMPITrue 
+ismpi_distributed(o::Py) = pytruth((o._distributor === pybuiltins.None) || (o._distributor.nprocs == Py(1))) ? DevitoMPIFalse : DevitoMPITrue 
+
+Base.:(==)(x::T, y::T) where {T<:DiscreteFunction}= pytruth(x.o == y.o)
 
 """
     Devito.Function(; kwargs...)
@@ -814,9 +806,9 @@ b = Devito.Function(name="b", grid=grid, space_order=8)
 """
 function Function(args...; allowpro=true, kwargs...)
     if allowpro
-        o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
+        o = devitopro[].Function(args...; reversedims(kwargs)...)
     else
-        o = pycall(devito.Function, PyObject, args...; reversedims(kwargs)...)
+        o = devito[].Function(args...; reversedims(kwargs)...)
     end
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
@@ -824,27 +816,27 @@ function Function(args...; allowpro=true, kwargs...)
     Function{T,N,M}(o)
 end
 
-function Function(o::PyObject)
+function Function(o::Py)
     # ensure pyobject corresponds to a devito function
     isafunction = (:is_Function ∈ propertynames(o)) && (o.is_Function == true)
-    isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == true))
-    isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true))
+    isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == pybuiltins.True))
+    isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == pybuiltins.True))
     if (isafunction && ~(isatimefunction || isasparsefunction))
         T = numpy_eltype(o.dtype)
         N = length(o.dimensions)
         M = ismpi_distributed(o)
         return Function{T,N,M}(o)
     else
-        error("PyObject is not a devito.Function")
+        error("Py is not a devito[].Function")
     end
 end
 
 struct SubFunction{T,N,M} <: DiscreteFunction{T,N,M}
-    o::PyObject
+    o::Py
 end
 
 struct TimeFunction{T,N,M} <: DiscreteFunction{T,N,M}
-    o::PyObject
+    o::Py
 end
 
 """
@@ -872,23 +864,15 @@ function TimeFunction(args...; allowpro=true, serialization=nothing, kwargs...)
     local o
     if allowpro
         if serialization === nothing
-            o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+            o = devitopro[].TimeFunction(args...; reversedims(kwargs)...)
         else
             if ~has_devitopro()
                 @error "Automatic serialization only supported with devito pro"
             end
-            # this is inelegant, TODO: find better way to handle layers.  
-            # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
-            # TODO: Generate MFE and submit as issue to PyCall
-            py"""
-            import devitopro
-            def serializedtimefunc(serialization, **kwargs):
-                return devitopro.TimeFunction(layers=devitopro.types.enriched.Disk, serialization=serialization, **kwargs)
-            """
-            o = py"serializedtimefunc"(serialization; Devito.reversedims(kwargs)...)
+            o = devitopro[].TimeFunction(layers=devitopro[].types.enriched.Disk, serialization=serialization; kwargs...)
         end
     else
-        o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+        o = devito[].TimeFunction(args...; reversedims(kwargs)...)
     end
     T = numpy_eltype(o.dtype)
     N = length(o.dimensions)
@@ -899,27 +883,19 @@ end
 function serial2str(x::TimeFunction)
     mypath = ""
     if hasproperty(x.o, :_fnbase)
-        mypath = py"str"(x.o._fnbase)
+        mypath = pystr(x.o._fnbase)
     else
         @warn "Object doesn't have serialized path!"
     end
-    return mypath
+    return pyconvert(String, mypath)
 end
 
-function str2serial(y::String)
-    py"""
-    from pathlib import Path
-    def str2path(y):
-        return Path(y)
-    """
-    return py"str2path"(y)
-end
-
+str2serial(y::String) = pathlib.Path(y)
 
 abstract type SparseDiscreteFunction{T,N,M} <:  DiscreteFunction{T,N,M} end
 
 struct SparseTimeFunction{T,N,M} <: SparseDiscreteFunction{T,N,M}
-    o::PyObject
+    o::Py
 end
 
 """
@@ -945,26 +921,26 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 ```
 """
 function SparseTimeFunction(args...; kwargs...)
-    o = pycall(devito.SparseTimeFunction, PyObject, args...; reversedims(kwargs)...)
+    o = devito[].SparseTimeFunction(args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     M = ismpi_distributed(o)
     SparseTimeFunction{T,N,M}(o)
 end
 
-function SparseTimeFunction(o::PyObject)
-    if (:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true)
+function SparseTimeFunction(o::Py)
+    if (:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == pybuiltins.True)
         T = numpy_eltype(o.dtype)
         N = length(o.shape)
         M = ismpi_distributed(o)
         return SparseTimeFunction{T,N,M}(o)
     else
-        error("PyObject is not a devito.SparseTimeFunction")
+        error("Py is not a devito[].SparseTimeFunction")
     end     
 end
 
 struct SparseFunction{T,N,M} <: SparseDiscreteFunction{T,N,M}
-    o::PyObject
+    o::Py
 end
 
 """
@@ -989,33 +965,32 @@ src = SparseFunction(name="src", grid=grid, npoint=1)
 ```
 """
 function SparseFunction(args...; kwargs...)
-    o = pycall(devito.SparseFunction, PyObject, args...; reversedims(kwargs)...)
+    o = devito[].SparseFunction(args...; reversedims(kwargs)...)
     T = numpy_eltype(o.dtype)
     N = length(o.shape)
     M = ismpi_distributed(o)
     SparseFunction{T,N,M}(o)
 end
 
-function SparseFunction(o::PyObject)
-    if ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true)) && ~((:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true))
+function SparseFunction(o::Py)
+    if :is_SparseFunction ∈ propertynames(o) && pytruth(o.is_SparseFunction) && ~(:is_SparseTimeFunction ∈ propertynames(o) && pytruth(o.is_SparseTimeFunction))
         T = numpy_eltype(o.dtype)
         N = length(o.shape)
         M = ismpi_distributed(o)
         return SparseFunction{T,N,M}(o)
     else
-        error("PyObject is not a devito.SparseFunction")
+        error("Py is not a devito[].SparseFunction")
     end     
 end
 
 function CoordSlowSparseFunction(args...; kwargs...)
-    @pydef mutable struct coordslowsparse <: devito.SparseFunction
-    
-        _sparse_position = 0
-    end
-    return SparseFunction(coordslowsparse(args...; reversedims(kwargs)...))
+    coordslowsparse = pytype("coordslowsparse", (devito[].SparseFunction,), [
+        "_sparse_position" => 0,
+    ])
+    SparseFunction(coordslowsparse(args...; reversedims(kwargs)...))
 end
 
-PyCall.PyObject(x::DiscreteFunction) = x.o
+PythonCall.Py(x::DiscreteFunction) = x.o
 
 """
     grid(f::DiscreteFunction)
@@ -1035,7 +1010,7 @@ end
 
 Return the Devito "outer" halo size corresponding to the discrete function `f`.
 """
-halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{Int,Int}}
+halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Tuple{Int,Int}}, x.o.halo))
 
 """
     inhalo(x::DiscreteFunction)
@@ -1043,14 +1018,14 @@ halo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.halo)::NTuple{N,Tuple{I
 Return the Devito "inner" halo size used for domain decomposition, and corresponding to
 the discrete function `f`.
 """
-inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._size_inhalo)::NTuple{N,Tuple{Int,Int}}
+inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Tuple{Int,Int}}, x.o._size_inhalo))
 
 """
     size(x::DiscreteFunction)
 
 Return the shape of the grid for the discrete function `x`.
 """
-Base.size(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o.shape)::NTuple{N,Int}
+Base.size(x::DiscreteFunction{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, x.o.shape))
 
 """
     ndims(x::DiscreteFunction)
@@ -1064,22 +1039,22 @@ Base.ndims(x::DiscreteFunction{T,N}) where {T,N} = N
 
 Return the size of the grid associated with `x`, inclusive of the Devito "outer" halo.
 """
-size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(convert.(Int, x.o.shape_with_halo))::NTuple{N,Int}
+size_with_halo(x::DiscreteFunction{T,N}) where{T,N} = reverse(pyconvert(NTuple{N,Int}, x.o.shape_with_halo))
 
 """
     size_with_inhalo(x::DiscreteFunction)
 
 Return the size of the grid associated with `z`, inclusive the the Devito "inner" and "outer" halos.
 """
-size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(x.o._shape_with_inhalo)::NTuple{N,Int}
+size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, x.o._shape_with_inhalo))
 
 Base.size(x::SparseDiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = size(data(x))
 
 size_with_halo(x::SparseDiscreteFunction) = size(x)
 
-localmask(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_domain[N-i+1].start)+1:convert(Int,x.o._mask_domain[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
-localmask_with_halo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_outhalo[N-i+1].start)+1:convert(Int,x.o._mask_outhalo[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
-localmask_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->convert(Int,x.o._mask_inhalo[N-i+1].start)+1:convert(Int,x.o._mask_inhalo[N-i+1].stop), N)::NTuple{N,UnitRange{Int}}
+localmask(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->pyconvert(Int,x.o._mask_domain[N-i].start)+1:pyconvert(Int,x.o._mask_domain[N-i].stop), N)::NTuple{N,UnitRange{Int}}
+localmask_with_halo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->pyconvert(Int,x.o._mask_outhalo[N-i].start)+1:pyconvert(Int,x.o._mask_outhalo[N-i].stop), N)::NTuple{N,UnitRange{Int}}
+localmask_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = ntuple(i->pyconvert(Int,x.o._mask_inhalo[N-i].start)+1:pyconvert(Int,x.o._mask_inhalo[N-i].stop), N)::NTuple{N,UnitRange{Int}}
 
 localindices(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask(x)
 localindices_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = localmask_with_halo(x)
@@ -1090,7 +1065,7 @@ localindices_with_inhalo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = 
 
 Returns the space order for spatial derivatives defined on the associated TimeFunction or Function
 """
-space_order(x::Union{TimeFunction,Function}) = x.o.space_order
+space_order(x::Union{TimeFunction,Function}) = pyconvert(Any, x.o.space_order) # TODO - maybe specify the type here.
 
 """
     forward(x::TimeFunction)
@@ -1142,11 +1117,11 @@ Perform substitution on the dimensions of Devito Discrete Function f based on a 
 subs(f::DiscreteFunction{T,N,M},dict::Dict) where {T,N,M} = f.o.subs(dict)
 
 """
-    evaluate(x::PyObject)
+    evaluate(x::Py)
 
-Evaluate a PyCall expression
+Evaluate a Py expression
 """
-evaluate(x::PyObject) = x.evaluate
+evaluate(x::Py) = x.evaluate
 
 """
     data(x::DiscreteFunction)
@@ -1171,7 +1146,7 @@ array of type `DevitoMPIArray`.
 The `data` can be converted to an `Array` via `convert(Array, data(x))`.  In the case where `data(x)::DevitoMPIArray`,
 this also *collects* the data onto MPI rank 0.
 """
-data_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o."_data_allocated"), localindices_with_halo(x)...)
+data_with_halo(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = view(DevitoArray{T,N}(x.o._data_allocated), localindices_with_halo(x)...)
 
 """
     data_with_inhalo(x::DiscreteFunction)
@@ -1199,8 +1174,8 @@ this also *collects* the data onto MPI rank 0.
 data_allocated(x::DiscreteFunction{T,N,DevitoMPIFalse}) where {T,N} = DevitoArray{T,N}(x.o."_data_allocated")
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
-    if localinds === nothing
+    localinds = pygetattr(x.o, "local_indices", pybuiltins.None)
+    if localinds === pybuiltins.None
         return ntuple(i -> 0:-1, N)
     else
         return ntuple(i->convert(Int,localinds[N-i+1].start)+1:convert(Int,localinds[N-i+1].stop), N)
@@ -1468,19 +1443,19 @@ Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z
 coordinates_data(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data(coordinates(x))
 
 export DevitoArray, localindices, SubFunction
-function dimension(o::PyObject)
-    if :is_Dimension ∈ propertynames(o)
-        if o.is_Conditional
+function dimension(o::Py)
+    if pyhasattr(o, "is_Dimension")
+        if pytruth(o.is_Conditional)
             return ConditionalDimension(o)
-        elseif o.is_Stepping
+        elseif pytruth(o.is_Stepping)
             return SteppingDimension(o)
-        elseif o.is_Space
+        elseif pytruth(o.is_Space)
             return SpaceDimension(o)
-        elseif o.is_Time
+        elseif pytruth(o.is_Time)
             return TimeDimension(o)
-        elseif o.is_Default
+        elseif pytruth(o.is_Default)
             return DefaultDimension(o)
-        elseif o.is_Dimension
+        elseif pytruth(o.is_Dimension)
             return Dimension(o)
         end
     end
@@ -1493,7 +1468,7 @@ end
 Returns a tuple with the dimensions associated with the Devito grid.
 """
 function dimensions(x::Union{Grid{T,N},DiscreteFunction{T,N},AbstractSubDomain{N}}) where {T,N}
-    ntuple(i->dimension(x.o.dimensions[N-i+1]), N)
+    ntuple(i->dimension(x.o.dimensions[N-i]), N)
 end
 
 """
@@ -1519,7 +1494,7 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 src_term = inject(src; field=forward(p), expr=2*src)
 ```
 """
-inject(x::SparseDiscreteFunction, args...; kwargs...) = pycall(PyObject(x).inject, Injection, args...; kwargs...)
+inject(x::SparseDiscreteFunction, args...; kwargs...) = Injection(Py(x).inject(args...; kwargs...))
 
 """
     interpolate(x::SparseDiscreteFunction; kwargs...)
@@ -1552,7 +1527,7 @@ rec_coords[2,:] .= δx*(0:nx-1)
 rec_term = interpolate(rec, expr=p)
 ```
 """
-interpolate(x::SparseDiscreteFunction; kwargs...) = pycall(PyObject(x).interpolate, PyObject; kwargs...)
+interpolate(x::SparseDiscreteFunction; kwargs...) = Py(x).interpolate(;kwargs...)
 
 """
 apply(    operator::Operator; kwargs...)
@@ -1565,7 +1540,7 @@ Note that this returns a `summary::Dict` of the action of applying the operator.
 such as the number of floating point operations executed per second.
 """
 function apply(x::Operator, args...; kwargs...)
-    _summary = pycall(PyObject(x).apply, PyObject, args...; kwargs...)
+    _summary = Py(x).apply(args...; kwargs...)
 
     summary = Dict()
     for (k,v) in _summary.items()
@@ -1607,11 +1582,11 @@ end
 
 Returns the derivative of a constant or number, which is zero.
 """
-Derivative(x::Union{Constant, Number}, args...; kwargs...) = PyObject(0)
+Derivative(x::Union{Constant, Number}, args...; kwargs...) = Py(0)
 
 
 """
-    Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...)
+    Derivative(x::Union{DiscreteFunction,Py}, args...; kwargs...)
 
 
     An unevaluated Derivative, which carries metadata (Dimensions,
@@ -1662,18 +1637,18 @@ Derivative(x::Union{Constant, Number}, args...; kwargs...) = PyObject(0)
     ```
     
 """
-Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(devito.Derivative, PyObject, PyObject(x), args...; kwargs...)
+Derivative(x::Union{DiscreteFunction,Py}, args...; kwargs...) = devito[].Derivative(Py(x), args...; kwargs...)
 
 # metaprograming for various derivative shorthands
 for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dx2,:dy2,:dz2,:dxdy,:dxdz,:dydz)
     @eval begin
-        $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = ( hasproperty(PyObject(x),Symbol($F)) ? pycall(PyObject(x).$F, PyObject, args...; kwargs...) : PyObject(0) )
-        $F(x::Union{Constant,Number}, args...; kwargs...) = PyObject(0)
+        $F(x::Union{DiscreteFunction,Py}, args...; kwargs...) = ( pyhasattr(Py(x),String($F)) ? Py(x).$F(args...; kwargs...) : Py(0) )
+        $F(x::Union{Constant,Number}, args...; kwargs...) = Py(0)
         export $F
     end
 end
 """
-    dx(f::Union{DiscreteFunction,PyObject,Constant,Number}, args...; kwargs...)
+    dx(f::Union{DiscreteFunction,Py,Constant,Number}, args...; kwargs...)
 
 Returns the symbol for the first derivative with respect to x if f is a Function with dimension x.
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
@@ -1746,7 +1721,7 @@ Otherwise returns 0.  Thus, the derivative of a function with respect to a dimen
 function dz end
 
 """
-    dx2(f::Union{DiscreteFunction,PyObject,Constant,Number}, args...; kwargs...)
+    dx2(f::Union{DiscreteFunction,Py,Constant,Number}, args...; kwargs...)
 
 Returns the symbol for the second derivative with respect to x if f is a Function with dimension x.
 Otherwise returns 0.  Thus, the derivative of a function with respect to a dimension it doesn't have is zero, as is the derivative of a constant.
@@ -1764,7 +1739,7 @@ function dy2 end
 # metaprograming for various derivatives
 for F in (:dt,:dt2)
     @eval begin
-        $F(x::Union{TimeFunction,PyObject}, args...; kwargs...) = pycall(PyObject(x).$F, PyObject, args...; kwargs...)
+        $F(x::Union{TimeFunction,Py}, args...; kwargs...) = Py(x).$F(args...; kwargs...)
         export $F
     end
 end
@@ -1786,28 +1761,28 @@ function dt2 end
 # metaprogramming for basic operations
 for F in ( :+, :-, :*, :/, :^)
     @eval begin
-        Base.$F(x::Real,y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Union{DiscreteFunction,Constant,AbstractDimension}, y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(PyObject(x),PyObject(y))
-        Base.$F(x::Union{DiscreteFunction,Constant,Dimension}, y::PyObject) = $F(x.o,y)
-        Base.$F(x::PyObject, y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(x,y.o)
-        Base.$F(x::Union{DiscreteFunction,Constant,AbstractDimension}, y::Real) = $F(PyObject(x),PyObject(y))
+        Base.$F(x::Real,y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(Py(x),Py(y))
+        Base.$F(x::Union{DiscreteFunction,Constant,AbstractDimension}, y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(Py(x),Py(y))
+        Base.$F(x::Union{DiscreteFunction,Constant,Dimension}, y::Py) = $F(x.o,y)
+        Base.$F(x::Py, y::Union{DiscreteFunction,Constant,AbstractDimension}) = $F(x,y.o)
+        Base.$F(x::Union{DiscreteFunction,Constant,AbstractDimension}, y::Real) = $F(Py(x),Py(y))
     end
 end
 
-Base.:(-)(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = -1*x
-Base.:(+)(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = x
+Base.:(-)(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = -1*x
+Base.:(+)(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = x
 
 # metaprogramming to access Devito dimension boolean attributes
 for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Derived, :is_NonlinearDerived, :is_Sub, :is_Conditional, :is_Stepping, :is_Modulo, :is_Incr)
     @eval begin
-        $F(x::AbstractDimension) = x.o.$F::Bool
+        $F(x::AbstractDimension) = pyconvert(Bool, x.o.$F)
         export $F
     end
 end
 # metaprogramming for devito conditionals
 for (M,F) in ((:devito,:Ne),(:devito,:Gt),(:devito,:Ge),(:devito,:Lt),(:devito,:Le))
     @eval begin
-        $F(x::Union{Real,DiscreteFunction,PyObject,AbstractDimension},y::Union{Real,DiscreteFunction,PyObject,AbstractDimension}) = $M.$F(PyObject(x),PyObject(y))
+        $F(x::Union{Real,DiscreteFunction,Py,AbstractDimension},y::Union{Real,DiscreteFunction,Py,AbstractDimension}) = $M.$F(Py(x),Py(y))
         export $F
     end
 end
@@ -1815,7 +1790,7 @@ end
 # metaprogramming for symbolic operations on Devito dimensions
 for F in (:symbolic_min, :symbolic_max, :spacing, :symbolic_size)
     @eval begin
-        $F(x::AbstractDimension) = PyObject(x).$F
+        $F(x::AbstractDimension) = Py(x).$F
         export $F
     end
 end
@@ -1858,7 +1833,7 @@ function symbolic_size end
 # metaprograming for Devito functions taking variable number of arguments
 for (M,F) in ((:devito,:Min), (:devito,:Max),(:sympy,:And))
     @eval begin
-        $F(args...) = $M.$F((PyObject.(args))...)
+        $F(args...) = $M.$F((Py.(args))...)
         export $F
     end
 end
@@ -1894,26 +1869,26 @@ function Max end
 # functions defined on real numbers with equivalent in base
 for F in (:cos, :sin, :tan, :sinh, :cosh, :tanh, :exp, :floor)
     @eval begin
-        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
+        Base.$F(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = devito[].$F(Py(x))
     end
 end
 # functions defined on real numbers who are written differently in base
 for F in (:Abs,:ceiling)
     @eval begin
-        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = devito[].$F(Py(x))
         export $F
     end
 end
 # functions defined on positive numbers with equivalent in base
 for F in (:sqrt,)
     @eval begin
-        Base.$F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
+        Base.$F(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = devito[].$F(Py(x))
     end
 end
 # functions defined on positive numbers who are written differently in base
 for F in (:ln,)
     @eval begin
-        $F(x::Union{AbstractDimension,DiscreteFunction,PyObject,Constant}) = devito.$F(PyObject(x))
+        $F(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = devito[].$F(Py(x))
         export $F
     end
 end
@@ -1923,32 +1898,24 @@ end
 
 Perform Modular division on a dimension
 """
-Mod(x::AbstractDimension,y::Int) = sympy.Mod(PyObject(x),PyObject(y))
+Mod(x::AbstractDimension,y::Int) = sympy.Mod(Py(x),Py(y))
 export Mod
 
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)
-    py"""
-    def indexobj(x,*args):
-        return x[args]
-    """
-   return py"indexobj"(x,reverse(args)...)
+    @pyexec (x=Py(x), args=args) => `ans = x[args]` => ans::Py
 end
 
 # helper functions for mapping arguments to python
 shiftarg(x::Int) = x-1
 shiftarg(x) = x
 
-function pygetindex(x::PyObject,args...)
-    py"""
-    def indexobj(x,*args):
-        return x[args]
-    """
-   return py"indexobj"(x,reverse(shiftarg.(args))...)
+function pygetindex(x::Py,args...)
+   @pyexec (x=Py(x), args=reverse(shiftarg.(args))) => `ans = x[_args]` => ans::Py
 end
 
 struct IndexedData
-    o::PyObject
+    o::Py
 end
 
 """
@@ -1956,16 +1923,16 @@ The wrapped IndexedData object.
 """
 indexed(x::DiscreteFunction) = IndexedData(x)
 IndexedData(x::DiscreteFunction) = IndexedData(x.o.indexed)
-PyCall.PyObject(x::IndexedData) = x.o
+PythonCall.Py(x::IndexedData) = x.o
 
 Base.getindex(x::IndexedData,args...) = Indexed(pygetindex(x.o, args...))
 
 struct Indexed
-    o::PyObject
-    Indexed(o) = ( hasproperty(o, :is_Indexed) && getproperty(o, :is_Indexed) ? new(o) : error("not indexed"))
+    o::Py
+    Indexed(o) = pyhasattr(o, "is_Indexed") && pygetattr(o, "is_Indexed") ? new(o) : error("not indexed")
 end
 
-PyCall.PyObject(x::Indexed) = x.o
+PythonCall.Py(x::Indexed) = x.o
 
 """
     ccode(x::Operator; filename="")
@@ -1974,16 +1941,14 @@ Print the ccode associated with a devito operator.
 If filename is provided, writes ccode to disk using that filename
 """
 function ccode(x::Operator; filename="")
-    py"""
-    def ccode(x, filename):
-        if filename == "":
-            return print(x)
-        else:
-            with open(filename, 'w') as f:
-                print(x,file=f)
-    """
-   py"ccode"(x.o,filename)
-   return nothing
+    if filename == ""
+        pyprint(x)
+    else
+        f = @pyeval (filename=filename,) => `open(filename, 'w')` => Py
+        pyprint(x, file=f)
+        @pyeval (f=f,) => `close(f)`
+    end
+    return nothing
 end
 
 """
@@ -2013,36 +1978,46 @@ function SubDomain(name::String, instructions...)
     # copy and reverse instructions
     instructions = reverse(instructions)
     N = length(instructions)
-    @pydef mutable struct subdom <: devito.SubDomain
-        function __init__(self, name, instructions)
-            self.name = name
-            self.instructions = instructions
-        end
-        function define(self, dimensions)
-            dims = PyDict()
-            for idim = 1:length(dimensions)
-                # dims[dimensions[idim]] = self.instructions[idim] in ((nothing,),("middle",0,0)) ? dimensions[idim] : self.instructions[idim]
-                dims[dimensions[idim]] = self.instructions[idim] in (nothing,) ? dimensions[idim] : self.instructions[idim]
+    subdom = pytype("subdom", (devito[].SubDomain,), [
+        "_dimensions" => 1,
+        "instructions" => 1,
+        pyfunc(
+            name = "__init__",
+            function (self, name, instructions)
+                self.name = name
+                self.instructions = instructions
+                nothing
             end
-            return dims
-        end
-    end
-    return SubDomain{N}(subdom(name,instructions))    
+        ),
+        pyclassmethod(
+            name = "define",
+            function (self, dimensions)
+                dims = PyDict()
+                for idim = 1:length(dimensions)
+                    # dims[dimensions[idim]] = self.instructions[idim] in ((nothing,),("middle",0,0)) ? dimensions[idim] : self.instructions[idim]
+                    dims[dimensions[idim]] = self.instructions[idim] in (nothing,) ? dimensions[idim] : self.instructions[idim]
+                end
+                self._dimensions = dims
+                return dims
+            end
+        )
+    ])
+    return SubDomain{N}(subdom(name,instructions))
 end
 
 struct Buffer
-    o::PyObject
+    o::Py
 end
 
 """
     Buffer(value::Int)
 Construct a devito buffer.  This may be used as a save= keyword argument in the construction of TimeFunctions.
 """
-Buffer(value::Int) = Buffer(pycall(devito.Buffer, PyObject, value))
-PyCall.PyObject(x::Buffer) = x.o
+Buffer(value::Int) = Buffer(devito[].Buffer(value))
+PythonCall.Py(x::Buffer) = x.o
 
 """
-    nsimplify(expr::PyObject; constants=(), tolerance=none, full=false, rational=none, rational_conversion="base10")
+    nsimplify(expr::Py; constants=(), tolerance=none, full=false, rational=none, rational_conversion="base10")
 
 Wrapper around `sympy.nsimplify`.
 Find a simple representation for a number or, if there are free symbols or
@@ -2070,51 +2045,51 @@ See https://github.com/sympy/sympy/blob/52f606a503cea5e9588de14150ccb9f7f9ed4752
 
 # Examples:
 ```julia
-nsimplify(π) # PyObject 314159265358979/100000000000000
+nsimplify(π) # Py 314159265358979/100000000000000
 ```
 ```julia
-nsimplify(π; tolerance=0.1) # PyObject 22/7
+nsimplify(π; tolerance=0.1) # Py 22/7
 ```
 """
-nsimplify(expr::PyObject; constants=(), tolerance=nothing, full=false, rational=nothing, rational_conversion="base10") = pycall(sympy.nsimplify, PyObject, expr, constants=constants, tolerance=tolerance, full=full, rational=rational, rational_conversion=rational_conversion)
+nsimplify(expr::Py; constants=(), tolerance=nothing, full=false, rational=nothing, rational_conversion="base10") = sympy.nsimplify(expr, constants=constants, tolerance=tolerance, full=full, rational=rational, rational_conversion=rational_conversion)
 
-nsimplify(x::Number; kwargs...) = nsimplify(PyObject(x); kwargs...)
+nsimplify(x::Number; kwargs...) = nsimplify(Py(x); kwargs...)
 
 """
-    solve(eq::PyObject, target::PyObject; kwargs...)
+    solve(eq::Py, target::Py; kwargs...)
 
 Algebraically rearrange an Eq w.r.t. a given symbol.
 This is a wrapper around ``devito.solve``, which in turn is a wrapper around ``sympy.solve``.
 
 # Parameters
-* `eq::PyObject` expr-like. The equation to be rearranged.
-* `target::PyObject` The symbol w.r.t. which the equation is rearranged. May be a `Function` or any other symbolic object.
+* `eq::Py` expr-like. The equation to be rearranged.
+* `target::Py` The symbol w.r.t. which the equation is rearranged. May be a `Function` or any other symbolic object.
 
 ## kwargs
 * Symbolic optimizations applied while rearranging the equation. For more information. refer to `sympy.solve.__doc__`.
 """
-solve(eq::PyObject, target::PyObject; kwargs...) = pycall(devito.solve, PyObject, eq, target, kwargs...)
+solve(eq::Py, target::Py; kwargs...) = devito[].solve(eq, target, kwargs...)
 
 """
     name(x::Union{SubDomain, DiscreteFunction, TimeFunction, Function, Constant, AbstractDimension, Operator})
 
 returns the name of the Devito object
 """
-name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = x.o.name
+name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = pyconvert(String, x.o.name)
 
-Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = isequal(PyObject(x), PyObject(y))
+Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = isequal(Py(x), Py(y))
 
-Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection}) = hash(PyObject(x))
+Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection}) = hash(Py(x))
 
 # metaprogramming for unary ops
 for F in (:Byref, :Deref, :Cast)
     @eval begin
         struct $F
-            o::PyObject
+            o::Py
         end
-        $F(base::Union{DiscreteFunction,IndexedData,Indexed,String}, kwargs...) = pycall(devito.symbolics.$F, $F, base, kwargs...) # Todo: support Sympy.Basic as well
-        PyCall.PyObject(x::$F) = x.o
-        Base.convert(::Type{$F}, x::PyObject) = $F(x)
+        $F(base::Union{DiscreteFunction,IndexedData,Indexed,String}, kwargs...) = $F(devito[].symbolics.$F(base, kwargs...)) # Todo: support Sympy.Basic as well
+        PythonCall.Py(x::$F) = x.o
+        PythonCall.pyconvert(::Type{$F}, x::Py) = $F(x)
         export $F 
     end
 end
@@ -2138,11 +2113,11 @@ function Cast end
 for F in (:Pointer,)
     @eval begin
         struct $F
-            o::PyObject
+            o::Py
         end
-        $F(args...; kwargs...) = pycall(devito.types.$F, $F, args...; kwargs...)
-        PyCall.PyObject(x::$F) = x.o
-        Base.convert(::Type{$F}, x::PyObject) = $F(x)
+        PythonCall.Py(x::$F) = x.o
+        PythonCall.pyconvert(::Type{$F}, x::Py) = $F(x)
+        $F(args...; kwargs...) = pyconvert($F, devito[].types.$F(args...;kwargs...))
         export $F 
     end
 end
@@ -2155,18 +2130,18 @@ function Pointer end
 # DevitoPro Stuff
 
 struct ABox{N} <: Devito.AbstractSubDomain{N}
-    o::PyObject
+    o::Py
 end
 
 function ABox(src::Union{Devito.SparseTimeFunction,Nothing}, rcv::Union{Devito.SparseTimeFunction,Nothing}, vp::Devito.Function{T,N}, space_order::Int; kwargs...) where {T,N}
     if ~has_devitopro()
         @error "ABox only supported with DevitoPro"
     end
-    o = pycall(devitopro.ABox, PyObject, src, rcv, vp, space_order; kwargs...)
+    o = devitopro(src, rcv, vp, space_order; kwargs...)
     ABox{N}(o)
 end
 
-intersection(box::ABox{N}, sub::Devito.SubDomain{N}) where {N} = ABox{N}(pycall(PyObject(box).intersection, PyObject, PyObject(sub)))
+intersection(box::ABox{N}, sub::Devito.SubDomain{N}) where {N} = ABox{N}(Py(box).intersection(Py(sub)))
 
 vp(abox::ABox) = Devito.Function(abox.o.vp)
 eps(abox::ABox) = abox.o.eps
@@ -2185,28 +2160,28 @@ compute(abox::ABox; dt) = abox.o._compute(; dt=dt)
 export ABox
 
 struct CCall
-    o::PyObject
+    o::Py
 end
 
-PyCall.PyObject(x::CCall) = x.o
+PythonCall.Py(x::CCall) = x.o
 
 function CCall(name::String; header=nothing, header_dirs = (), libs = (), lib_dirs = (), target = "host", types = ())
     if ~has_devitopro()
         @error "CCall only supported with DevitoPro"
     end
-    classname = Symbol(uppercasefirst(name))
-    @eval begin
-        @pydef mutable struct $classname <: devitopro.CCall
-            name = $name
-            header = $header
-            header_dirs = $header_dirs
-            libs = $libs
-            lib_dirs = $lib_dirs
-            target = $target
-            types = $types
-        end
-        return CCall($classname)
-    end
+    classname = uppercasefirst(name)
+
+    c = pytype(classname, (devitopro[].CCall,), [
+        "name" => name,
+        "header" => header,
+        "header_dirs" => header_dirs,
+        "libs" => libs,
+        "lib_dirs" => lib_dirs,
+        "target" => target,
+        "types" => types
+    ])
+
+    return CCall(c)
 end
 
 name(x::CCall) = x.o.name

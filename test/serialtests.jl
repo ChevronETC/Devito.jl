@@ -1,4 +1,4 @@
-using Devito, LinearAlgebra, Random, PyCall, Strided, Test
+using Devito, LinearAlgebra, Random, PythonCall, Strided, Test
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
@@ -19,7 +19,7 @@ end
     @test eltype(grid) == T
     @test extent(grid) == ex
     @test origin(grid) == ori
-    @test spacing(grid) == ex ./ (n .- 1)
+    @test spacing(grid) == convert(NTuple{length(n),T}, ex ./ (n .- 1))
     for i in 1:length(n)
         @test size(grid,i) == n[i]
     end
@@ -30,9 +30,9 @@ end
     @test size_with_halo(grid,halo) == size(grid) .+ (sum.(halo)...,)
 end
 
-@testset "DevitoArray creation from PyObject n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
+@testset "DevitoArray creation from Py n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
     N = length(n)
-    array = PyObject(ones(T,n...))
+    array = Py(Devito.numpy[].ones(n, dtype=Py(T)))
     devito_array = DevitoArray(array)
     @test typeof(devito_array) <: DevitoArray{T,N}
     @test devito_array ≈ ones(T, reverse(n)...)
@@ -104,17 +104,17 @@ end
     @test value(a) == data(a)
     value!(a, π)
     @test value(a) == convert(Float32,π)
-    @test typeof(convert(Constant,PyObject(a))) == Constant{Float32}
-    @test convert(Constant,PyObject(a)) === a
+    @test typeof(pyconvert(Constant,Py(a))) == Constant{Float32}
+    @test pyconvert(Constant, Py(a)) === a
 
     p = Constant(name="p", dtype=Float64, value=π)
     @test typeof(value(p)) == Float64
     @test value(p) == convert(Float64,π)
     @test data(p) == value(p)
-    @test typeof(convert(Constant,PyObject(p))) == Constant{Float64}
-    @test convert(Constant,PyObject(p)) === p
+    @test typeof(pyconvert(Constant,Py(p))) == Constant{Float64}
+    @test pyconvert(Constant,Py(p)) === p
 
-    @test_throws  ErrorException("PyObject is not a Constant")  convert(Constant,PyObject(Dimension(name="d")))
+    @test_throws  ErrorException("o::Py is not a Constant")  pyconvert(Constant,Py(Dimension(name="d")))
 end
 
 @testset "TimeFunction, data with halo, n=$n" for n in ( (4,5), (4,5,6) )
@@ -172,7 +172,7 @@ end
     g = Grid(shape=n, dtype=T)
     sf = SparseFunction(name="sf", grid=g, npoint=npoint)
     @test typeof(sf) <: SparseFunction{T,1}
-    @test sf.o === PyObject(sf)
+    @test sf.o === Py(sf)
 end
 
 @testset "SparseFunction grid method, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
@@ -202,12 +202,12 @@ end
     @test _sf_coords ≈ x
 end
 
-@testset "SparseFunction from PyObject, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+@testset "SparseFunction from Py, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
     g = Grid(shape=n, dtype=T)
     sf = SparseFunction(name="sf", grid=g, npoint=npoint)
-    @test SparseFunction(PyObject(sf)) === sf
+    @test SparseFunction(Py(sf)) === sf
     stf = SparseTimeFunction(name="stf", grid=g, npoint=npoint, nt=5)
-    @test_throws ErrorException("PyObject is not a devito.SparseFunction") SparseFunction(PyObject(stf))
+    @test_throws ErrorException("Py is not a devito[].SparseFunction") SparseFunction(Py(stf))
 end
 
 @testset "Multidimensional SparseFunction, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
