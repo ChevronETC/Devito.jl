@@ -5,16 +5,11 @@ from devito.tools import as_tuple
 
 try:
     from devitopro import TimeFunction
-    from devitopro.types.enriched import Disk, DiskHost
 except ImportError:
-    Disk = None
+    print("unable to import devitopro.TimeFunction")
 
 
-__all__ = ['serializedtimefunc', 'str2path', 'indexobj', 'ccode', 'subdom']
-
-
-def serializedtimefunc(**kwargs):
-    return TimeFunction(layers=Disk, **kwargs)
+__all__ = ['str2path', 'indexobj', 'ccode', 'subdom']
 
 
 def str2path(y):
