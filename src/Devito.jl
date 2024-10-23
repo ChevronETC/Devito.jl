@@ -10,6 +10,8 @@ const seismic = PyNULL()
 const utils = PyNULL()
 const enriched = PyNULL()
 
+include("cso.jl")
+
 has_devitopro() = devitopro != devito
 
 function __init__()
@@ -47,21 +49,37 @@ end
 PyCall.PyObject(::Type{Float32}) = numpy.float32
 PyCall.PyObject(::Type{Float64}) = numpy.float64
 PyCall.PyObject(::Type{Int8}) = numpy.int8
+PyCall.PyObject(::Type{UInt8}) = numpy.uint8
 PyCall.PyObject(::Type{Int16}) = numpy.int16
+PyCall.PyObject(::Type{UInt16}) = numpy.uint16
 PyCall.PyObject(::Type{Int32}) = numpy.int32
 PyCall.PyObject(::Type{Int64}) = numpy.int64
 PyCall.PyObject(::Type{ComplexF32}) = numpy.complex64
 PyCall.PyObject(::Type{ComplexF64}) = numpy.complex128
- 
-function numpy_eltype(dtype)
+PyCall.PyObject(::Type{FloatX{m, M, T, UInt8}}) where {m, M, T} = devitopro.Float8(m, M, dcmptype=T)
+PyCall.PyObject(::Type{FloatX{m, M, T, UInt16}}) where {m, M, T} = return devitopro.Float16(m, M, dcmptype=T)
+
+function numpy_eltype(o::PyObject)
+    if haskey(o, "compression")
+        return _numpy_eltype(o.compression)
+    else
+        return _numpy_eltype(o.dtype)
+    end
+end
+
+function _numpy_eltype(dtype)
     if dtype == numpy.float32
         return Float32
     elseif dtype == numpy.float64
         return Float64
     elseif dtype == numpy.int8
         return Int8
+    elseif dtype == numpy.uint8
+        return UInt8
     elseif dtype == numpy.int16
         return Int16
+    elseif dtype == numpy.uint16
+        return UInt16
     elseif dtype == numpy.int32
         return Int32
     elseif dtype == numpy.int64
@@ -70,6 +88,10 @@ function numpy_eltype(dtype)
         return ComplexF32
     elseif dtype == numpy.complex128
         return ComplexF64
+    elseif pybuiltin(:isinstance)(dtype, devitopro.data.FloatX)
+        dcmtype = _numpy_eltype(dtype.dcmptype)
+        comptype = _numpy_eltype(dtype.nptype)
+        return FloatX{convert(dcmtype, dtype.m.data), convert(dcmtype, dtype.M.data), dcmtype, comptype}
     else
         error("Unsupported NumPy data type: $(dtype)")
     end
@@ -114,7 +136,7 @@ function DevitoArray{T,N}(o) where {T,N}
 end
 
 function DevitoArray(o)
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     N = length(o.shape)
     DevitoArray{T,N}(o)
 end
@@ -639,13 +661,13 @@ A Constant carries a scalar value.
 """
 function Constant(args...; kwargs...)
     o =  pycall(devito.Constant, PyObject, args...; kwargs...)
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     Constant{T}(o)
 end
 
 function Constant(o::PyObject)
     if (:is_const ∈ propertynames(o) ) && (o.is_const)
-        T = numpy_eltype(o.dtype)
+        T = numpy_eltype(o)
         Constant{T}(o)
     else
         error("PyObject is not a Constant")
@@ -755,7 +777,7 @@ grid = Grid(
 """
 function Grid(args...; kwargs...)
     o = pycall(devito.Grid, PyObject, args...; reversedims(kwargs)...)
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     N = length(o.shape)
     Grid{T,N}(o)
 end
@@ -853,7 +875,7 @@ b = Devito.Function(name="b", grid=grid, space_order=8)
 """
 function Function(args...; kwargs...)
     o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     N = length(o.dimensions)
     M = ismpi_distributed(o)
     Function{T,N,M}(o)
@@ -865,7 +887,7 @@ function Function(o::PyObject)
     isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == true))
     isasparsefunction = ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true))
     if (isafunction && ~(isatimefunction || isasparsefunction))
-        T = numpy_eltype(o.dtype)
+        T = numpy_eltype(o)
         N = length(o.dimensions)
         M = ismpi_distributed(o)
         return Function{T,N,M}(o)
@@ -905,7 +927,7 @@ p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 # function TimeFunction(args...; kwargs...)
 #     local o
 #     o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
-#     T = numpy_eltype(o.dtype)
+#     T = numpy_eltype(o)
 #     N = length(o.dimensions)
 #     M = ismpi_distributed(o)
 #     TimeFunction{T,N,M}(o)
@@ -923,7 +945,7 @@ function TimeFunction(args...; lazy=false, kwargs...)
         # TODO: Generate MFE and submit as issue to PyCall
         o = utils."serializedtimefunc"(; Devito.reversedims(kwargs)...)
     end
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     N = length(o.dimensions)
     M = ismpi_distributed(o)
     TimeFunction{T,N,M}(o)
@@ -933,7 +955,7 @@ function TimeFunction(o::PyObject)
     # ensure pyobject corresponds to a devito timefunction
     isatimefunction = ((:is_TimeFunction ∈ propertynames(o)) && (o.is_TimeFunction == true))
     if (isatimefunction)
-        T = numpy_eltype(o.dtype)
+        T = numpy_eltype(o)
         N = length(o.dimensions)
         M = ismpi_distributed(o)
         return TimeFunction{T,N,M}(o)
@@ -985,7 +1007,7 @@ src = SparseTimeFunction(name="src", grid=grid, npoint=1, nt=length(time_range))
 """
 function SparseTimeFunction(args...; kwargs...)
     o = pycall(devito.SparseTimeFunction, PyObject, args...; reversedims(kwargs)...)
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     N = length(o.shape)
     M = ismpi_distributed(o)
     SparseTimeFunction{T,N,M}(o)
@@ -993,7 +1015,7 @@ end
 
 function SparseTimeFunction(o::PyObject)
     if (:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true)
-        T = numpy_eltype(o.dtype)
+        T = numpy_eltype(o)
         N = length(o.shape)
         M = ismpi_distributed(o)
         return SparseTimeFunction{T,N,M}(o)
@@ -1029,7 +1051,7 @@ src = SparseFunction(name="src", grid=grid, npoint=1)
 """
 function SparseFunction(args...; kwargs...)
     o = pycall(devito.SparseFunction, PyObject, args...; reversedims(kwargs)...)
-    T = numpy_eltype(o.dtype)
+    T = numpy_eltype(o)
     N = length(o.shape)
     M = ismpi_distributed(o)
     SparseFunction{T,N,M}(o)
@@ -1037,7 +1059,7 @@ end
 
 function SparseFunction(o::PyObject)
     if ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true)) && ~((:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true))
-        T = numpy_eltype(o.dtype)
+        T = numpy_eltype(o)
         N = length(o.shape)
         M = ismpi_distributed(o)
         return SparseFunction{T,N,M}(o)
