@@ -25,7 +25,7 @@ try
         cd(_pwd)
 
         # use nvc compiler
-        ENV["CC"] = "nvc"
+        ENV["CC"] = get(ENV, "DEVITO_PRO_CC", "nvc")
 
         # devitopro
         Conda.pip("install", "$(dir)")
@@ -38,7 +38,7 @@ try
         Conda.pip("install --no-cache-dir -r", "https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt")
 
         # mpi requirements
-        ENV["CFLAGS"] = "-noswitcherror -tp=px"
+        ENV["CFLAGS"] = get(ENV, "DEVITO_PRO_CFLAGS", "-noswitcherror -tp=px")
         Conda.pip("install --no-cache-dir -r", "https://raw.githubusercontent.com/devitocodes/devito/master/requirements-mpi.txt")
         delete!(ENV,"CFLAGS")
 
