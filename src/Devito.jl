@@ -61,7 +61,12 @@ PyCall.PyObject(::Type{FloatX{m, M, T, UInt16}}) where {m, M, T} = return devito
 
 function numpy_eltype(o::PyObject)
     if haskey(o, "compression")
-        return _numpy_eltype(o.compression)
+        try
+            return _numpy_eltype(o.compression)
+        catch
+            # Compression is None or actuall compression backend
+            return _numpy_eltype(o.dtype)
+        end
     else
         return _numpy_eltype(o.dtype)
     end
@@ -938,7 +943,7 @@ function TimeFunction(args...; lazy=false, kwargs...)
         o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
     else
         if ~has_devitopro()
-            @error "Automatic serialization only supported with devito pro"
+            o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
         end
         # this is inelegant, TODO: find better way to handle layers.  
         # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
