@@ -14,7 +14,8 @@ __all__ = ['serializedtimefunc', 'str2path', 'indexobj', 'ccode', 'subdom']
 
 
 def serializedtimefunc(**kwargs):
-    return TimeFunction(layers=Disk, **kwargs)
+    layers = kwargs.pop('layers', Disk)
+    return TimeFunction(layers=layers, **kwargs)
 
 
 def str2path(y):

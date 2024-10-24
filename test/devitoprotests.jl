@@ -18,7 +18,7 @@ using Devito, Test
 end
 
 # 2024-08-15 JKW these two ABox tests are broken -- some kind of API change? 
-@test_skip @testset "ABox Time Function" begin
+@testset "ABox Time Function" begin
     g = Grid(shape=(5,5), extent=(4.0,4.0))
     nt = 3
     coords = [2. 2. ;]
@@ -29,7 +29,9 @@ end
     dt = 1.0
     t = time_dim(g)
     abox = ABox(src, nothing, vp, space_order)
-    u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order)
+    # This needs layers = nothing as currently setup to automatically
+    # deffault to disk and buffered/saved functions cannot be used like that in an equation
+    u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order, layers=nothing)
     op = Operator([Eq(forward(u), t+1, subdomain=abox)])
     apply(op, dt=dt)
     @test data(u)[:,:,1] ≈ zeros(Float32, 5 , 5)
@@ -39,7 +41,7 @@ end
     @test data(u)[:,:,3] ≈ 2 .* ones(Float32, 5 , 5)
 end
 
-@test_skip @testset "ABox Intersection Time Function" begin
+@testset "ABox Intersection Time Function" begin
     mid = SubDomain("mid",[("middle",2,2),("middle",0,0)])
     g = Grid(shape=(5,5), extent=(4.0,4.0), subdomains=mid)
     nt = 3
@@ -52,7 +54,8 @@ end
     t = time_dim(g)
     abox = ABox(src, nothing, vp, space_order)
     intbox = Devito.intersection(abox,mid)
-    u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order)
+    # Similar as above, need layers=nothing
+    u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order, layers=nothing)
     op = Operator([Eq(forward(u), t+1, subdomain=intbox)])
     apply(op, dt=dt)
     @test data(u)[:,:,1] ≈ zeros(Float32, 5 , 5)
@@ -64,28 +67,49 @@ end
     @test data(u)[:,:,3] ≈ zeros(Float32, 5 , 5)
 end
 
-@testset "CCall with printf" begin
-    # CCall test written to use gcc
-    configuration!("compiler","gcc")
-    pf = CCall("printf", header="stdio.h")
-    @test Devito.name(pf) == "printf"
-    @test Devito.header(pf) == "stdio.h"
-    printingop = Operator([pf([""" "hello world!" """])])
-    ccode(printingop, filename="helloworld.c")
-    # read the program
-    code = read("helloworld.c", String)
-    # check to make sure header is in the program
-    @test occursin("#include \"stdio.h\"\n", code)
-    # check to make sure the printf statement is in the program
-    @test occursin("printf(\"hello world!\" );\n", code)
-    # test to make sure the operator compiles and runs
-    @test try apply(printingop)
-        true
-    catch
-        false
+@testset "FloatX dtypes" begin
+    g = Grid(shape=(5,5))
+    for (nb, DT, CT) in zip([8, 16], [FloatX8, FloatX16], [UInt8, UInt16])
+        dtype = DT(1.5f0, 4.5f0)
+        atol = Devito.scale(dtype)
+
+        @test Devito.compressed_type(dtype) == CT
+        @test Devito.compressed_type(dtype(1)) == CT
+
+        # Scale and offset
+        @test Devito.nbytes(dtype) == nb
+        @test Devito.nbytes(dtype(1)) == nb
+
+        @test Devito.offset(dtype) == 1.5f0
+        @test Devito.offset(dtype(1)) == 1.5f0
+
+        @test Devito.scale(dtype) == (4.5f0 - 1.5f0) / (2^nb - 1)
+        @test Devito.scale(dtype(1)) == (4.5f0 - 1.5f0) / (2^nb - 1)
+
+        @test dtype(1.5f0).value == CT(0)
+        @test dtype(4.5f0) == CT(2^nb - 1)
+
+        # Arrays. zeros is defined as initializer eventhough out of range
+        # to avoid initialization issues
+        a = zeros(dtype, 5, 5)
+        @test a[1, 1].value == CT(0)
+        a = ones(dtype, 5, 5)
+        @test a[1, 1].value == CT(1)
+        a .= 1.5f0
+        @test all(isapprox.(a, 1.5f0; rtol=0, atol=atol))
+        a .= 1f0 .+ 3f0
+        @test all(isapprox.(a, 4f0; rtol=0, atol=atol))
+        a .= 4.5f0
+        @test all(a .== 4.5f0)
+        a .= a .- a ./ 2f0
+        @test all(isapprox.(a, 2.25f0; rtol=0, atol=atol))
+
+        # Now test function
+        f = Devito.Function(name="f", grid=g, dtype=dtype, space_order=0)
+        @test eltype(data(f)) == dtype
+        data(f) .= 1.5f0
+        @test all(data(f) .== 1.5f0)
     end
-    # remove the file
-    rm("helloworld.c", force=true)
 end
 
 # JKW: removing for now, not sure what is even being tested here
@@ -122,3 +146,28 @@ end
 #     end
 #     rm(filename, force=true)
 # end
+
+
+@testset "CCall with printf" begin
+    # CCall test written to use gcc
+    configuration!("compiler", "gcc-14")
+    pf = CCall("printf", header="stdio.h")
+    @test Devito.name(pf) == "printf"
+    @test Devito.header(pf) == "stdio.h"
+    printingop = Operator([pf([""" "hello world!" """])])
+    ccode(printingop, filename="helloworld.c")
+    # read the program
+    code = read("helloworld.c", String)
+    # check to make sure header is in the program
+    @test occursin("#include \"stdio.h\"\n", code)
+    # check to make sure the printf statement is in the program
+    @test occursin("printf(\"hello world!\" );\n", code)
+    # test to make sure the operator compiles and runs
+    @test try apply(printingop)
+        true
+    catch
+        false
+    end
+    # remove the file
+    rm("helloworld.c", force=true)
+end
