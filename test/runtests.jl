@@ -9,5 +9,8 @@ end
 # run(`$(mpiexec()) -n 4 julia --code-coverage mpitests_4ranks.jl`)
 
 if Devito.has_devitopro()
+    @info "running devito pro tests"
     include("devitoprotests.jl")
+else
+    @info "not running devito pro tests"
 end

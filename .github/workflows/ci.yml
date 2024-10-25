@@ -28,12 +28,6 @@ jobs:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v1
-      - name: setup devitopro
-        if: matrix.devitoversion == 'devitopro'
-        run: |
-          echo "DEVITO_PRO=${{ secrets.DEVITOPRO }}" >> $GITHUB_ENV
-          echo 'DEVITO_PRO_CC="gcc"' >> $GITHUB_ENV
-          echo 'DEVITO_PRO_CFLAGS="-O2"' >> $GITHUB_ENV
       - name: install mpi
         run: sudo apt-get update
       - run: sudo apt-get install -y mpich libmpich-dev
@@ -45,7 +39,17 @@ jobs:
         run: export PATH=~/miniconda/bin:${PATH}
       - name: use system MPI
         run: julia -e 'using Pkg; Pkg.add(["MPI", "MPIPreferences"]); using MPIPreferences; MPIPreferences.use_system_binary()'
+      - name: run build for devito/devitopro
+        if: matrix.devitoversion == 'devitopro'
+        run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
+        shell: bash
+        env:
+          PYTHON: '~/miniconda/bin/python3'
+          DEVITO_PRO: ${{ secrets.DEVITOPRO }}
+          DEVITO_PRO_CC: 'gcc'
+          DEVITO_PRO_CFLAGS: '-O2'
       - name: run build for devito
+        if: matrix.devitoversion == 'devito'
         run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
         shell: bash
         env:
