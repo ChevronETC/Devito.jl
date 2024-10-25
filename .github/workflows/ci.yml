@@ -50,6 +50,9 @@ jobs:
         shell: bash
         env:
           PYTHON: '~/miniconda/bin/python3'
+          DEVITO_PRO: ${{ secrets.DEVITOPRO }}
+          DEVITO_PRO_CC: 'gcc'
+          DEVITO_PRO_CFLAGS: '-O2'
       # note Pkg.test docs indicate --inline=no can improve coverage
       - run: julia --color=yes --check-bounds=yes --inline=no --project -e 'using Pkg; Pkg.test(coverage=true)'
       - uses: julia-actions/julia-processcoverage@v1
