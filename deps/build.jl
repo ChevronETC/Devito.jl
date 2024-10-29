@@ -14,6 +14,7 @@ try
         Conda.pip("uninstall -y", "devitopro")
         Conda.pip("uninstall -y", "devito")
         Conda.pip("uninstall -y", "numpy")
+        Conda.pip("uninstall -y", "mpi4py")
         
         # clone the devitopro repository and init submodules
         dir = "$(tempname())-devitopro"
