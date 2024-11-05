@@ -88,6 +88,56 @@ end
     rm("helloworld.c", force=true)
 end
 
+# currently only gcc and nvc are useful
+devito_arch = get(ENV, "DEVITO_ARCH", "gcc")
+compression = []
+(lowercase(devito_arch) == "nvc") && (push!(compression, "bitcomp"))
+(lowercase(devito_arch) == "gcc") && (push!(compression, "cvxcompress"))
+@info "testing compression with $(compression)"
+
+@testset "Serialization with compression=$(compression)" for compression in compression
+    if compression == "bitcomp"
+        configuration!("compiler", "nvc")
+    else
+        configuration!("compiler", "gcc")
+    end
+
+    nt = 11
+    space_order = 8
+    grid = Grid(shape=(21,21,21), dtype=Float32)
+    f1 = TimeFunction(name="f1", grid=grid, space_order=space_order, time_order=1, save=Buffer(1))
+    f2 = TimeFunction(name="f2", grid=grid, space_order=space_order, time_order=1, save=Buffer(1))
+    z, y, x, t = dimensions(f1)
+    ct = ConditionalDimension(name="ct", parent=time_dim(grid), factor=1)
+    dumpdir = joinpath(tempdir(),"test-bitcomp")
+    isdir(dumpdir) && rm(dumpdir, force=true, recursive=true)
+    mkdir(dumpdir)
+    flazy = TimeFunction(name="flazy", lazy=false, grid=grid, time_order=0, space_order=space_order, time_dim=ct, save=nt, compression=compression, serialization=dumpdir)
+
+    eq1 = Eq(forward(f1),f1+1)
+    eq2 = Eq(flazy, f1)
+    if compression == "bitcomp"
+        op1 = Operator([eq1,eq2], name="OpTestBitcompCompress", nbits=24)
+        apply(op1, time_m=1, time_M=nt-1)
+    else
+        op1 = Operator([eq1,eq2], name="OpTestCvxCompress")
+        apply(op1, time_m=1, time_M=nt-1, compscale=1.0e-6)
+    end
+    
+    eq3 = Eq(f2, flazy)
+    op2 = Operator([eq3], name="OpTestDecompress")
+    for kt = 1:nt-1
+        if compression == "bitcomp"
+            apply(op2, time_m=1, time_M=kt)
+        else
+            apply(op2, time_m=1, time_M=kt)
+        end
+        @show kt,extrema(data(f2)[:,:,:,1])
+        @test minimum(data(f2)) ≈ Float32(kt)
+        @test maximum(data(f2)) ≈ Float32(kt)
+    end
+end
+
 # JKW: removing for now, not sure what is even being tested here
 # @testset "Serialization with CCall T=$T" for T in (Float32,Float64)
 #     space_order = 2
