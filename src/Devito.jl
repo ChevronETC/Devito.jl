@@ -1179,6 +1179,7 @@ Perform substitution on the dimensions of Devito Discrete Function f based on a 
 ```
 """
 subs(f::DiscreteFunction{T,N,M},dict::Dict) where {T,N,M} = f.o.subs(dict)
+subs(o::PyObject, dict::Dict) = o.subs(dict)
 
 """
     evaluate(x::PyObject)
