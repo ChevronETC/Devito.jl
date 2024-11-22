@@ -112,6 +112,31 @@ end
     end
 end
 
+@testset "CCall with printf" begin
+    # CCall test written to use gcc
+    @pywith switchconfig(;compiler=get(ENV, "CC", "gcc")) begin
+        pf = CCall("printf", header="stdio.h")
+        @test Devito.name(pf) == "printf"
+        @test Devito.header(pf) == "stdio.h"
+        printingop = Operator([pf([""" "hello world!" """])])
+        ccode(printingop, filename="helloworld.c")
+        # read the program
+        code = read("helloworld.c", String)
+        # check to make sure header is in the program
+        @test occursin("#include \"stdio.h\"\n", code)
+        # check to make sure the printf statement is in the program
+        @test occursin("printf(\"hello world!\" );\n", code)
+        # test to make sure the operator compiles and runs
+        @test try apply(printingop)
+            true
+        catch
+            false
+        end
+        # remove the file
+        rm("helloworld.c", force=true)
+    end
+end
+
 # JKW: removing for now, not sure what is even being tested here
 # @testset "Serialization with CCall T=$T" for T in (Float32,Float64)
 #     space_order = 2
@@ -146,28 +171,3 @@ end
 #     end
 #     rm(filename, force=true)
 # end
-
-
-@testset "CCall with printf" begin
-    # CCall test written to use gcc
-    configuration!("compiler", "gcc-14")
-    pf = CCall("printf", header="stdio.h")
-    @test Devito.name(pf) == "printf"
-    @test Devito.header(pf) == "stdio.h"
-    printingop = Operator([pf([""" "hello world!" """])])
-    ccode(printingop, filename="helloworld.c")
-    # read the program
-    code = read("helloworld.c", String)
-    # check to make sure header is in the program
-    @test occursin("#include \"stdio.h\"\n", code)
-    # check to make sure the printf statement is in the program
-    @test occursin("printf(\"hello world!\" );\n", code)
-    # test to make sure the operator compiles and runs
-    @test try apply(printingop)
-        true
-    catch
-        false
-    end
-    # remove the file
-    rm("helloworld.c", force=true)
-end

@@ -120,6 +120,8 @@ end
 configuration(key) = get(devito."configuration", key)
 configuration() = devito.configuration
 
+switchconfig(;kw...) = devito.switchconfig(;kw...)
+
 _reverse(argument::Tuple) = reverse(argument)
 _reverse(argument) = argument
 
@@ -1206,6 +1208,7 @@ Perform substitution on the dimensions of Devito Discrete Function f based on a 
 ```
 """
 subs(f::DiscreteFunction{T,N,M},dict::Dict) where {T,N,M} = f.o.subs(dict)
+subs(o::PyObject,dict::Dict) = o.subs(dict)
 
 """
     evaluate(x::PyObject)
@@ -2259,6 +2262,13 @@ types(x::CCall) = x.o.types
 export CCall
 
 
-export Buffer, Constant, CoordSlowSparseFunction, Derivative, DiscreteFunction, Grid, Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply, backward, ccode, configuration, configuration!, coordinates, coordinates_data, data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions, dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate, localindices, localindices_with_halo, localindices_with_inhalo, localsize, name, nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map, step, subdomains, subs, thickness, value, value!
+export Buffer, Constant, CoordSlowSparseFunction, Derivative, DiscreteFunction, Grid
+export Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply
+export backward, ccode, configuration, configuration!, switchconfig, coordinates, coordinates_data
+export data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions
+export dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate
+export localindices, localindices_with_halo, localindices_with_inhalo, localsize, name
+export nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map
+export step, subdomains, subs, thickness, value, value!
 
 end
