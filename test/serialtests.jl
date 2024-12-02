@@ -6,7 +6,7 @@ configuration!("language", "openmp")
 configuration!("mpi", false)
 
 # you need to use when testing locally due to the Libdl startup issue for the nv compiler
-configuration!("compiler", "gcc")
+configuration!("compiler", get(ENV, "CC", "gcc"))
 configuration!("platform", "cpu64")
 
 @testset "configuration" begin
@@ -655,9 +655,9 @@ end
         @test parent(subdim) == d
         @test PyObject(subdim) == subdim.o
     end
-    @test (thickness(dl)[1][2], thickness(dl)[2][2]) == (2, nothing)
-    @test (thickness(dr)[1][2], thickness(dr)[2][2]) == (nothing, 3)
-    @test (thickness(dm)[1][2], thickness(dr)[2][2]) == (2, 3)
+    @test (thickness(dl)[1].value, thickness(dl)[2].value) == (2, nothing)
+    @test (thickness(dr)[1].value, thickness(dr)[2].value) == (nothing, 3)
+    @test (thickness(dm)[1].value, thickness(dr)[2].value) == (2, 3)
 end
 
 @testset "Devito stepping dimension" begin
