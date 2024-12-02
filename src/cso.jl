@@ -1,4 +1,5 @@
 import Base.==
+import Base.eps
 
 export FloatX8, FloatX16
 
@@ -26,6 +27,8 @@ compressed_type(x::FloatX{m, M, T, U}) where {m, M, T<:Real, U} = U
 # Conversions
 decompress(x::FloatX{m, M, T, U}) where {m, M, T<:Real, U} = m + x.value * scale(x)
 compress(::Type{FloatX{m, M, T, U}}, x::T) where {m, M, T<:Real, U} = trunc(U, (x - m) / scale(FloatX{m, M, T, U}))
+
+Base.eps(::Type{FloatX{m, M, T, U}}) where {m, M, T<:Real, U} = eps(T)
 
 Base.convert(::Type{FloatX{m, M, T, U}}, x::T) where {m, M, T<:Real, U} = FloatX{m, M, T, U}(x)
 Base.convert(::Type{T}, x::FloatX{m, M, T, U}) where {m, M, T<:Real, U} = Base.convert(T, decompress(x))
