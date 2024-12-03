@@ -1,6 +1,6 @@
-using Devito, Test
+using Devito, PyCall, Test
 
-@test_skip @testset "ABox Expanding Source" begin
+@testset "ABox Expanding Source" begin
     g = Grid(shape=(8,8), extent=(7.0,7.0))
     nt = 3
     coords = [0.5 2.5; 2.5 2.5; 0.5 4.5; 2.5 4.5]
@@ -18,7 +18,7 @@ using Devito, Test
 end
 
 # 2024-08-15 JKW these two ABox tests are broken -- some kind of API change? 
-@test_skip @testset "ABox Time Function" begin
+@testset "ABox Time Function" begin
     g = Grid(shape=(5,5), extent=(4.0,4.0))
     nt = 3
     coords = [2. 2. ;]
@@ -41,7 +41,7 @@ end
     @test data(u)[:,:,3] ≈ 2 .* ones(Float32, 5 , 5)
 end
 
-@test_skip @testset "ABox Intersection Time Function" begin
+@testset "ABox Intersection Time Function" begin
     mid = SubDomain("mid",[("middle",2,2),("middle",0,0)])
     g = Grid(shape=(5,5), extent=(4.0,4.0), subdomains=mid)
     nt = 3
@@ -116,7 +116,19 @@ end
     @test eps(dtype) ≈ eps(mytype)
 end
 
-@test_skip @testset "CCall with printf" begin
+@testset "FloatX arrays with $(mytype), $(DT), $(CT), autopad=$(autopad)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16]), autopad ∈ (true,false)
+    configuration!("autopadding", autopad)
+    g = Grid(shape=(5,5))
+    dtype = DT(mytype(-1.1), mytype(+1.1))
+    f = Devito.Function(name="f", grid=g, dtype=dtype, space_order=8)
+    g = Devito.Function(name="g", grid=g, dtype=dtype, space_order=8)
+    values = -1 .+ 2 .* rand(mytype,size(g))
+    data(f) .= values
+    copyto!(data(g),values)
+    @test isapprox(Devito.decompress.(data(f)), Devito.decompress.(data(g)))
+end
+
+@testset "CCall with printf" begin
     # CCall test written to use gcc
     @pywith switchconfig(;compiler=get(ENV, "CC", "gcc")) begin
         pf = CCall("printf", header="stdio.h")
@@ -147,7 +159,7 @@ compression = []
 (lowercase(devito_arch) == "nvc") && (push!(compression, "bitcomp"))
 (lowercase(devito_arch) == "gcc") && (push!(compression, "cvxcompress"))
 
-@test_skip @testset "Serialization with compression=$(compression)" for compression in compression
+@testset "Serialization with compression=$(compression)" for compression in compression
     @info "testing compression with $(compression)"
     if compression == "bitcomp"
         configuration!("compiler", "nvc")
@@ -192,7 +204,7 @@ compression = []
 end
 
 # JKW: removing for now, not sure what is even being tested here
-# @test_skip @testset "Serialization with CCall T=$T" for T in (Float32,Float64)
+# @testset "Serialization with CCall T=$T" for T in (Float32,Float64)
 #     space_order = 2
 #     time_M = 3
 #     filename = "testserialization.bin"
