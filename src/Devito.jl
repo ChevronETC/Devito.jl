@@ -793,14 +793,14 @@ PyCall.PyObject(x::Grid) = x.o
 
 Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = x.o == y.o
 Base.size(grid::Grid{T,N}) where {T,N} = reverse((grid.o.shape)::NTuple{N,Int})
-extent(grid::Grid{T,N}) where {T,N} = reverse((grid.o.extent)::NTuple{N,Float64})
+extent(grid::Grid{T,N}) where {T,N} = convert.(Float64, reverse(grid.o.extent))::NTuple{N,Float64}
 
 """
     origin(grid)
 
 returns the tuple corresponding to the grid's origin
 """
-origin(grid::Grid{T,N}) where {T,N} = reverse((grid.o.origin)::NTuple{N,Float64})
+origin(grid::Grid{T,N}) where {T,N} = convert.(Float64, reverse(grid.o.origin))::NTuple{N,Float64}
 size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->size(grid)[i] + h[i][1] + h[i][2], N)
 Base.size(grid::Grid, i::Int) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N
@@ -1734,7 +1734,7 @@ Derivative(x::Union{Constant, Number}, args...; kwargs...) = PyObject(0)
 Derivative(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = pycall(devito.Derivative, PyObject, PyObject(x), args...; kwargs...)
 
 # metaprograming for various derivative shorthands
-for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dx2,:dy2,:dz2,:dxdy,:dxdz,:dydz)
+for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dxc,:dyc,:dzc,:dx2,:dy2,:dz2,:dxdy,:dxdz,:dydz,:laplacian)
     @eval begin
         $F(x::Union{DiscreteFunction,PyObject}, args...; kwargs...) = ( hasproperty(PyObject(x),Symbol($F)) ? pycall(PyObject(x).$F, PyObject, args...; kwargs...) : PyObject(0) )
         $F(x::Union{Constant,Number}, args...; kwargs...) = PyObject(0)
