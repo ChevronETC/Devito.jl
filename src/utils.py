@@ -36,9 +36,10 @@ def ccode(x, filename):
 
 class subdom(SubDomain):
 
-    def __init__(self, name, instructions):
+    def __init__(self, name, instructions, *args, **kwargs):
         self.name = name
         self.instructions = as_tuple(instructions)
+        super().__init__(*args, **kwargs)
     
     def define(self, dimensions):
         defines = {}
