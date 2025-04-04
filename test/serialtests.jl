@@ -22,6 +22,8 @@ end
     @test size(grid) == n
     @test ndims(grid) == length(n)
     @test eltype(grid) == T
+    @show ex
+    @show extent(grid)
     @test extent(grid) == ex
     @test origin(grid) == ori
     @test spacing(grid) == ex ./ (n .- 1)
@@ -1223,6 +1225,123 @@ end
     op = Operator([Inc(b, A*v)], name="inctest")
     apply(op)
     @test data(b)[:] ≈ sum(data(A), dims=Tuple([1:length(n)-1;]))[:]
+end
+
+@testset "derivative shorthand dxl,dyl,dzl" begin
+    shape=(11,12,13)
+    grid = Grid(shape=shape, dtype=Float32)
+    f = Devito.Function(name="f", grid=grid, space_order=8)
+    fx1 = Devito.Function(name="fx1", grid=grid, space_order=8)
+    fx2 = Devito.Function(name="fx2", grid=grid, space_order=8)
+    fy1 = Devito.Function(name="fy1", grid=grid, space_order=8)
+    fy2 = Devito.Function(name="fy2", grid=grid, space_order=8)
+    fz1 = Devito.Function(name="fz1", grid=grid, space_order=8)
+    fz2 = Devito.Function(name="fz2", grid=grid, space_order=8)
+    z,y,x = dimensions(f)
+    data(f) .= rand(Float32,shape)
+    eqx1 = Eq(fx1,dxc(f))
+    eqx2 = Eq(fx2, Derivative(f, x, size="left", deriv_order=1))
+    eqy1 = Eq(fy1,dyc(f))
+    eqy2 = Eq(fy2, Derivative(f, y, size="left", deriv_order=1))
+    eqz1 = Eq(fz1,dzc(f))
+    eqz2 = Eq(fz2, Derivative(f, z, size="left", deriv_order=1))
+    op = Operator([eqx1,eqx2,eqy1,eqy2,eqz1,eqz2], name="op")
+    apply(op)
+    @test maximum(abs,data(fx1)) > 0
+    @test maximum(abs,data(fx2)) > 0
+    @test maximum(abs,data(fy1)) > 0
+    @test maximum(abs,data(fy2)) > 0
+    @test maximum(abs,data(fz1)) > 0
+    @test maximum(abs,data(fz2)) > 0
+    @test isapprox(data(fx1), data(fx2))
+    @test isapprox(data(fy1), data(fy2))
+    @test isapprox(data(fz1), data(fz2))
+end
+
+@testset "derivative shorthand dxr,dyr,dzr" begin
+    shape=(11,12,13)
+    grid = Grid(shape=shape, dtype=Float32)
+    f = Devito.Function(name="f", grid=grid, space_order=8)
+    fx1 = Devito.Function(name="fx1", grid=grid, space_order=8)
+    fx2 = Devito.Function(name="fx2", grid=grid, space_order=8)
+    fy1 = Devito.Function(name="fy1", grid=grid, space_order=8)
+    fy2 = Devito.Function(name="fy2", grid=grid, space_order=8)
+    fz1 = Devito.Function(name="fz1", grid=grid, space_order=8)
+    fz2 = Devito.Function(name="fz2", grid=grid, space_order=8)
+    z,y,x = dimensions(f)
+    data(f) .= rand(Float32,shape)
+    eqx1 = Eq(fx1,dxc(f))
+    eqx2 = Eq(fx2, Derivative(f, x, size="right", deriv_order=1))
+    eqy1 = Eq(fy1,dyc(f))
+    eqy2 = Eq(fy2, Derivative(f, y, size="right", deriv_order=1))
+    eqz1 = Eq(fz1,dzc(f))
+    eqz2 = Eq(fz2, Derivative(f, z, size="right", deriv_order=1))
+    op = Operator([eqx1,eqx2,eqy1,eqy2,eqz1,eqz2], name="op")
+    apply(op)
+    @test maximum(abs,data(fx1)) > 0
+    @test maximum(abs,data(fx2)) > 0
+    @test maximum(abs,data(fy1)) > 0
+    @test maximum(abs,data(fy2)) > 0
+    @test maximum(abs,data(fz1)) > 0
+    @test maximum(abs,data(fz2)) > 0
+    @test isapprox(data(fx1), data(fx2))
+    @test isapprox(data(fy1), data(fy2))
+    @test isapprox(data(fz1), data(fz2))
+end
+
+@testset "derivative shorthand dxc,dyc,dzc" begin
+    shape=(11,12,13)
+    grid = Grid(shape=shape, dtype=Float32)
+    f = Devito.Function(name="f", grid=grid, space_order=8)
+    fx1 = Devito.Function(name="fx1", grid=grid, space_order=8)
+    fx2 = Devito.Function(name="fx2", grid=grid, space_order=8)
+    fy1 = Devito.Function(name="fy1", grid=grid, space_order=8)
+    fy2 = Devito.Function(name="fy2", grid=grid, space_order=8)
+    fz1 = Devito.Function(name="fz1", grid=grid, space_order=8)
+    fz2 = Devito.Function(name="fz2", grid=grid, space_order=8)
+    z,y,x = dimensions(f)
+    data(f) .= rand(Float32,shape)
+    eqx1 = Eq(fx1,dxc(f))
+    eqx2 = Eq(fx2, Derivative(f, x, size="centered", deriv_order=1))
+    eqy1 = Eq(fy1,dyc(f))
+    eqy2 = Eq(fy2, Derivative(f, y, size="centered", deriv_order=1))
+    eqz1 = Eq(fz1,dzc(f))
+    eqz2 = Eq(fz2, Derivative(f, z, size="centered", deriv_order=1))
+    op = Operator([eqx1,eqx2,eqy1,eqy2,eqz1,eqz2], name="op")
+    apply(op)
+    @test maximum(abs,data(fx1)) > 0
+    @test maximum(abs,data(fx2)) > 0
+    @test maximum(abs,data(fy1)) > 0
+    @test maximum(abs,data(fy2)) > 0
+    @test maximum(abs,data(fz1)) > 0
+    @test maximum(abs,data(fz2)) > 0
+    @test isapprox(data(fx1), data(fx2))
+    @test isapprox(data(fy1), data(fy2))
+    @test isapprox(data(fz1), data(fz2))
+end
+
+@testset "laplacian" begin
+    shape=(11,21,31)
+    grid = Grid(shape=shape, dtype=Float32, origin=(0,0,0), extent=shape .- 1)
+    f = Devito.Function(name="f", grid=grid, space_order=8)
+    g = Devito.Function(name="g", grid=grid, space_order=8)
+    h = Devito.Function(name="h", grid=grid, space_order=8)
+    z,y,x = dimensions(f)
+    a,b,c = 1.2,1.7,2.3
+    df = data_with_halo(f)
+    n1,n2,n3 = size(df)
+    for k1 ∈ 1:n1
+        for k2 ∈ 1:n2
+            for k3 ∈ 1:n3
+                df[k1,k2,k3] = 1/2 * (a * k1^2 + b * k2^2 + c * k3^2)
+            end
+        end
+    end
+    eq1 = Eq(g,laplacian(f))
+    eq2 = Eq(h,dx(dx(f,x0=x-spacing(x)),x0=x+spacing(x)) + dy(dy(f,x0=y-spacing(y)),x0=y+spacing(y)) + dz(dz(f,x0=z-spacing(z)),x0=z+spacing(z)))
+    op = Operator([eq1,eq2], name="op")
+    apply(op)
+    @test isapprox(data(g), data(h))
 end
 
 nothing
