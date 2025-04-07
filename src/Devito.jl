@@ -1992,7 +1992,7 @@ end
 
 Perform Modular division on a dimension
 """
-Mod(x::AbstractDimension,y::Int) = sympy.Mod(PyObject(x),PyObject(y))
+Mod(x::Union{AbstractDimension,PyObject},y::Int) = sympy.Mod(PyObject(x),PyObject(y))
 export Mod
 
 """Get symbolic representation for function index object"""
