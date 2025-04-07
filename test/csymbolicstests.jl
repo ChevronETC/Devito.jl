@@ -16,5 +16,5 @@ end
     dref = Deref(f)
     @test getproperty(PyObject(dref), :_op) == "*"
     cst  = Cast(f, "char *")
-    @test getproperty(PyObject( cst), :_op) == "(char *)"
+    @test getproperty(PyObject( cst), :_op) == "(char*)"
 end

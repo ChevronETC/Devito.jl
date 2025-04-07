@@ -141,7 +141,7 @@ end
         # check to make sure header is in the program
         @test occursin("#include \"stdio.h\"\n", code)
         # check to make sure the printf statement is in the program
-        @test occursin("printf(\"hello world!\" );\n", code)
+        @test occursin("printf( \"hello world!\" );\n", code)
         # test to make sure the operator compiles and runs
         @test try apply(printingop)
             true
