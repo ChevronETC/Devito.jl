@@ -31,11 +31,14 @@ if (devito && devitopro)
 end
 
 # Setup pip command. This will automatically pickup whichever pip PyCall is setup with.
-pip(pkg) = PyCall.python_cmd(Cmd(`-m pip install --no-cache-dir $(pkg)`))
+function pip(pkg::String)
+    cmd_args = Vector{String}([PyCall.python, "-m", "pip", "install", "--no-cache-dir", split(pkg, " ")...])
+    run(Cmd(cmd_args))
+end
 
 # MPI4PY and optional nvidia requirements
 function mpi4py(mpireqs)
-    try:
+    try
         ENV["CC"] = "nvc"
         ENV["CFLAGS"] = "-noswitcherror -tp=px"
         pip("-r $(mpireqs)requirements-mpi.txt")
@@ -44,7 +47,7 @@ function mpi4py(mpireqs)
     catch e
         # Default. Don't set any flag an use the default compiler
         delete!(ENV,"CFLAGS")
-        delete!(ENV,"CC")
+        ENV["CC"] = "gcc"
         pip("-r $(mpireqs)requirements-mpi.txt")
     end
     delete!(ENV,"CFLAGS")
@@ -78,7 +81,6 @@ try
         pyimport("devitopro")
         pyimport("devito")
     else
-        @info "Building devito from latest release"
         if which_devito != ""
             @info "Building devito from branch $(which_devito)"
             pip("devito[extras,tests]@git+https://github.com/devitocodes/devito@$(which_devito)")
