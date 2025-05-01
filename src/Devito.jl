@@ -16,17 +16,25 @@ has_devitopro() = devitopro != devito
 
 function __init__()
     try
+        @info "copy!(numpy, pyimport("numpy"))"
         copy!(numpy, pyimport("numpy"))
+        @info "copy!(sympy, pyimport("sympy"))"
         copy!(sympy, pyimport("sympy"))
+        @info "copy!(devito, pyimport("devito"))"
         copy!(devito, pyimport("devito"))
+
+        @info "try copy!(devitopro, pyimport("devitopro"))"
         try
             copy!(devitopro, pyimport("devitopro"))
         catch e
             copy!(devitopro, pyimport("devito"))
         end
+
+        @info "copy!(seismic, pyimport("examples.seismic"))"
         copy!(seismic, pyimport("examples.seismic"))
 
         if has_devitopro()
+            @info "copy!(enriched, pyimport("devitopro.types.enriched"))"
             copy!(enriched, pyimport("devitopro.types.enriched"))
         end
 
@@ -35,6 +43,7 @@ function __init__()
         ppath = get(ENV, "PYTHONPATH", "")
         upath = join(split(@__DIR__, "/")[1:end-1], "/")
         pushfirst!(PyVector(pyimport("sys")."path"), upath)
+        @info "copy!(utils, pyimport("src"))"
         copy!(utils, pyimport("src"))
 
     catch e
