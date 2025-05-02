@@ -22,6 +22,14 @@ jobs:
           - ubuntu-latest
         arch:
           - x64
+
+    env:
+      DEVITO_LANGUAGE: "openmp"
+      DEVITO_ARCH: "gcc"
+      OMP_NUM_THREADS: "2"
+      DEVITO_AUTOPADDING: "0"
+      RDMAV_FORK_SAFE: 1
+
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -30,9 +38,10 @@ jobs:
           arch: ${{ matrix.arch }}
       - uses: julia-actions/cache@v1
       
-      - name: install mpi
-        run: sudo apt-get update
-      - run: sudo apt-get install -y mpich libmpich-dev
+      - name: Setup MPI
+        uses: mpi4py/setup-mpi@v1
+        with:
+          mpi: 'mpich'
       
       - name: download miniconda manually
         run: wget https://repo.anaconda.com/miniconda/Miniconda3-py312_24.5.0-0-Linux-x86_64.sh
@@ -49,7 +58,7 @@ jobs:
 
       - name: use system MPI
         run: julia -e 'using Pkg; Pkg.add(["MPI", "MPIPreferences"]); using MPIPreferences; MPIPreferences.use_system_binary()'
-      
+
       - name: run build for devito/devitopro
         if: matrix.devitoversion == 'devitopro'
         run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
