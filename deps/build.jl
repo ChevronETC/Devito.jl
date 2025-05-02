@@ -1,83 +1,99 @@
-using Conda
+using PyCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
-try
 
-    Conda.pip_interop(true)
-    # optional devito pro installation
-    # note that the submodules do not install correctly from a URL, so we need install from local cloned repo
-    # 2024-07-29 this is totally hacked for nvidia HPCX and Open MPI 4.1.7a1 
-    # using nvidia HPC SDK 24.7 and cuda 12.5
-    if dpro_repo != ""
-        @info "Building devitopro from latest release"
-        Conda.pip("uninstall -y", "devitopro")
-        Conda.pip("uninstall -y", "devito")
-        Conda.pip("uninstall -y", "numpy")
-        Conda.pip("uninstall -y", "mpi4py")
-        
-        # clone the devitopro repository and init submodules
-        dir = "$(tempname())-devitopro"
-        _pwd = pwd()
-        Sys.which("git") === nothing && error("git is not installed")
-        run(`git clone $(dpro_repo) $(dir)`)
-        cd(dir)
-        run(`git submodule update --init`)
-        cd(_pwd)
+# Check if packages altready installed
+# The assumption is that if the packages are already installed, the user 
+# has already set up the environment and we don't need to do anything
 
-        # get DEVITO_ARCH if it exists, default to gcc
-        devito_arch = get(ENV, "DEVITO_ARCH", "gcc")
+# First thing first, is devito already installed
+devito = try
+    pyimport("devito")
+    which_devito == ""
+catch e
+    @info "Devito not installed or broken"
+    false
+end
 
-        # devito requirements
-        Conda.pip("install --no-cache-dir -r", "https://raw.githubusercontent.com/devitocodes/devito/master/requirements.txt")
+# Second, is devitopro installed
+devitopro = try
+    pyimport("devitopro")
+    true
+catch e
+    @info "DevitoPRO not installed or broken"
+    dpro_repo == ""
+end
 
-        if lowercase(devito_arch) == "nvc"
-            ENV["CC"] = "nvc"
-            ENV["CFLAGS"] = "-noswitcherror -tp=px"
-        elseif lowercase(devito_arch) == "gcc"
-            ENV["CC"] = "gcc"
-            ENV["CFLAGS"] = ""
-        end
-        @info "DEVITO_ARCH=$(devito_arch)"
-        @info "CC=$(ENV["CC"])"
-        @info "CFLAGS=$(ENV["CFLAGS"])"
+if (devito && devitopro)
+    @info "Devito and DevitoPRO are already installed, no need to build"
+    return
+end
 
-        # devitopro
-        Conda.pip("install", "$(dir)")
-        rm(dir, recursive=true, force=true)
+# Setup pip command. This will automatically pickup whichever pip PyCall is setup with.
+function pip(pkg::String)
+    cmd_args = Vector{String}([PyCall.python, "-m", "pip", "install", "--no-cache-dir", split(pkg, " ")...])
+    run(Cmd(cmd_args))
+end
 
-        # nvida requirements
-        if lowercase(devito_arch) == "nvc"
-            Conda.pip("install --no-cache-dir -r", "https://raw.githubusercontent.com/devitocodes/devito/master/requirements-nvidia.txt")
-        end
-
-        # mpi requirements
-        Conda.pip("install --no-cache-dir -r", "https://raw.githubusercontent.com/devitocodes/devito/master/requirements-mpi.txt")
+# MPI4PY and optional nvidia requirements
+function mpi4py(mpireqs)
+    try
+        ENV["CC"] = "nvc"
+        ENV["CFLAGS"] = "-noswitcherror -tp=px"
+        pip("-r $(mpireqs)requirements-mpi.txt")
+        # If this succeeded, the we might need the extra nvidia python requirements
+        pip("-r $(mpireqs)requirements-nvidia.txt")
+    catch e
+        # Default. Don't set any flag an use the default compiler
         delete!(ENV,"CFLAGS")
-
-    elseif which_devito != ""
-        @info "Building devito from branch $(which_devito)"
-        Conda.pip("install", "devito[tests,extras,mpi]@git+https://github.com/devitocodes/devito@$(which_devito)")
-
-    else
-        @info "Building devito from latest release"
-        Conda.pip("uninstall -y", "devitopro")
-        Conda.pip("uninstall -y", "devito")
-        
-        dir = "$(tempname())-devito"
-        Sys.which("git") === nothing && error("git is not installed")
-        run(`git clone https://github.com/devitocodes/devito $(dir)`)
-        
-        Conda.pip("install", "$(dir)[tests,extras]")
-        rm(dir, recursive=true, force=true)
-        
-        # Conda.pip("install", "$(dir)[tests,extras,mpi]")
-        # ENV["CC"] = "gcc"
-        # ENV["CFLAGS"] = ""
-        # ENV["MPICC"] = "mpicc"
-        # Conda.pip("uninstall -y", "mpi4py")
-        # Conda.pip("install", "mpi4py")
+        ENV["CC"] = "gcc"
+        pip("-r $(mpireqs)requirements-mpi.txt")
     end
+    delete!(ENV,"CFLAGS")
+    delete!(ENV,"CC")
+end
+
+# Install devito and devitopro
+try
+    # Some python version don't like without --user so bypass it
+    ENV["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
+    if dpro_repo != ""
+        # Devitopro is available (Licensed). Install devitopro that comes with devito
+        # as a submodule. THis way we install the devito version that is compatible with devitopro
+        # and we don't need to install devito separately
+        # Because devito is a submodule, pip fails to install it properly (pip does not clone with --recursive)
+        # So we need to clone then install it. And since julia somehow doesn't think submodules exists LibGit2 cannot clone
+        # the submodules. So we need to clone it with git by hand
+        dir = "$(tempname())-devitopro"
+        Sys.which("git") === nothing && error("git is not installed")
+        run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
+
+        # Install devitopro
+        pip(dir)
+
+        # Now all we need is mpi4py. It is straightforward to install except with the nvidia compiler that requires
+        # extra flags to ignore some flags set by mpi4py
+        mpi4py("$(dir)/submodules/devito/")
+        rm(dir, recursive=true, force=true)
+
+        # Make sure it imports
+        pyimport("devitopro")
+        pyimport("devito")
+    else
+        if which_devito != ""
+            @info "Building devito from branch $(which_devito)"
+            pip("devito[extras,tests]@git+https://github.com/devitocodes/devito@$(which_devito)")
+            mpi4py("https://raw.githubusercontent.com/devitocodes/devito/$(which_devito)/")
+        else
+            @info "Building devito from latest release"
+            pip("devito[extras,tests]")
+            mpi4py("https://raw.githubusercontent.com/devitocodes/devito/main/")
+        end
+        # Make sure it imports
+        pyimport("devito")
+    end
+    delete!(ENV, "PIP_BREAK_SYSTEM_PACKAGES")
 catch e
     if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
         @warn "unable to build"
