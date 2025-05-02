@@ -940,13 +940,12 @@ p = TimeFunction(name="p", grid=grid, time_order=2, space_order=8)
 #     TimeFunction{T,N,M}(o)
 # end
 
-function TimeFunction(args...; lazy=false, kwargs...)
-    if lazy
+function TimeFunction(args...; lazy=false, allowpro=true, kwargs...)
+    if lazy & allowpro
         o = pycall(devitopro.TimeFunction, PyObject, args...; reversedims(kwargs)...)
+    elseif ~has_devitopro() | !allowpro
+        o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
     else
-        if ~has_devitopro()
-            o = pycall(devito.TimeFunction, PyObject, args...; reversedims(kwargs)...)
-        end
         # this is inelegant, TODO: find better way to handle layers.  
         # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
         # TODO: Generate MFE and submit as issue to PyCall

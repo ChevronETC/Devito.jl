@@ -589,8 +589,8 @@ end
 
     grd = Grid(shape=(ny,nx), extent=(ny-1,nx-1), dtype=Float32)
     time_order = 1
-    fx = TimeFunction(name="fx", grid=grd, time_order=time_order, save=time_order+1, allowpro=false)
-    fy = TimeFunction(name="fy", grid=grd, time_order=time_order, save=time_order+1, allowpro=false)
+    fx = TimeFunction(name="fx", grid=grd, time_order=time_order, save=time_order+1, allowpro=false, space_order=1)
+    fy = TimeFunction(name="fy", grid=grd, time_order=time_order, save=time_order+1, allowpro=false, space_order=1)
     
     sx = SparseTimeFunction(name="sx", grid=grd, npoint=ny*nx, nt=time_order+1)
     sy = SparseTimeFunction(name="sy", grid=grd, npoint=ny*nx, nt=time_order+1)
