@@ -45,10 +45,10 @@ jobs:
       
       - name: download miniconda manually
         run: wget https://repo.anaconda.com/miniconda/Miniconda3-py312_24.5.0-0-Linux-x86_64.sh
-      
+
       - name: run install
         run: bash Miniconda3-py312_24.5.0-0-Linux-x86_64.sh -b -p $HOME/miniconda
-      
+
       - name: run path export
         run: |
           echo "$HOME/miniconda/bin:" >> $GITHUB_PATH
@@ -56,26 +56,32 @@ jobs:
           echo "PYCALL_JL_RUNTIME_PYTHON=$HOME/miniconda/bin/python3" >> $GITHUB_ENV
           echo "CONDA_EXE=$HOME/miniconda/bin/conda" >> $GITHUB_ENV
 
-      - name: use system MPI
-        run: julia -e 'using Pkg; Pkg.add(["MPI", "MPIPreferences"]); using MPIPreferences; MPIPreferences.use_system_binary()'
-
       - name: run build for devito/devitopro
         if: matrix.devitoversion == 'devitopro'
         run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
         env:
           DEVITO_PRO: ${{ secrets.DEVITOPRO }}
-      
+
       - name: run build for devito
         if: ! matrix.devitoversion != 'devitopro'
         run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
         env:
           DEVITO_BRANCH: ${{ matrix.devitoversion }}
-      
+
+      - name: use system MPI
+        run: |
+          # https://juliaparallel.org/MPI.jl/latest/configuration/#Configuration-of-the-MPI.jl-testsuite
+          julia --project -e 'using Pkg; Pkg.add(["MPI", "MPIPreferences"]); using MPIPreferences; MPIPreferences.use_system_binary()'
+          julia --project=test -e 'using Pkg; Pkg.add(["MPI", "MPIPreferences"]); using MPIPreferences; MPIPreferences.use_system_binary()'
+          rm test/Manifest.toml
+
       # note Pkg.test docs indicate --inline=no can improve coverage
-      - run: julia --color=yes --check-bounds=yes --inline=no --project -e 'using Pkg; Pkg.test(coverage=true)'
-      
+      - name: run tests
+        run: |
+          julia --color=yes --check-bounds=yes --inline=no --project -e 'using Pkg; Pkg.test(coverage=true)'
+
       - uses: julia-actions/julia-processcoverage@v1
-      
+
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
@@ -88,17 +94,17 @@ jobs:
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
-      
+
       - name: install mpi
         run: sudo apt-get update
       - run: sudo apt-get install -y mpich
-      
+
       - name: download miniconda manually
         run: wget https://repo.anaconda.com/miniconda/Miniconda3-py312_24.5.0-0-Linux-x86_64.sh
-      
+
       - name: run install
         run: bash Miniconda3-py312_24.5.0-0-Linux-x86_64.sh -b -p ~/miniconda
-      
+
       - name: run path export
         run: |
           echo "$HOME/miniconda/bin:" >> $GITHUB_PATH
@@ -106,11 +112,11 @@ jobs:
           echo "PYCALL_JL_RUNTIME_PYTHON=$HOME/miniconda/bin/python3" >> $GITHUB_ENV
           echo "CONDA_EXE=$HOME/miniconda/bin/conda" >> $GITHUB_ENV
 
-      - run: julia --color=yes --project -e 'using Pkg; if VERSION >= v"1.1.0-rc1"; Pkg.build(verbose=true); else Pkg.build(); end'
+      - run: julia --color=yes --project -e 'using Pkg; Pkg.build()'
 
       - name: Install dependencies
         run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-      
+
       - run: |
           julia --project=docs -e '
             using Pkg
