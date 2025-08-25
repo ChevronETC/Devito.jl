@@ -130,7 +130,8 @@ end
 
 @testset "CCall with printf" begin
     # CCall test written to use gcc
-    @pywith switchconfig(;compiler=get(ENV, "CC", "gcc")) begin
+    carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
+    @pywith switchconfig(;compiler=get(ENV, "CC", carch)) begin
         pf = CCall("printf", header="stdio.h")
         @test Devito.name(pf) == "printf"
         @test Devito.header(pf) == "stdio.h"
@@ -157,14 +158,14 @@ end
 devito_arch = get(ENV, "DEVITO_ARCH", "gcc")
 compression = []
 (lowercase(devito_arch) == "nvc") && (push!(compression, "bitcomp"))
-(lowercase(devito_arch) == "gcc") && (push!(compression, "cvxcompress"))
+(lowercase(devito_arch) in ["gcc", "clang"]) && (push!(compression, "cvxcompress"))
 
 @testset "Serialization with compression=$(compression)" for compression in compression
     @info "testing compression with $(compression)"
     if compression == "bitcomp"
         configuration!("compiler", "nvc")
     else
-        configuration!("compiler", "gcc")
+        configuration!("compiler", devito_arch)
     end
 
     nt = 11

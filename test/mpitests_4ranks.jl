@@ -1,5 +1,13 @@
 using Devito, MPI, Random, Strided, Test
 
+@info MPI.MPIPreferences.abi, MPI.MPIPreferences.binary
+
+MPIDevitoExt = Base.get_extension(Devito, :MPIDevitoExt)
+
+if !MPI.Initialized()
+    MPI.Init()
+end
+
 MPI.Init()
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
@@ -9,7 +17,7 @@ configuration!("mpi", true)
     grid = Grid(shape=n, dtype=Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
     b_data = data(b)
-    @test isa(b_data, Devito.DevitoMPIArray{Float32,length(n)})
+    @test isa(b_data, MPIDevitoExt.DevitoMPIArray{Float32,length(n)})
     @test size(b_data) == n
     b_data_test = zeros(Float32, n)
     if MPI.Comm_rank(MPI.COMM_WORLD) == 0
@@ -514,7 +522,7 @@ end
     end
     MPI.Barrier(MPI.COMM_WORLD)
     _x = data(sf)
-    @test isa(data(sf), Devito.DevitoMPISparseArray)
+    @test isa(data(sf), MPIDevitoExt.DevitoMPISparseArray)
 
     copy!(_x, x)
     x .= Float32[1:npoint;]
@@ -536,7 +544,7 @@ end
     end
     MPI.Barrier(MPI.COMM_WORLD)
     _x = data(stf)
-    @test isa(data(stf), Devito.DevitoMPISparseTimeArray)
+    @test isa(data(stf), MPIDevitoExt.DevitoMPISparseTimeArray)
 
     copy!(_x, x)
     x .= reshape(Float32[1:prod(nt*npoint);], npoint, nt)

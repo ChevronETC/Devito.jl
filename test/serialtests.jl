@@ -6,7 +6,7 @@ configuration!("language", "openmp")
 configuration!("mpi", false)
 
 # you need to use when testing locally due to the Libdl startup issue for the nv compiler
-configuration!("compiler", get(ENV, "CC", "gcc"))
+configuration!("compiler", get(ENV, "CC", get(ENV, "DEVITO_ARCH", "gcc")))
 configuration!("platform", "cpu64")
 
 @testset "configuration" begin
