@@ -1,4 +1,4 @@
-using Devito
+using Devito, MPI
 
 for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl")
     include(testscript)
