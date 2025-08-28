@@ -29,5 +29,9 @@ else
     @info "not running devito pro tests"
 end
 
-@info "mpi tests"
-include("mpitests.jl")
+
+@info "mpi tests with DEVITO_AUTOPADDING=0"
+withenv("DEVITO_AUTOPADDING" => "0") do
+    run(`$(mpiexec()) -n 2 julia --code-coverage mpitests_2ranks.jl`)
+    run(`$(mpiexec()) -n 4 julia --code-coverage mpitests_4ranks.jl`)
+end
