@@ -1,5 +1,7 @@
 module MPIExt
 
+using MPI
+
 using Devito
 using Devito.PyCall
 using Devito.Strided
@@ -9,9 +11,6 @@ import Devito: DevitoMPITrue, Function, inhalo, size_with_inhalo, halo, mycoords
 import Devito: localmask, localmask_with_halo, localmask_with_inhalo, decomposition_with_halo
 import Devito: localindices, localindices_with_halo, localindices_with_inhalo
 import Devito: data_allocated, data, data_with_halo, data_with_inhalo
-
-isdefined(Base, :get_extension) ? (using MPI) : (using ..MPI)
-
 
 abstract type DevitoMPIAbstractArray{T,N} <: AbstractArray{T,N} end
 
