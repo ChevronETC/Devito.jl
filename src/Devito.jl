@@ -1844,8 +1844,4 @@ export localindices, localindices_with_halo, localindices_with_inhalo, name
 export nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map
 export step, subdomains, subs, thickness, value, value!
 
-if !isdefined(Base, :get_extension)
-  include("../ext/MPIExt.jl")
-end
-
 end
