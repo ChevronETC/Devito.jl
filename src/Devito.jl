@@ -14,11 +14,6 @@ include("cso.jl")
 
 has_devitopro() = devitopro != devito
 
-# Only needed if extension not available (julia < 1.9)
-if !isdefined(Base, :get_extension)
-    using Requires
-end
-
 function __init__()
     try
         copy!(numpy, pyimport("numpy"))
@@ -47,13 +42,6 @@ function __init__()
             @warn "unable to pyimport"
         else
             throw(e)
-        end
-    end
-
-    @static if !isdefined(Base, :get_extension)
-        @require MPI="da04e1cc-30fd-572f-bb4f-1f8673147195" begin
-            @info "Loading Devito MPI extension"
-            include("../ext/DevitoMPIExt.jl")
         end
     end
 end
@@ -1855,5 +1843,9 @@ export dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, inter
 export localindices, localindices_with_halo, localindices_with_inhalo, name
 export nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map
 export step, subdomains, subs, thickness, value, value!
+
+if !isdefined(Base, :get_extension)
+  include("../ext/MPIExt.jl")
+end
 
 end

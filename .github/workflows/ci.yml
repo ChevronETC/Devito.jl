@@ -71,7 +71,7 @@ jobs:
       - name: use system MPI
         run: |
           # https://juliaparallel.org/MPI.jl/latest/configuration/#Configuration-of-the-MPI.jl-testsuite
-          julia --project -e 'using Pkg; Pkg.add(["MPI", "MPIPreferences"]); using MPIPreferences; MPIPreferences.use_system_binary()'
+          julia --project=test -e 'using Pkg; Pkg.instantiate(); Pkg.status(); using MPIPreferences; MPIPreferences.use_system_binary()'
 
       # note Pkg.test docs indicate --inline=no can improve coverage
       - name: run tests

@@ -1,4 +1,4 @@
-module MPIDevitoExt
+module MPIExt
 
 using Devito
 using Devito.PyCall
