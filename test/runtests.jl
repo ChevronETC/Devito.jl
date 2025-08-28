@@ -20,7 +20,6 @@ end
 if Devito.has_devitopro()
     @info "running devito pro tests"
 
-
     include("devitoprotests.jl")
     @info "running pro tests with the decoupler"
     withenv("DEVITO_DECOUPLER"=>"1", "DEVITO_DECOUPLER_WORKERS"=>"2", "MPI4PY_RC_RECV_MPROBE"=>"0") do
@@ -31,5 +30,4 @@ else
 end
 
 @info "mpi tests"
-
 include("mpitests.jl")
