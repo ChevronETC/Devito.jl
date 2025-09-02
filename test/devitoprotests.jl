@@ -171,7 +171,6 @@ compression = []
 (lowercase(devito_arch) in ["gcc", "clang"]) && (push!(compression, "cvxcompress"))
 
 @testset "Serialization with compression=$(compression)" for compression in compression
-    @info "testing compression with $(compression)"
     if compression == "bitcomp"
         configuration!("compiler", "nvc")
     else
@@ -212,6 +211,24 @@ compression = []
         @test minimum(data(f2)) ≈ Float32(kt)
         @test maximum(data(f2)) ≈ Float32(kt)
     end
+end
+
+@testset "Serialization serial2str" begin
+    nt = 11
+    space_order = 8
+    grid = Grid(shape=(21,21,21), dtype=Float32)
+    f1 = TimeFunction(name="f1", grid=grid, space_order=space_order, time_order=1, save=Buffer(1))
+    f2 = TimeFunction(name="f2", grid=grid, space_order=space_order, time_order=1, save=Buffer(1))
+    z, y, x, t = dimensions(f1)
+    ct = ConditionalDimension(name="ct", parent=time_dim(grid), factor=1)
+    dumpdir = joinpath(tempdir(),"test-serial2str")
+    isdir(dumpdir) && rm(dumpdir, force=true, recursive=true)
+    mkdir(dumpdir)
+    flazy = TimeFunction(name="flazy", lazy=false, grid=grid, time_order=0, space_order=space_order, time_dim=ct, save=nt, serialization=dumpdir)
+    str = Devito.serial2str(flazy)
+    ser = Devito.str2serial(str)
+    pathlib = pyimport("pathlib")
+    py_path = pathlib.Path(str)
 end
 
 # JKW: removing for now, not sure what is even being tested here
