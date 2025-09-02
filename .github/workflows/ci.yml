@@ -17,7 +17,7 @@ jobs:
         devitoversion:
           - 'main'
           - 'devitopro'
-          # - ''
+          - ''
         os:
           - ubuntu-latest
         arch:
