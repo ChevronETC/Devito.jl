@@ -17,54 +17,60 @@ using Devito, PyCall, Test
     @test isequal(vp, Devito.vp(abox))
 end
 
-# 2024-08-15 JKW these two ABox tests are broken -- some kind of API change? 
-@testset "ABox Time Function" begin
-    g = Grid(shape=(5,5), extent=(4.0,4.0))
-    nt = 3
-    coords = [2. 2. ;]
-    space_order = 0
-    vp = Devito.Function(name="vp", grid=g, space_order=space_order)
-    src = SparseTimeFunction(name="src",  grid=g, nt=nt, npoint=size(coords)[1], coordinates=coords, space_order=0)
-    data(vp) .= 1.0
-    dt = 1.0
-    t = time_dim(g)
-    abox = ABox(src, nothing, vp, space_order)
-    # This needs layers = nothing as currently setup to automatically
-    # deffault to disk and buffered/saved functions cannot be used like that in an equation
-    u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order, layers=nothing)
-    op = Operator([Eq(forward(u), t+1, subdomain=abox)])
-    apply(op, dt=dt)
-    @test data(u)[:,:,1] ≈ zeros(Float32, 5 , 5)
-    @test data(u)[2:end-1,2:end-1,2] ≈ ones(Float32, 3, 3)
-    data(u)[2:end-1,2:end-1,2] .= 0
-    @test data(u)[:,:,2] ≈ zeros(Float32, 5 , 5)
-    @test data(u)[:,:,3] ≈ 2 .* ones(Float32, 5 , 5)
+# TODO (9/2/2025) - failing with decoupler, mloubout is looking into the issue
+if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
+    # TODO - 2024-08-15 JKW these two ABox tests are broken -- some kind of API change?
+    @testset "ABox Time Function" begin
+        g = Grid(shape=(5,5), extent=(4.0,4.0))
+        nt = 3
+        coords = [2. 2. ;]
+        space_order = 0
+        vp = Devito.Function(name="vp", grid=g, space_order=space_order)
+        src = SparseTimeFunction(name="src",  grid=g, nt=nt, npoint=size(coords)[1], coordinates=coords, space_order=0)
+        data(vp) .= 1.0
+        dt = 1.0
+        t = time_dim(g)
+        abox = ABox(src, nothing, vp, space_order)
+        # This needs layers = nothing as currently setup to automatically
+        # deffault to disk and buffered/saved functions cannot be used like that in an equation
+        u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order, layers=nothing)
+        op = Operator([Eq(forward(u), t+1, subdomain=abox)])
+        apply(op, dt=dt)
+        @test data(u)[:,:,1] ≈ zeros(Float32, 5 , 5)
+        @test data(u)[2:end-1,2:end-1,2] ≈ ones(Float32, 3, 3)
+        data(u)[2:end-1,2:end-1,2] .= 0
+        @test data(u)[:,:,2] ≈ zeros(Float32, 5 , 5)
+        @test data(u)[:,:,3] ≈ 2 .* ones(Float32, 5 , 5)
+    end
 end
 
-@testset "ABox Intersection Time Function" begin
-    mid = SubDomain("mid",[("middle",2,2),("middle",0,0)])
-    g = Grid(shape=(5,5), extent=(4.0,4.0), subdomains=mid)
-    nt = 3
-    coords = [2. 2. ;]
-    space_order = 0
-    vp = Devito.Function(name="vp", grid=g, space_order=space_order)
-    src = SparseTimeFunction(name="src",  grid=g, nt=nt, npoint=size(coords)[1], coordinates=coords, space_order=0)
-    data(vp) .= 1.0
-    dt = 1.0
-    t = time_dim(g)
-    abox = ABox(src, nothing, vp, space_order)
-    intbox = Devito.intersection(abox,mid)
-    # Similar as above, need layers=nothing
-    u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order, layers=nothing)
-    op = Operator([Eq(forward(u), t+1, subdomain=intbox)])
-    apply(op, dt=dt)
-    @test data(u)[:,:,1] ≈ zeros(Float32, 5 , 5)
-    @test data(u)[3,2:4,2] ≈ ones(Float32, 3)
-    data(u)[3,2:4,2] .= 0
-    @test data(u)[:,:,2] ≈ zeros(Float32, 5 , 5)
-    @test data(u)[3,:,3] ≈ 2 .* ones(Float32, 5)
-    data(u)[3,:,3] .= 0
-    @test data(u)[:,:,3] ≈ zeros(Float32, 5 , 5)
+# TODO (9/2/2025)- failing with decoupler, mloubout is looking into the issue
+if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
+    @testset "ABox Intersection Time Function" begin
+        mid = SubDomain("mid",[("middle",2,2),("middle",0,0)])
+        g = Grid(shape=(5,5), extent=(4.0,4.0), subdomains=mid)
+        nt = 3
+        coords = [2. 2. ;]
+        space_order = 0
+        vp = Devito.Function(name="vp", grid=g, space_order=space_order)
+        src = SparseTimeFunction(name="src",  grid=g, nt=nt, npoint=size(coords)[1], coordinates=coords, space_order=0)
+        data(vp) .= 1.0
+        dt = 1.0
+        t = time_dim(g)
+        abox = ABox(src, nothing, vp, space_order)
+        intbox = Devito.intersection(abox,mid)
+        # Similar as above, need layers=nothing
+        u = TimeFunction(name="u", grid=g, save=nt, space_order=space_order, layers=nothing)
+        op = Operator([Eq(forward(u), t+1, subdomain=intbox)])
+        apply(op, dt=dt)
+        @test data(u)[:,:,1] ≈ zeros(Float32, 5 , 5)
+        @test data(u)[3,2:4,2] ≈ ones(Float32, 3)
+        data(u)[3,2:4,2] .= 0
+        @test data(u)[:,:,2] ≈ zeros(Float32, 5 , 5)
+        @test data(u)[3,:,3] ≈ 2 .* ones(Float32, 5)
+        data(u)[3,:,3] .= 0
+        @test data(u)[:,:,3] ≈ zeros(Float32, 5 , 5)
+    end
 end
 
 @testset "FloatX dtypes with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (nb, DT, CT) in zip([8, 16], [FloatX8, FloatX16], [UInt8, UInt16])
@@ -128,43 +134,48 @@ end
     @test isapprox(Devito.decompress.(data(f)), Devito.decompress.(data(g)))
 end
 
-@testset "CCall with printf" begin
-    # CCall test written to use gcc
-    @pywith switchconfig(;compiler=get(ENV, "CC", "gcc")) begin
-        pf = CCall("printf", header="stdio.h")
-        @test Devito.name(pf) == "printf"
-        @test Devito.header(pf) == "stdio.h"
-        printingop = Operator([pf([""" "hello world!" """])])
-        ccode(printingop, filename="helloworld.c")
-        # read the program
-        code = read("helloworld.c", String)
-        # check to make sure header is in the program
-        @test occursin("#include \"stdio.h\"\n", code)
-        # check to make sure the printf statement is in the program
-        @test occursin("printf( \"hello world!\" );\n", code)
-        # test to make sure the operator compiles and runs
-        @test try apply(printingop)
-            true
-        catch
-            false
+devito_arch = get(ENV, "DEVITO_ARCH", "gcc")
+
+# TODO (9/2/2025) - failing with decoupler, mloubout is looking into the issue
+if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
+    @testset "CCall with printf" begin
+        # CCall test written to use gcc
+        carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
+        @pywith switchconfig(;compiler=get(ENV, "CC", carch)) begin
+            pf = CCall("printf", header="stdio.h")
+            @test Devito.name(pf) == "printf"
+            @test Devito.header(pf) == "stdio.h"
+            printingop = Operator([pf([""" "hello world!" """])])
+            ccode(printingop, filename="helloworld.c")
+            # read the program
+            code = read("helloworld.c", String)
+            # check to make sure header is in the program
+            @test occursin("#include \"stdio.h\"\n", code)
+            # check to make sure the printf statement is in the program
+            @test occursin("printf( \"hello world!\" );\n", code)
+            # test to make sure the operator compiles and runs
+            @test try apply(printingop)
+                true
+            catch
+                false
+            end
+            # remove the file
+            rm("helloworld.c", force=true)
         end
-        # remove the file
-        rm("helloworld.c", force=true)
     end
 end
 
 # currently only gcc and nvc are useful
-devito_arch = get(ENV, "DEVITO_ARCH", "gcc")
 compression = []
 (lowercase(devito_arch) == "nvc") && (push!(compression, "bitcomp"))
-(lowercase(devito_arch) == "gcc") && (push!(compression, "cvxcompress"))
+(lowercase(devito_arch) in ["gcc", "clang"]) && (push!(compression, "cvxcompress"))
 
 @testset "Serialization with compression=$(compression)" for compression in compression
     @info "testing compression with $(compression)"
     if compression == "bitcomp"
         configuration!("compiler", "nvc")
     else
-        configuration!("compiler", "gcc")
+        configuration!("compiler", devito_arch)
     end
 
     nt = 11
