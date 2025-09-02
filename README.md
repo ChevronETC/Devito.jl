@@ -17,7 +17,7 @@ Devito.jl is a Julia API supporting a sub-set of [devitoproject.org](https://www
 [doc-build-status-url]: https://github.com/ChevronETC/Devito.jl/actions?query=workflow%3ADocumentation
 
 [build-status-img]: https://github.com/ChevronETC/Devito.jl/workflows/Tests/badge.svg
-[build-status-url]: https://github.com/ChevronETC/Devito.jl/actions?query=workflow%3A"Tests"
+[build-status-url]: https://github.com/ChevronETC/Devito.jl/actions?query=workflow%3A"CI"
 
 [code-coverage-img]: https://codecov.io/gh/ChevronETC/Devito.jl/branch/master/graph/badge.svg
 [code-coverage-results]: https://codecov.io/gh/ChevronETC/Devito.jl
