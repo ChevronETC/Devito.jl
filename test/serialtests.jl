@@ -324,6 +324,30 @@ end
     @test data(f5) ≈ _bot 
 end
 
+@testset "Subdomain grid constructor" begin
+    n1,n2 = 5,7
+    grid = Grid(shape=(n1,n2), dtype=Float32)
+    sd1 = SubDomain("sd1", [("middle",1,1), ("middle",2,3)] )
+    sd2 = SubDomain("sd2", grid, [("middle",1,1), ("middle",3,2)] )
+    @show sd1.o.instructions
+    @show sd2.o.instructions
+    @test sd1 == sd2
+end
+
+@testset "Subdomain interior" begin
+    n1,n2 = 5,7
+    grid = Grid(shape=(n1,n2), dtype=Float32)
+    @test Devito.interior(grid) == subdomains(grid)["interior"]
+end
+
+@testset "Subdomain equals" begin
+    n1,n2 = 5,7
+    sd1 = SubDomain("subdom_mid", [("middle",1,1), ("middle",2,2)] )
+    sd2 = SubDomain("subdom_mid", [("middle",1,1), ("middle",2,2)] )
+    @test Base.:(==)(sd1,sd2)
+    @test sd1 == sd2
+end
+
 @testset "Equation Equality, shape=$shape, T=$T" for shape in ((11,11),(11,11,11)), T in (Float32, Float64)
     g = Grid(shape=shape, dtype=T)
     f1 = Devito.Function(name="f1", grid=g, dtype=T)
@@ -954,6 +978,23 @@ end
     @test data(f3)[4,5] == 0.0
 end
 
+@testset "Conditional Dimension factor" begin
+    size, factr = 17, 4
+    i = Devito.SpaceDimension(name="i")
+    grd = Grid(shape=(size,),dimensions=(i,))
+    ci = ConditionalDimension(name="ci", parent=i, factor=factr)
+    @test factor(ci) == ci.o.factor
+end
+
+@testset "Conditional Dimension equality" begin
+    size, factr = 17, 4
+    i = Devito.SpaceDimension(name="i")
+    grd = Grid(shape=(size,),dimensions=(i,))
+    ci1 = ConditionalDimension(name="ci", parent=i, factor=factr)
+    ci2 = ConditionalDimension(name="ci", parent=i, factor=factr)
+    @test ci1 == ci2
+end
+
 @testset "Retrieve time_dim" begin
     g = Grid(shape=(5,5))
     @test time_dim(g) == dimension(g.o.time_dim)
@@ -999,6 +1040,13 @@ end
     apply(op)
     @test data(f2)[3,3,2] == (data(f1)[3,3,3] - data(f1)[3,3,2])/t_spacing
     @test data(f3)[3,3,2] == (data(f1)[3,3,3] - 2*data(f1)[3,3,2] + data(f1)[3,3,1] )/t_spacing^2
+end
+
+@testset "Time subs" begin
+    grd = Grid(shape=(5,5))
+    y,x = dimensions(grd)
+    f = TimeFunction(name="f",grid=grd)
+    @test subs(f,Dict(x => x+1)) == subs(f.o,Dict(x => x+1))
 end
 
 @testset "nsimplify" begin

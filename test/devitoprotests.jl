@@ -114,34 +114,61 @@ end
     @test eltype(data(f)) == dtype
     data(f) .= 1.5f0
     @test all(data(f) .== 1.5f0)
+end
 
-    # addition
+@testset "FloatX addition" for DT ∈ (FloatX8, FloatX16)
+    dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
     b = dtype(1.5f0)
     @test Base.:+(a,b) ≈ dtype(1.5f0 + 1.5f0).value
     @test Base.:+(1.5f0,b) ≈ dtype(1.5f0 + 1.5f0).value
     @test Base.:+(a,1.5f0) ≈ dtype(1.5f0 + 1.5f0).value
+end
 
-    # subtraction
+@testset "FloatX subtraction" for DT ∈ (FloatX8, FloatX16)
+    dtype = DT(1.5f0, 4.5f0)
     a = dtype(3.0f0)
     b = dtype(1.5f0)
     @test Base.:-(a,b) ≈ dtype(3.0f0 - 1.5f0).value
     @test Base.:-(3.0f0,b) ≈ dtype(3.0f0 - 1.5f0).value
     @test Base.:-(a,1.5f0) ≈ dtype(3.0f0 - 1.5f0).value
+end
 
-    # multiplication
+@testset "FloatX multiplication" for DT ∈ (FloatX8, FloatX16)
+    dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
     b = dtype(1.5f0)
     @test Base.:*(a,b) ≈ dtype(1.5f0 * 1.5f0).value
     @test Base.:*(1.5f0,b) ≈ dtype(1.5f0 * 1.5f0).value
     @test Base.:*(a,1.5f0) ≈ dtype(1.5f0 * 1.5f0).value
+end
 
-    # division
+@testset "FloatX division" for DT ∈ (FloatX8, FloatX16)
+    dtype = DT(1.5f0, 4.5f0)
     a = dtype(3.0f0)
     b = dtype(1.5f0)
     @test Base.:/(a,b) ≈ dtype(3.0f0 / 1.5f0).value
     @test Base.:/(3.0f0,b) ≈ dtype(3.0f0 / 1.5f0).value
     @test Base.:/(a,1.5f0) ≈ dtype(3.0f0 / 1.5f0).value
+end
+
+@testset "FloatX comparison" for DT ∈ (FloatX8, FloatX16)
+    dtype = DT(1.5f0, 4.5f0)
+    a = dtype(1.5f0)
+    b = dtype(1.5f0)
+    @test a == b
+    @test a == 1.5f0
+    @test 1.5f0 == b
+    @test Base.isapprox(a,b)
+    @test Base.isapprox(1.5f0,b)
+    @test Base.isapprox(a,1.5f0)
+end
+
+@testset "FloatX convert" for DT ∈ (FloatX8, FloatX16)
+    dtype = DT(1.5f0, 4.5f0)
+    a = dtype(1.5f0)
+    @test Base.convert(DT,1.5f0) == a
+    @test Base.convert(Float32,a) ≈ 1.5f0
 end
 
 @testset "FloatX eps with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16])
