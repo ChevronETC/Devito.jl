@@ -795,11 +795,7 @@ function SparseFunction(o::PyObject)
 end
 
 function CoordSlowSparseFunction(args...; kwargs...)
-    @pydef mutable struct coordslowsparse <: devito.SparseFunction
-    
-        _sparse_position = 0
-    end
-    return SparseFunction(coordslowsparse(args...; reversedims(kwargs)...))
+    return SparseFunction(utils."coordslowsparse"(args...; reversedims(kwargs)...))
 end
 
 PyCall.PyObject(x::DiscreteFunction) = x.o
