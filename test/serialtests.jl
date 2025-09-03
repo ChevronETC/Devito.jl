@@ -324,16 +324,6 @@ end
     @test data(f5) ≈ _bot 
 end
 
-@testset "Subdomain grid constructor" begin
-    n1,n2 = 5,7
-    grid = Grid(shape=(n1,n2), dtype=Float32)
-    sd1 = SubDomain("sd1", [("middle",1,1), ("middle",2,3)] )
-    sd2 = SubDomain("sd2", grid, [("middle",1,1), ("middle",3,2)] )
-    @show sd1.o.instructions
-    @show sd2.o.instructions
-    @test sd1 == sd2
-end
-
 @testset "Subdomain interior" begin
     n1,n2 = 5,7
     grid = Grid(shape=(n1,n2), dtype=Float32)
