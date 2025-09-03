@@ -10,7 +10,8 @@ except ImportError:
     Disk = None
 
 
-__all__ = ['serializedtimefunc', 'str2path', 'indexobj', 'ccode', 'subdom']
+__all__ = ['serializedtimefunc', 'str2path', 'indexobj', 'ccode', 'subdom',
+           'coordslowsparse']
 
 
 def serializedtimefunc(**kwargs):
@@ -47,3 +48,8 @@ class subdom(SubDomain):
             defines[d] = i
         
         return defines
+
+
+class coordslowsparse(SparseFunction):
+
+        _sparse_position = 0
