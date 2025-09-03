@@ -1632,12 +1632,13 @@ function SubDomain(name::String, instructions...)
     return SubDomain{N}(utils."subdom"(name,instructions))    
 end
 
-function SubDomain(name::String, grid::Grid, instructions...)
-    # copy and reverse instructions
-    instructions = reverse(instructions)
-    N = length(instructions)
-    return SubDomain{N}(utils."subdom"(name,instructions,grid))
-end
+# 2025-09-03 this is broken: instructions are reversed but grid is not
+# function SubDomain(name::String, grid::Grid, instructions...)
+#     # copy and reverse instructions
+#     instructions = reverse(instructions)
+#     N = length(instructions)
+#     return SubDomain{N}(utils."subdom"(name,instructions,grid))
+# end
 
 struct Buffer
     o::PyObject
