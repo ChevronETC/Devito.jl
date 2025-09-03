@@ -12,7 +12,7 @@ To change to a different implementation do (for example):
     MPIPreferences.use_jll_binary("MPICH_jll")
 """
 
-for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl")
+for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl", "csotests.jl")
     include(testscript)
 end
 
