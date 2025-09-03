@@ -114,6 +114,34 @@ end
     @test eltype(data(f)) == dtype
     data(f) .= 1.5f0
     @test all(data(f) .== 1.5f0)
+
+    # addition
+    a = dtype(1.5f0)
+    b = dtype(1.5f0)
+    @test Base.:+(a,b) ≈ dtype(1.5f0 + 1.5f0).value
+    @test Base.:+(1.5f0,b) ≈ dtype(1.5f0 + 1.5f0).value
+    @test Base.:+(a,1.5f0) ≈ dtype(1.5f0 + 1.5f0).value
+
+    # subtraction
+    a = dtype(3.0f0)
+    b = dtype(1.5f0)
+    @test Base.:-(a,b) ≈ dtype(3.0f0 - 1.5f0).value
+    @test Base.:-(3.0f0,b) ≈ dtype(3.0f0 - 1.5f0).value
+    @test Base.:-(a,1.5f0) ≈ dtype(3.0f0 - 1.5f0).value
+
+    # multiplication
+    a = dtype(1.5f0)
+    b = dtype(1.5f0)
+    @test Base.:*(a,b) ≈ dtype(1.5f0 * 1.5f0).value
+    @test Base.:*(1.5f0,b) ≈ dtype(1.5f0 * 1.5f0).value
+    @test Base.:*(a,1.5f0) ≈ dtype(1.5f0 * 1.5f0).value
+
+    # division
+    a = dtype(3.0f0)
+    b = dtype(1.5f0)
+    @test Base.:/(a,b) ≈ dtype(3.0f0 / 1.5f0).value
+    @test Base.:/(3.0f0,b) ≈ dtype(3.0f0 / 1.5f0).value
+    @test Base.:/(a,1.5f0) ≈ dtype(3.0f0 / 1.5f0).value
 end
 
 @testset "FloatX eps with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16])
