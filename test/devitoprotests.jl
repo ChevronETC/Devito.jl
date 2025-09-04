@@ -16,8 +16,40 @@ using Devito, Logging, PyCall, Test
     @test isequal(nothing, Devito.rcv(abox))
     @test isequal(vp, Devito.vp(abox))
     @test eps(abox) == abox.o.eps
+end
+
+@testset "ABox subdomains" begin
+    mid = SubDomain("mid",[("middle",2,2),("middle",0,0)])
+    g = Grid(shape=(8,8), extent=(7.0,7.0), subdomains=(mid,))
+    nt = 3
+    coords = [0.5 2.5; 2.5 2.5; 0.5 4.5; 2.5 4.5]
+    vp = Devito.Function(name="vp", grid=g, space_order=0)
+    src = SparseTimeFunction(name="src",  grid=g, nt=nt, npoint=size(coords)[1], coordinates=coords)
+    data(vp) .= 1.0
+    abox = ABox(src, nothing, vp, -1, subdomains=(mid,))
+    dt = 1.0
+    srcbox_discrete = Devito.compute(abox; dt=dt)
     sd = Devito.subdomains(abox)
     @test sd !== nothing
+end
+
+@testset "ABox errors without devitopro" begin
+    g = Grid(shape=(8,8), extent=(7.0,7.0))
+    nt = 3
+    coords = [0.5 2.5; 2.5 2.5; 0.5 4.5; 2.5 4.5]
+    vp = Devito.Function(name="vp", grid=g, space_order=0)
+    src = SparseTimeFunction(name="src",  grid=g, nt=nt, npoint=size(coords)[1], coordinates=coords)
+    data(vp) .= 1.0
+
+    # unset devitopro
+    copy!(Devito.devitopro, pyimport("devito"))
+    @test_throws ErrorException ABox(src, nothing, vp, -1)
+    # reset devitopro 
+    try
+        copy!(Devito.devitopro, pyimport("devitopro"))
+    catch e
+        copy!(Devito.devitopro, pyimport("devito"))
+    end
 end
 
 # TODO (9/2/2025) - failing with decoupler, mloubout is looking into the issue
@@ -237,6 +269,18 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             end
             # remove the file
             rm("helloworld.c", force=true)
+        end
+    end
+
+    @testset "CCall errors without devitopro" begin
+        # unset devitopro
+        copy!(Devito.devitopro, pyimport("devito"))
+        @test_throws ErrorException CCall("printf", header="stdio.h")
+        # reset devitopro 
+        try
+            copy!(Devito.devitopro, pyimport("devitopro"))
+        catch e
+            copy!(Devito.devitopro, pyimport("devito"))
         end
     end
 end

@@ -332,8 +332,16 @@ end
 
 @testset "Subdomain equals" begin
     n1,n2 = 5,7
-    sd1 = SubDomain("subdom_mid", [("middle",1,1), ("middle",2,2)] )
-    sd2 = SubDomain("subdom_mid", [("middle",1,1), ("middle",2,2)] )
+    # note we need to use the same `name` for this work, which is bad form
+    sd1 = SubDomain("sd", [("middle",1,1), ("middle",2,2)] )
+    sd2 = SubDomain("sd", [("middle",1,1), ("middle",2,2)] )
+    @test Base.:(==)(sd1,sd2)
+    @test sd1 == sd2
+end
+
+@testset "SubDomain Tuple of Vararg{Tuple}" begin
+    sd1 = SubDomain("sd", [("middle",1,1), ("middle",2,2)] )
+    sd2 = SubDomain("sd", (("middle",1,1), ("middle",2,2)) )
     @test Base.:(==)(sd1,sd2)
     @test sd1 == sd2
 end
@@ -1263,6 +1271,7 @@ end
     @test data(f)[(n[1:end-1] .- 2)...,:] ≈ 2 .* ones(T, n[end])
     data(f)[(n[1:end-1] .- 2)...,:] .= 0
     @test data(f) ≈ zeros(T, n...)
+    @test PyObject(fi) == fi.o
 end
 
 @testset "Function Inc, shape=$n" for n in ((4,5),(6,7,8),)
@@ -1392,6 +1401,17 @@ end
     op = Operator([eq1,eq2], name="op")
     apply(op)
     @test isapprox(data(g), data(h))
+end
+
+@testset "shift_localindicies" begin
+    @test Devito.shift_localindicies(1,2) == 0
+end
+
+@testset "AbstractDimension" begin
+    x = SpaceDimension(name="x")
+    @show typeof(x)
+    @show typeof(x) <: Devito.AbstractDimension
+    @test PyObject(x) == x.o
 end
 
 nothing
