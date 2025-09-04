@@ -167,7 +167,7 @@ end
 @testset "FloatX convert" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
-    @test Base.convert(DT,1.5f0) == a
+    @test Base.convert(typeof(a),1.5f0) == a
     @test Base.convert(Float32,a) ≈ 1.5f0
 end
 
