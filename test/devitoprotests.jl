@@ -1,6 +1,6 @@
 using Devito, PyCall, Test
 
-@test_skip @testset "ABox Expanding Source" begin
+@testset "ABox Expanding Source" begin
     g = Grid(shape=(8,8), extent=(7.0,7.0))
     nt = 3
     coords = [0.5 2.5; 2.5 2.5; 0.5 4.5; 2.5 4.5]
@@ -20,7 +20,7 @@ end
 # TODO (9/2/2025) - failing with decoupler, mloubout is looking into the issue
 if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
     # TODO - 2024-08-15 JKW these two ABox tests are broken -- some kind of API change?
-    @test_skip @testset "ABox Time Function" begin
+    @testset "ABox Time Function" begin
         g = Grid(shape=(5,5), extent=(4.0,4.0))
         nt = 3
         coords = [2. 2. ;]
@@ -46,7 +46,7 @@ end
 
 # TODO (9/2/2025)- failing with decoupler, mloubout is looking into the issue
 if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
-    @test_skip @testset "ABox Intersection Time Function" begin
+    @testset "ABox Intersection Time Function" begin
         mid = SubDomain("mid",[("middle",2,2),("middle",0,0)])
         g = Grid(shape=(5,5), extent=(4.0,4.0), subdomains=mid)
         nt = 3
@@ -73,7 +73,7 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
     end
 end
 
-@test_skip @testset "FloatX dtypes with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (nb, DT, CT) in zip([8, 16], [FloatX8, FloatX16], [UInt8, UInt16])
+@testset "FloatX dtypes with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (nb, DT, CT) in zip([8, 16], [FloatX8, FloatX16], [UInt8, UInt16])
     g = Grid(shape=(5,5))
     dtype = DT(1.5f0, 4.5f0)
     atol = Devito.scale(dtype)
@@ -116,7 +116,7 @@ end
     @test all(data(f) .== 1.5f0)
 end
 
-@test_skip @testset "FloatX addition" for DT ∈ (FloatX8, FloatX16)
+@testset "FloatX addition" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
     b = dtype(1.5f0)
@@ -125,7 +125,7 @@ end
     @test Base.:+(a,1.5f0) ≈ dtype(1.5f0 + 1.5f0).value
 end
 
-@test_skip @testset "FloatX subtraction" for DT ∈ (FloatX8, FloatX16)
+@testset "FloatX subtraction" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(3.0f0)
     b = dtype(1.5f0)
@@ -134,7 +134,7 @@ end
     @test Base.:-(a,1.5f0) ≈ dtype(3.0f0 - 1.5f0).value
 end
 
-@test_skip @testset "FloatX multiplication" for DT ∈ (FloatX8, FloatX16)
+@testset "FloatX multiplication" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
     b = dtype(1.5f0)
@@ -143,7 +143,7 @@ end
     @test Base.:*(a,1.5f0) ≈ dtype(1.5f0 * 1.5f0).value
 end
 
-@test_skip @testset "FloatX division" for DT ∈ (FloatX8, FloatX16)
+@testset "FloatX division" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(3.0f0)
     b = dtype(1.5f0)
@@ -152,7 +152,7 @@ end
     @test Base.:/(a,1.5f0) ≈ dtype(3.0f0 / 1.5f0).value
 end
 
-@test_skip @testset "FloatX comparison" for DT ∈ (FloatX8, FloatX16)
+@testset "FloatX comparison" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
     b = dtype(1.5f0)
@@ -164,7 +164,7 @@ end
     @test Base.isapprox(a,1.5f0)
 end
 
-@test_skip @testset "FloatX convert" for DT ∈ (FloatX8, FloatX16)
+@testset "FloatX convert" for DT ∈ (FloatX8, FloatX16)
     dtype = DT(1.5f0, 4.5f0)
     a = dtype(1.5f0)
     @test Base.convert(typeof(a),1.5f0) == a
@@ -183,7 +183,7 @@ end
     @test promote_type(typeof(f32u08), typeof(f64u16)) == typeof(f64u16)
 end
 
-@test_skip @testset "FloatX arrays with $(mytype), $(DT), $(CT), autopad=$(autopad)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16]), autopad ∈ (true,false)
+@testset "FloatX arrays with $(mytype), $(DT), $(CT), autopad=$(autopad)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16]), autopad ∈ (true,false)
     configuration!("autopadding", autopad)
     g = Grid(shape=(5,5))
     dtype = DT(mytype(-1.1), mytype(+1.1))
@@ -195,7 +195,7 @@ end
     @test isapprox(Devito.decompress.(data(f)), Devito.decompress.(data(g)))
 end
 
-@test_skip @testset "FloatX eps with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16])
+@testset "FloatX eps with $(mytype), $(DT), $(CT)" for mytype ∈ [Float32, Float64], (DT, CT) in zip([FloatX8, FloatX16], [UInt8, UInt16])
     g = Grid(shape=(5,5))
     dtype = DT(mytype(1.5), mytype(4.5))
     @test eps(dtype) ≈ eps(mytype)
@@ -205,7 +205,7 @@ devito_arch = get(ENV, "DEVITO_ARCH", "gcc")
 
 # TODO (9/2/2025) - failing with decoupler, mloubout is looking into the issue
 if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
-    @test_skip @testset "CCall with printf" begin
+    @testset "CCall with printf" begin
         # CCall test written to use gcc
         carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
         @pywith switchconfig(;compiler=get(ENV, "CC", carch)) begin
@@ -237,7 +237,7 @@ compression = []
 (lowercase(devito_arch) == "nvc") && (push!(compression, "bitcomp"))
 (lowercase(devito_arch) in ["gcc", "clang"]) && (push!(compression, "cvxcompress"))
 
-@test_skip @testset "Serialization with compression=$(compression)" for compression in compression
+@testset "Serialization with compression=$(compression)" for compression in compression
     if compression == "bitcomp"
         configuration!("compiler", "nvc")
     else
@@ -280,7 +280,7 @@ compression = []
     end
 end
 
-@test_skip @testset "Serialization serial2str" begin
+@testset "Serialization serial2str" begin
     nt = 11
     space_order = 8
     grid = Grid(shape=(21,21,21), dtype=Float32)
@@ -299,7 +299,7 @@ end
 end
 
 # JKW: removing for now, not sure what is even being tested here
-# @test_skip @testset "Serialization with CCall T=$T" for T in (Float32,Float64)
+# @testset "Serialization with CCall T=$T" for T in (Float32,Float64)
 #     space_order = 2
 #     time_M = 3
 #     filename = "testserialization.bin"
