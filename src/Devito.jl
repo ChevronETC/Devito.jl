@@ -440,7 +440,9 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 function SpaceDimension end
 
 Base.:(==)(x::AbstractDimension,y::AbstractDimension) = x.o == y.o
-PyCall.PyObject(x::AbstractDimension) = x.o
+
+# 2025-09-03 JKW this is covered in the metaprogramming for dimensions above
+# PyCall.PyObject(x::AbstractDimension) = x.o
 
 """
     ConditionalDimension(;kwargs)
@@ -1770,7 +1772,7 @@ end
 
 function ABox(src::Union{Devito.SparseTimeFunction,Nothing}, rcv::Union{Devito.SparseTimeFunction,Nothing}, vp::Devito.Function{T,N}, space_order::Int; kwargs...) where {T,N}
     if ~has_devitopro()
-        @error "ABox only supported with DevitoPro"
+        error("ABox only supported with DevitoPro")
     end
     o = pycall(devitopro.ABox, PyObject, src, rcv, vp, space_order; kwargs...)
     ABox{N}(o)
@@ -1802,7 +1804,7 @@ PyCall.PyObject(x::CCall) = x.o
 
 function CCall(name::String; header=nothing, header_dirs = (), libs = (), lib_dirs = (), target = "host", types = ())
     if ~has_devitopro()
-        @error "CCall only supported with DevitoPro"
+        error("CCall only supported with DevitoPro")
     end
     classname = Symbol(uppercasefirst(name))
     @eval begin
