@@ -261,30 +261,31 @@ function Base.getindex(x::DevitoMPIAbstractArray{T,N}, I::Vararg{Int,N}) where {
     v
 end
 
-function Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v::T, I::Vararg{Int,N}) where {T,N}
-    myrank = MPI.Comm_rank(MPI.COMM_WORLD)
-    if myrank == 0
-        @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
-    end
-    wanted_rank = find_rank(x, I...)
-    if wanted_rank == 0
-        received_v = v
-    else
-        message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
-        source_rank = 0
-        send_mesg = [v]
-        recv_mesg = 0 .* send_mesg
-        rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
-        sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
-        stats = MPI.Waitall!([rreq, sreq])
-        received_v = recv_mesg[1]
-    end
-    if myrank == wanted_rank
-        J = ntuple(idim-> Devito.shift_localindicies( I[idim], localindices(x)[idim]), N)
-        setindex!(x.p, received_v, J...)
-    end
-    MPI.Barrier(MPI.COMM_WORLD)
-end
+# 2025-09-03 JKW this is never ever used in practice - remove?
+# function Base.setindex!(x::DevitoMPIAbstractArray{T,N}, v::T, I::Vararg{Int,N}) where {T,N}
+#     myrank = MPI.Comm_rank(MPI.COMM_WORLD)
+#     if myrank == 0
+#         @warn "`setindex!` for Devito MPI Arrays has suboptimal performance. consider using `copy!`"
+#     end
+#     wanted_rank = find_rank(x, I...)
+#     if wanted_rank == 0
+#         received_v = v
+#     else
+#         message_tag = 2*MPI.Comm_size(MPI.COMM_WORLD)
+#         source_rank = 0
+#         send_mesg = [v]
+#         recv_mesg = 0 .* send_mesg
+#         rreq = ( myrank == wanted_rank ? MPI.Irecv!(recv_mesg, source_rank, message_tag, MPI.COMM_WORLD) : MPI.Request())
+#         sreq = ( myrank == source_rank ?  MPI.Isend(send_mesg, wanted_rank, message_tag, MPI.COMM_WORLD) : MPI.Request() )
+#         stats = MPI.Waitall!([rreq, sreq])
+#         received_v = recv_mesg[1]
+#     end
+#     if myrank == wanted_rank
+#         J = ntuple(idim-> Devito.shift_localindicies( I[idim], localindices(x)[idim]), N)
+#         setindex!(x.p, received_v, J...)
+#     end
+#     MPI.Barrier(MPI.COMM_WORLD)
+# end
 
 Base.size(x::SparseDiscreteFunction{T,N,DevitoMPITrue}) where {T,N} = size(data(x))
 
