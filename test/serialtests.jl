@@ -1,4 +1,4 @@
-using Devito, Random, PyCall, Strided, Test
+using Devito, PyCall, Random, Strided, Test
 
 # configuration!("log-level", "DEBUG")
 configuration!("log-level", "WARNING")
@@ -496,6 +496,11 @@ end
     for i in 1:5
         @test data(g)[i] == (i-1)%2
     end
+end
+
+@testset "PyObject(Dimension)" begin
+    x = SpaceDimension(name="x")
+    @test PyObject(x) === x.o
 end
 
 @testset "Multiply and Divide" begin
