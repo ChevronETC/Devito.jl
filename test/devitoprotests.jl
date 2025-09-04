@@ -1,4 +1,4 @@
-using Devito, PyCall, Test
+using Devito, Logging, PyCall, Test
 
 @testset "ABox Expanding Source" begin
     g = Grid(shape=(8,8), extent=(7.0,7.0))
@@ -15,6 +15,9 @@ using Devito, PyCall, Test
     @test isequal(src, Devito.src(abox))
     @test isequal(nothing, Devito.rcv(abox))
     @test isequal(vp, Devito.vp(abox))
+    @test eps(abox) == abox.o.eps
+    sd = Devito.subdomains(abox)
+    @test sd !== nothing
 end
 
 # TODO (9/2/2025) - failing with decoupler, mloubout is looking into the issue
@@ -212,6 +215,12 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             pf = CCall("printf", header="stdio.h")
             @test Devito.name(pf) == "printf"
             @test Devito.header(pf) == "stdio.h"
+            @test Devito.header_dirs(pf) == pf.o.header_dirs
+            @test Devito.libs(pf) == pf.o.libs
+            @test Devito.lib_dirs(pf) == pf.o.lib_dirs
+            @test Devito.target(pf) == pf.o.target
+            @test Devito.types(pf) == pf.o.types
+            @test PyObject(pf) == pf.o
             printingop = Operator([pf([""" "hello world!" """])])
             ccode(printingop, filename="helloworld.c")
             # read the program
@@ -296,6 +305,19 @@ end
     ser = Devito.str2serial(str)
     pathlib = pyimport("pathlib")
     py_path = pathlib.Path(str)
+end
+
+@testset "TimeFunction, lazy streaming" for n in ( (4,5), (4,5,6) )
+    g = Grid(shape=n)
+    ff = Devito.Function(name="ff", grid=g, space_order=4)
+    u1 = TimeFunction(name="u1", grid=g, space_order=4, lazy=false, allowpro=true, time_order=1, save=10, serialization="/tmp/u1", compression=nothing)
+    u2 = TimeFunction(name="u2", grid=g, space_order=4, lazy=true,  allowpro=true, time_order=1, save=10, serialization="/tmp/u2", compression=nothing)
+    u3 = TimeFunction(name="u2", grid=g, space_order=4, allowpro=false, time_order=1, save=10)
+    @test u1 !== nothing
+    @test u2 !== nothing
+    @test u3 !== nothing
+    @test_throws ErrorException TimeFunction(ff.o)
+    @test_logs (:warn, "Object doesn't have serialized path!") Devito.serial2str(u3)
 end
 
 # JKW: removing for now, not sure what is even being tested here
