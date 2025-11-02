@@ -59,17 +59,24 @@ try
     # Some python version don't like without --user so bypass it
     ENV["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
     if dpro_repo != ""
-        # Devitopro is available (Licensed). Install devitopro that comes with devito
-        # as a submodule. THis way we install the devito version that is compatible with devitopro
-        # and we don't need to install devito separately
+        # Devitopro is available (Licensed). Install devitopro that comes with devito as a submodule. 
+        # This way we install the devito version that is compatible with devitopro and we don't need to 
+        # install devito separately.
         # Because devito is a submodule, pip fails to install it properly (pip does not clone with --recursive)
-        # So we need to clone then install it. And since julia somehow doesn't think submodules exists LibGit2 cannot clone
-        # the submodules. So we need to clone it with git by hand
-        dir = "$(tempname())-devitopro"
+        # So we need to clone recursively, then install. And since julia somehow doesn't think submodules exists LibGit2 cannot clone
+        # the submodules. So we need to clone it with git by hand.
+        dir = abspath("$(tempname())-devitopro")
         Sys.which("git") === nothing && error("git is not installed")
         run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
 
+        cd(dir)
+
+        # Install devito[extras,tests]
+        @info("Install devito[extras,tests]")
+        pip("$(dir)/submodules/devito[extras,tests]")
+
         # Install devitopro
+        @info("Install devitopro[extras]")
         pip(dir)
 
         # Now all we need is mpi4py. It is straightforward to install except with the nvidia compiler that requires
