@@ -77,7 +77,7 @@ try
 
         # Install devitopro
         @info("Install devitopro[extras]")
-        pip(dir)
+        pip("$(dir)[extras]")
 
         # Now all we need is mpi4py. It is straightforward to install except with the nvidia compiler that requires
         # extra flags to ignore some flags set by mpi4py
