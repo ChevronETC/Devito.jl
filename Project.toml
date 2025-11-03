@@ -1,7 +1,7 @@
 name = "Devito"
 uuid = "06ed14b1-0e40-4084-abdf-764a285f8c42"
 authors = ["Sam Kaplan <Sam.Kaplan@chevron.com>"]
-version = "1.2.0"
+version = "1.2.1"
 
 [deps]
 PyCall = "438e738f-606a-5dbb-bf0a-cddfbfd45ab0"
