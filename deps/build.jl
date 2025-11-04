@@ -74,9 +74,8 @@ try
         # Run install-devitopro.sh
         @info("running install-devitopro.sh")
 
-        cmd_args = String["install-devitopro.sh"]
+        cmd_args = String["./install-devitopro.sh"]
         run(Cmd(cmd_args))
-
 
         # # Install devito[extras,tests]
         # @info("Install devito[extras,tests]")
