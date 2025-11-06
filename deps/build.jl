@@ -72,26 +72,13 @@ try
         cd(dir)
 
         # Run install-devitopro.sh
-        @info("running install-devitopro.sh")
+        # @info("running install-devitopro.sh")
+        # cmd_args = String["./install-devitopro.sh"]
+        # run(Cmd(cmd_args))
 
-        cmd_args = String["./install-devitopro.sh"]
-        run(Cmd(cmd_args))
-
-        # # Install devito[extras,tests]
-        # @info("Install devito[extras,tests]")
-        # pip("$(dir)/submodules/devito[extras,tests]")
-
-        # # Install devitopro
-        # @info("Install devitopro[extras]")
-        # pip("$(dir)[extras]")
-
-        # # Install devito
-        # @info("Install devito")
-        # pip("$(dir)/submodules/devito")
-
-        # # Install devitopro
-        # @info("Install devitopro")
-        # pip(dir)
+        # Install devitopro
+        @info("Install devitopro[extras]")
+        pip("$(dir)[extras]")
 
         # Now all we need is mpi4py. It is straightforward to install except with the nvidia compiler that requires
         # extra flags to ignore some flags set by mpi4py
