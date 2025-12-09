@@ -29,6 +29,7 @@ jobs:
       OMP_NUM_THREADS: "2"
       DEVITO_AUTOPADDING: "0"
       RDMAV_FORK_SAFE: 1
+      JULIA_CONDAPKG_BACKEND: "Null"
 
     steps:
       - uses: actions/checkout@v4
