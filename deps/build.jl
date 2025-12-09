@@ -1,3 +1,8 @@
+# Ensure CondaPkg backend doesn't interfere
+if !haskey(ENV, "JULIA_CONDAPKG_BACKEND")
+    ENV["JULIA_CONDAPKG_BACKEND"] = "Null"
+end
+
 using PythonCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")

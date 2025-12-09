@@ -1,3 +1,8 @@
+# Ensure CondaPkg backend doesn't interfere
+if !haskey(ENV, "JULIA_CONDAPKG_BACKEND")
+    ENV["JULIA_CONDAPKG_BACKEND"] = "Null"
+end
+
 module Devito
 
 using PythonCall, Strided
@@ -17,9 +22,11 @@ has_devitopro() = pyconvert(Any, devitopro) !== nothing && pyconvert(Bool, devit
 
 function __init__()
     try
+        @show numpy
         PythonCall.pycopy!(numpy, pyimport("numpy"))
         PythonCall.pycopy!(sympy, pyimport("sympy"))
         PythonCall.pycopy!(devito, pyimport("devito"))
+        @show numpy
         try
             PythonCall.pycopy!(devitopro, pyimport("devitopro"))
         catch e
