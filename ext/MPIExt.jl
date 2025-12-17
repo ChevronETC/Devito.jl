@@ -3,7 +3,8 @@ module MPIExt
 using MPI
 
 using Devito
-using Devito.PyCall
+using Devito.PythonCall
+using Devito: Py
 using Devito.Strided
 
 import Devito: DiscreteFunction, TimeFunction, SparseFunction, SparseTimeFunction, SubFunction, SparseDiscreteFunction
@@ -41,7 +42,7 @@ end
 Base.IndexStyle(::Type{<:DevitoMPIAbstractArray}) = IndexCartesian()
 
 struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N}
-    o::PyObject
+    o::Py
     p::A
     local_indices::NTuple{N,UnitRange{Int}}
     decomposition::D
@@ -50,7 +51,11 @@ struct DevitoMPIArray{T,N,A<:AbstractArray{T,N},D} <: DevitoMPIAbstractArray{T,N
 end
 
 function DevitoMPIArray{T,N}(o, idxs, decomp::D, topo) where {T,N,D}
-    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+    # Get array interface dictionary
+    array_interface = pyconvert(Dict, o.__array_interface__)
+    data_ptr = pyconvert(Int, array_interface["data"][1])
+    
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(data_ptr), length.(idxs); own=false)
     n = _size_from_local_indices(idxs)
     DevitoMPIArray{T,N,Array{T,N},D}(o, p, idxs, decomp, topo, n)
 end
@@ -93,7 +98,7 @@ function Base.copyto!(dst::DevitoMPIArray{T,N}, src::AbstractArray{T,N}) where {
 end
 
 struct DevitoMPITimeArray{T,N,A<:AbstractArray{T,N},NM1,D} <: DevitoMPIAbstractArray{T,N}
-    o::PyObject
+    o::Py
     p::A
     local_indices::NTuple{N,UnitRange{Int}}
     decomposition::D
@@ -102,7 +107,11 @@ struct DevitoMPITimeArray{T,N,A<:AbstractArray{T,N},NM1,D} <: DevitoMPIAbstractA
 end
 
 function DevitoMPITimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) where {T,N,D,NM1}
-    p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+    # Get array interface dictionary
+    array_interface = pyconvert(Dict, o.__array_interface__)
+    data_ptr = pyconvert(Int, array_interface["data"][1])
+    
+    p = unsafe_wrap(Array{T,N}, Ptr{T}(data_ptr), length.(idxs); own=false)
     n = _size_from_local_indices(idxs)
     DevitoMPITimeArray{T,N,Array{T,N},NM1,D}(o, p, idxs, decomp, topo, n)
 end
@@ -157,7 +166,7 @@ function Base.copyto!(dst::DevitoMPITimeArray{T,N}, src::AbstractArray{T,N}) whe
 end
 
 struct DevitoMPISparseTimeArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,NM1}
-    o::PyObject
+    o::Py
     p::Array{T,NM1}
     local_indices::NTuple{NM1,Vector{Int}}
     decomposition::D
@@ -170,7 +179,10 @@ function DevitoMPISparseTimeArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}
     if length(idxs) == 0
         p = Array{T,N}(undef, ntuple(_->0, N))
     else
-        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+        # Get array interface dictionary
+        array_interface = pyconvert(Dict, o.__array_interface__)
+        data_ptr = pyconvert(Int, array_interface["data"][1])
+        p = unsafe_wrap(Array{T,N}, Ptr{T}(data_ptr), length.(idxs); own=false)
     end
     DevitoMPISparseTimeArray{T,N,NM1,D}(o, p, idxs, decomp, topo, globalsize(decomp))
 end
@@ -179,7 +191,7 @@ localsize(x::DevitoMPISparseTimeArray) = length.(x.local_indices)
 
 
 struct DevitoMPISparseArray{T,N,NM1,D} <: DevitoMPIAbstractArray{T,N}
-    o::PyObject
+    o::Py
     p::Array{T,NM1}
     local_indices::NTuple{NM1,Vector{Int}}
     decomposition::D
@@ -192,7 +204,10 @@ function DevitoMPISparseArray{T,N}(o, idxs, decomp::D, topo::NTuple{NM1,Int}) wh
     if prod(length.(idxs)) == 0
         p = Array{T,N}(undef, ntuple(_->0, N))
     else
-        p = unsafe_wrap(Array{T,N}, Ptr{T}(o.__array_interface__["data"][1]), length.(idxs); own=false)
+        # Get array interface dictionary
+        array_interface = pyconvert(Dict, o.__array_interface__)
+        data_ptr = pyconvert(Int, array_interface["data"][1])
+        p = unsafe_wrap(Array{T,N}, Ptr{T}(data_ptr), length.(idxs); own=false)
     end
     DevitoMPISparseArray{T,N,NM1,D}(o, p, idxs, decomp, topo, globalsize(decomp))
 end
@@ -295,7 +310,8 @@ function Devito.data(x::Function{T,N,DevitoMPITrue}) where {T,N}
     t = topology(x)
     idxs = localindices(x)
     n = _size_from_local_indices(idxs)
-    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(data_alloc_obj, p, idxs, d, t, n)
 end
 
 function Devito.data_with_halo(x::Function{T,N,DevitoMPITrue}) where {T,N}
@@ -304,7 +320,8 @@ function Devito.data_with_halo(x::Function{T,N,DevitoMPITrue}) where {T,N}
     t = topology(x)
     idxs = localindices_with_halo(x)
     n = _size_from_local_indices(idxs)
-    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(data_alloc_obj, p, idxs, d, t, n)
 end
 
 function Devito.data_with_inhalo(x::Function{T,N,DevitoMPITrue}) where {T,N}
@@ -313,11 +330,13 @@ function Devito.data_with_inhalo(x::Function{T,N,DevitoMPITrue}) where {T,N}
     t = topology(x)
     idxs = localindices_with_inhalo(x)
     n = _size_from_local_indices(idxs)
-    DevitoMPIArray{T,N,typeof(p),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPIArray{T,N,typeof(p),typeof(d)}(data_alloc_obj, p, idxs, d, t, n)
 end
 
 function data_allocated(x::Function{T,N,DevitoMPITrue}) where {T,N}
-    DevitoMPIArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPIArray{T,N}(data_alloc_obj, localindices_with_inhalo(x), decomposition(x), topology(x))
 end
 
 function Devito.data(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
@@ -326,7 +345,8 @@ function Devito.data(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     t = topology(x)
     idxs = localindices(x)
     n = _size_from_local_indices(idxs)
-    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(data_alloc_obj, p, idxs, d, t, n)
 end
 
 function Devito.data_with_halo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
@@ -335,7 +355,8 @@ function Devito.data_with_halo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     t = topology(x)
     idxs = localindices_with_halo(x)
     n = _size_from_local_indices(idxs)
-    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(data_alloc_obj, p, idxs, d, t, n)
 end
 
 function Devito.data_with_inhalo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
@@ -344,16 +365,19 @@ function Devito.data_with_inhalo(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
     t = topology(x)
     idxs = localindices_with_inhalo(x)
     n = _size_from_local_indices(idxs)
-    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(x.o."_data_allocated", p, idxs, d, t, n)
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPITimeArray{T,N,typeof(p),length(t),typeof(d)}(data_alloc_obj, p, idxs, d, t, n)
 end
 
 function data_allocated(x::TimeFunction{T,N,DevitoMPITrue}) where {T,N}
-    DevitoMPITimeArray{T,N}(x.o."_data_allocated", localindices_with_inhalo(x), decomposition(x), topology(x))
+    data_alloc_obj = x.o._data_allocated   
+    DevitoMPITimeArray{T,N}(data_alloc_obj, localindices_with_inhalo(x), decomposition(x), topology(x))
 end
 
 function data_allocated(x::SubFunction{T,2,DevitoMPITrue}) where {T}
     topo = (1, MPI.Comm_size(MPI.COMM_WORLD)) # topo is not defined for sparse decompositions
-    d = DevitoMPIArray{T,2}(x.o."_data_allocated", localindices(x), decomposition(x), topo)
+    data_alloc_obj = x.o._data_allocated   
+    d = DevitoMPIArray{T,2}(data_alloc_obj, localindices(x), decomposition(x), topo)
 end
 
 sparsetopo(x::Union{SparseFunction{T,N,DevitoMPITrue},SparseTimeFunction{T,N,DevitoMPITrue}}) where {T,N} = ntuple(i-> length(decomposition(x)[i]) > 1 ? MPI.Comm_size(MPI.COMM_WORLD) : 1, N)
@@ -363,25 +387,30 @@ localindxhelper(x) = length(x) > 1 ? x[MPI.Comm_rank(MPI.COMM_WORLD)+1] : x[1]
 sparseindices(x::Union{SparseFunction{T,N,DevitoMPITrue},SparseTimeFunction{T,N,DevitoMPITrue}}) where {T,N} = localindxhelper.(decomposition(x))
 
 function Devito.data_with_inhalo(x::SparseFunction{T,N,DevitoMPITrue}) where {T,N}
-    d = DevitoMPISparseArray{T,N}(x.o."_data_allocated", sparseindices(x), decomposition(x), sparsetopo(x))
+    data_alloc_obj = x.o._data_allocated   
+    d = DevitoMPISparseArray{T,N}(data_alloc_obj, sparseindices(x), decomposition(x), sparsetopo(x))
     MPI.Barrier(MPI.COMM_WORLD)
     d
 end
 
 # TODO - needed? <--
 function Devito.data_with_inhalo(x::SparseTimeFunction{T,N,DevitoMPITrue}) where {T,N}
-    d = DevitoMPISparseTimeArray{T,N}(x.o."_data_allocated", sparseindices(x), decomposition(x), sparsetopo(x))
+    data_alloc_obj = x.o._data_allocated   
+    d = DevitoMPISparseTimeArray{T,N}(data_alloc_obj, sparseindices(x), decomposition(x), sparsetopo(x))
     MPI.Barrier(MPI.COMM_WORLD)
     d
 end
 
 
 function localindices(x::DiscreteFunction{T,N,DevitoMPITrue}) where {T,N}
-    localinds = PyCall.trygetproperty(x.o,"local_indices",nothing)
-    if localinds === nothing
+    # PythonCall doesn't have trygetproperty, so we check if property exists
+    if !hasproperty(x.o, :local_indices)
         return ntuple(i -> 0:-1, N)
     else
-        return ntuple(i->convert(Int,localinds[N-i+1].start)+1:convert(Int,localinds[N-i+1].stop), N)
+        localinds = x.o.local_indices
+        # Convert Python list/tuple to Julia array first, then index
+        # In PythonCall, use Python's 0-based indexing: localinds[i-1]
+        return ntuple(i->pyconvert(Int, localinds[N-i].start)+1:pyconvert(Int, localinds[N-i].stop), N)
     end
 end
 
