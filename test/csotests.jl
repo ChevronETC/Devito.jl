@@ -1,10 +1,7 @@
-using Devito, PyCall, Test
-
-# const numpy = PyNULL()
-# copy!(numpy, pyimport("numpy"))
+using Devito, PythonCall, Test
 
 function typedict()
-    _typedict = Dict{DataType, PyCall.PyObject}()
+    _typedict = Dict{DataType, Py}()
     _typedict[Float32] = Devito.numpy.float32
     _typedict[Float64] = Devito.numpy.float64
     _typedict[Int8] = Devito.numpy.int8
@@ -18,9 +15,9 @@ function typedict()
     _typedict
 end
 
-@testset "Exercise types" for T in (Float32, Float64, Int8, UInt8, Int16, UInt16, Int32, Int64, ComplexF32, ComplexF64)
-    td = typedict()
-    @test Devito.numpy.dtype(td[T]) == Devito.numpy.dtype(T)
+@testset "Exercise types T=$T" for T in (Float32, Float64, Int8, UInt8, Int16, UInt16, Int32, Int64, ComplexF32, ComplexF64)
+    td = typedict()    
+    @test pyconvert(Bool, Devito.numpy.dtype(td[T]) == Devito.numpy.dtype(T))
     @test T == Devito._numpy_eltype(td[T])
 end
 

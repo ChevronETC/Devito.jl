@@ -1,13 +1,12 @@
-using Devito, PyCall, Test
+using Devito, PythonCall, Test
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
 configuration!("mpi", false)
 
 # test independent derivatives
-function python_test_individual_derivatives() 
-    python_code = 
-        py"""
+function python_test_individual_derivatives()
+        pyexec("""
         import numpy as np
         from numpy.testing import assert_almost_equal
         from devito import Grid, Function, Eq, Operator
@@ -49,13 +48,12 @@ function python_test_individual_derivatives()
         f = open("operator1.python.c", "w")
         print(op, file=f)
         f.close()
-        """
+        """, Main)
 end
 
 # test folding two discretiations in a mixed derivative
 function python_test_mixed_derivatives() 
-    python_code = 
-        py"""
+    pyexec("""
         import numpy as np
         from numpy.testing import assert_almost_equal
         from devito import Grid, Function, Eq, Operator
@@ -87,13 +85,12 @@ function python_test_mixed_derivatives()
         f = open("operator2.python.c", "w")
         print(op, file=f)
         f.close()
-        """
+        """, Main)
 end
 
 # test subdomain creation
 function python_test_subdomains() 
-    python_code = 
-        py"""
+    pyexec("""
         import numpy as np
         from devito import SubDomain, Grid, Function, Eq, Operator
 
@@ -124,11 +121,10 @@ function python_test_subdomains()
         out = open("subdomain.operator2.python.c", "w")
         print(op2, file=out)
         out.close()
-        """
+        """, Main)
 end
 
-@testset "GenCodeDerivativesIndividual" begin
-
+@testset "GenCodeDerivativesIndividual" begin    
     # python execution
     python_test_individual_derivatives()
 
@@ -178,7 +174,6 @@ end
 end
 
 @testset "GenCodeDerivativesMixed" begin
-
     # python execution
     python_test_mixed_derivatives()
 
@@ -208,8 +203,7 @@ end
     rm("operator1.julia.c", force=true)
 end
 
-@testset "GenCodeSubdomain" begin
-    
+@testset "GenCodeSubdomain" begin    
     # python execution
     python_test_subdomains() 
 

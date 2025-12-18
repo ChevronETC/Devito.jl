@@ -1,4 +1,9 @@
-using PyCall
+# Ensure CondaPkg backend doesn't interfere
+if !haskey(ENV, "JULIA_CONDAPKG_BACKEND")
+    ENV["JULIA_CONDAPKG_BACKEND"] = "Null"
+end
+
+using PythonCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
@@ -30,10 +35,24 @@ if (devito && devitopro)
     return
 end
 
-# Setup pip command. This will automatically pickup whichever pip PyCall is setup with.
+# Setup pip command. Automatically uses the Python seen by PythonCall.
 function pip(pkg::String)
-    cmd_args = Vector{String}([PyCall.python, "-m", "pip", "install", "--no-cache-dir", split(pkg, " ")...])
-    run(Cmd(cmd_args))
+    sys = pyimport("sys")
+    # sys.executable is a Py object; convert properly instead of String(sys.executable)
+    exe = pyconvert(String, sys.executable)
+    haspip = success(`$(exe) -m pip --version`)
+    if !haspip
+        @info "Bootstrapping pip (ensurepip)"
+        try
+            run(`$(exe) -m ensurepip --upgrade`)
+        catch err
+            @warn "ensurepip failed: $err"
+        end
+    end
+    # Build command array safely (split returns substrings)
+    cmd = String[exe, "-m", "pip", "install", "--no-cache-dir"]
+    append!(cmd, split(pkg, ' '))
+    run(Cmd(cmd))
 end
 
 # MPI4PY and optional nvidia requirements
@@ -42,10 +61,10 @@ function mpi4py(mpireqs)
         ENV["CC"] = "nvc"
         ENV["CFLAGS"] = "-noswitcherror -tp=px"
         pip("-r $(mpireqs)requirements-mpi.txt")
-        # If this succeeded, the we might need the extra nvidia python requirements
+        # If this succeeded, then we might need the extra nvidia python requirements
         pip("-r $(mpireqs)requirements-nvidia.txt")
     catch e
-        # Default. Don't set any flag an use the default compiler
+        # Default. Don't set any flag and use the default compiler
         delete!(ENV,"CFLAGS")
         ENV["CC"] = "gcc"
         pip("-r $(mpireqs)requirements-mpi.txt")
@@ -56,7 +75,6 @@ end
 
 # Install devito and devitopro
 try
-    # Some python version don't like without --user so bypass it
     ENV["PIP_BREAK_SYSTEM_PACKAGES"] = "1"
     if dpro_repo != ""
         # Devitopro is available (Licensed). Install devitopro that comes with devito as a submodule. 
