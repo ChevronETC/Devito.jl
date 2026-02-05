@@ -1489,7 +1489,7 @@ Symbol defining the size of the Dimension
 function symbolic_size end
 
 # metaprograming for Devito functions taking variable number of arguments
-for (M,F) in ((:devito,:Min), (:devito,:Max),(:sympy,:And))
+for (M,F) in ((:devito,:Min), (:devito,:Max), (:sympy,:And), (:sympy,:Or))
     @eval begin
         $F(args...) = $M.$F((PyObject.(args))...)
         export $F
