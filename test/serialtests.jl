@@ -506,6 +506,24 @@ end
     end
 end
 
+@testset "Conditional dimension with sympy_or" begin
+    size, factr = 18, 4
+    i = Devito.SpaceDimension(name="i")
+    grd = Grid(shape=(size,),dimensions=(i,))
+    ci = ConditionalDimension(name="ci", parent=i, factor=factr, relation=Devito.sympy_or())
+    cend = ConditionalDimension(name="cend", parent=i, condition=CondEq(i, size-1), relation=Devito.sympy_or())
+    @test parent(ci) == i
+    @test parent(cend) == i
+    g = Devito.Function(name="g", grid=grd, shape=(size,), dimensions=(i,))
+    f = Devito.Function(name="f", grid=grd, shape=(div(size,factr)+2,), dimensions=(ci,))
+    op = Operator([Eq(g, i), Eq(f, g), Eq(f[ci+1], g, implicit_dims=cend)], name="Conditional_and_Or")
+    apply(op)
+    for j in 1:div(size,factr)+1
+        @test data(f)[j] == data(g)[(j-1)*factr+1]
+    end
+    @test data(f)[end] == data(g)[end]
+end
+
 @testset "PyObject(Dimension)" begin
     x = SpaceDimension(name="x")
     @test PyObject(x) === x.o
