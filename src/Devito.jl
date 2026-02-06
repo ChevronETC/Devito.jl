@@ -1489,7 +1489,7 @@ Symbol defining the size of the Dimension
 function symbolic_size end
 
 # metaprograming for Devito functions taking variable number of arguments
-for (M,F) in ((:devito,:Min), (:devito,:Max),(:sympy,:And))
+for (M,F) in ((:devito,:Min), (:devito,:Max), (:sympy,:And))
     @eval begin
         $F(args...) = $M.$F((PyObject.(args))...)
         export $F
@@ -1558,6 +1558,9 @@ Perform Modular division on a dimension
 """
 Mod(x::Union{AbstractDimension,PyObject},y::Int) = sympy.Mod(PyObject(x),PyObject(y))
 export Mod
+
+"""function to return the sympy Or"""
+sympy_or() = sympy.Or
 
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)
