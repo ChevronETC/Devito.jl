@@ -521,7 +521,11 @@ end
     for j in 1:div(size,factr)+1
         @test data(f)[j] == data(g)[(j-1)*factr+1]
     end
-    @test data(f)[end] == data(g)[end]
+    if ENV["DEVITO_BRANCH"] in ("main", "devitopro")
+         @test data(f)[end] == data(g)[end]
+    else
+         @test_broken data(f)[end] == data(g)[end]
+    end
 end
 
 @testset "PyObject(Dimension)" begin

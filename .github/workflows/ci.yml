@@ -77,6 +77,8 @@ jobs:
       - name: run tests
         run: |
           julia --color=yes --check-bounds=yes --inline=no --project -e 'using Pkg; Pkg.test(coverage=true)'
+        env:
+          DEVITO_BRANCH: ${{ matrix.devitoversion }}
 
       - uses: julia-actions/julia-processcoverage@v1
 
