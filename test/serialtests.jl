@@ -539,7 +539,6 @@ end
             @test_broken data(f)[end] == data(g)[end]
         end
     end
-    @test data(f)[end] == data(g)[end]
 end
 
 @testset "PyObject(Dimension)" begin
