@@ -1086,10 +1086,12 @@ data(x::SubFunction{T,N,M}) where {T,N,M} = data_allocated(x)
     coordinates(x::SparseDiscreteFunction)
 
 Returns a Devito function associated with the coordinates of a sparse time function.
-Note that contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
+Note 1: contrary to typical Julia convention, coordinate order is from slow-to-fast (Python ordering).
 Thus, for a 3D grid, the sparse time function coordinates would be ordered x,y,z.
+Note 2: we need to handle complex data types, because coordinats are purely real
 """
 coordinates(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = SubFunction{T,2,M}(x.o.coordinates)
+coordinates(x::SparseDiscreteFunction{Complex{T},N,M}) where {T,N,M} = SubFunction{T,2,M}(x.o.coordinates)
 
 """
     coordinates_data(x::SparseDiscreteFunction)

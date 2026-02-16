@@ -203,9 +203,22 @@ end
     @test size_with_halo(sf) == (npoint,)
 end
 
-@testset "Sparse function coordinates, n=$n" for n in ( (10,11), (10,11,12) )
+@testset "Sparse function coordinates, Real, n=$n" for n in ( (10,11), (10,11,12) )
     grid = Grid(shape=n, dtype=Float32)
     sf = SparseFunction(name="sf", npoint=10, grid=grid)
+    @test typeof(coordinates(sf)) <: SubFunction{Float32,2}
+    sf_coords = coordinates_data(sf)
+    @test isa(sf_coords, Devito.DevitoArray)
+    @test size(sf_coords) == (length(n),10)
+    x = rand(length(n),10)
+    sf_coords .= x
+    _sf_coords = coordinates_data(sf)
+    @test _sf_coords ≈ x
+end
+
+@testset "Sparse function coordinates, Complex, n=$n" for n in ( (10,11), (10,11,12) )
+    grid = Grid(shape=n, dtype=Float32)
+    sf = SparseFunction(name="sf", npoint=10, grid=grid, dtype=Complex{Float32})
     @test typeof(coordinates(sf)) <: SubFunction{Float32,2}
     sf_coords = coordinates_data(sf)
     @test isa(sf_coords, Devito.DevitoArray)
@@ -520,11 +533,11 @@ end
     apply(op)
     for j in 1:div(size,factr)+1
         @test data(f)[j] == data(g)[(j-1)*factr+1]
-    end
-    if ENV["DEVITO_BRANCH"] in ("main", "devitopro")
-         @test data(f)[end] == data(g)[end]
-    else
-         @test_broken data(f)[end] == data(g)[end]
+        if get(ENV,"DEVITO_BRANCH","main") in ("main", "devitopro")
+            @test data(f)[end] == data(g)[end]
+        else
+            @test_broken data(f)[end] == data(g)[end]
+        end
     end
 end
 
