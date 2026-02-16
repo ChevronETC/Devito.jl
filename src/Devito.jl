@@ -778,28 +778,18 @@ src = SparseFunction(name="src", grid=grid, npoint=1)
 ```
 """
 function SparseFunction(args...; kwargs...)
-    @info "SparseFunction(args...; kwargs...)"
     o = pycall(devito.SparseFunction, PyObject, args...; reversedims(kwargs)...)
     T = numpy_eltype(o)
     N = length(o.shape)
     M = ismpi_distributed(o)
-    @show T
-    @show N
-    @show M
-    @show o
     SparseFunction{T,N,M}(o)
 end
 
 function SparseFunction(o::PyObject)
-    @info "SparseFunction(o::PyObject)"
     if ((:is_SparseFunction ∈ propertynames(o)) && (o.is_SparseFunction == true)) && ~((:is_SparseTimeFunction ∈ propertynames(o)) && (o.is_SparseTimeFunction == true))
         T = numpy_eltype(o)
         N = length(o.shape)
         M = ismpi_distributed(o)
-        @show T
-        @show N
-        @show M
-        @show o
         return SparseFunction{T,N,M}(o)
     else
         error("PyObject is not a devito.SparseFunction")
@@ -807,7 +797,6 @@ function SparseFunction(o::PyObject)
 end
 
 function CoordSlowSparseFunction(args...; kwargs...)
-    @info "CoordSlowSparseFunction"
     return SparseFunction(utils."coordslowsparse"(args...; reversedims(kwargs)...))
 end
 
