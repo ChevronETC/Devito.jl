@@ -783,6 +783,10 @@ function SparseFunction(args...; kwargs...)
     T = numpy_eltype(o)
     N = length(o.shape)
     M = ismpi_distributed(o)
+    @show T
+    @show N
+    @show M
+    @show o
     SparseFunction{T,N,M}(o)
 end
 
@@ -792,6 +796,10 @@ function SparseFunction(o::PyObject)
         T = numpy_eltype(o)
         N = length(o.shape)
         M = ismpi_distributed(o)
+        @show T
+        @show N
+        @show M
+        @show o
         return SparseFunction{T,N,M}(o)
     else
         error("PyObject is not a devito.SparseFunction")

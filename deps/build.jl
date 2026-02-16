@@ -1,7 +1,7 @@
 using PyCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
-which_devito = get(ENV,"DEVITO_BRANCH", "")
+which_devito = get(ENV,"DEVITO_BRANCH", "main")
 
 # Check if packages altready installed
 # The assumption is that if the packages are already installed, the user 
