@@ -398,3 +398,44 @@ end
 #     end
 #     rm(filename, force=true)
 # end
+
+@testset "FFTFunction, grid, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Complex{Float32})
+    b = Devito.FFTFunction(name="b", grid=grid, space_order=0)
+    @test grid == Devito.grid(b)
+    @test ndims(grid) == length(n)
+end
+
+@testset "FFTFunction, ndims, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Complex{Float32})
+    b = Devito.FFTFunction(name="b", grid=grid, space_order=0)
+    @test length(n) == ndims(b)
+end
+
+@testset "FFTFunction, data, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Complex{Float32})
+    b = Devito.FFTFunction(name="b", grid=grid, space_order=0, dtype=Complex{Float32})
+    b_data = data(b)
+    @test ndims(b_data) == length(n)
+
+    copy!(b_data, rand(eltype(grid), size(grid)))
+
+    b_data_test = data(b)
+    @test b_data ≈ b_data_test
+end
+
+@testset "FFTFunction, Fourier roundtrip" begin
+    nz = 16
+    n = (nz,5,6)
+    grid = Grid(shape = n, dtype = Float32)
+    z,y,x = dimensions(grid)
+    b = Devito.Function(name="b", grid=grid, space_order=0)
+    b_fft = Devito.FFTFunction(name="b_fft", grid=grid, space_order=0, dtype=Complex{Float32})
+    b_ifft = Devito.Function(name="b_ifft", grid=grid, space_order=0)
+
+    copy!(data(b), rand(eltype(grid), size(grid)))
+
+    op = Operator([Eq(b_fft, b), Devito.fft(b_fft, b_fft, dims=z), Devito.ifft(b_fft, b_fft, dims=z), Eq(b_ifft, Devito.Real(b_fft))])
+    apply(op)
+    @test data(b) ≈ data(b_ifft) ./ nz
+end

@@ -9,6 +9,7 @@ const devitopro = PyNULL()
 const seismic = PyNULL()
 const utils = PyNULL()
 const enriched = PyNULL()
+const transforms = PyNULL()
 
 include("cso.jl")
 
@@ -28,6 +29,7 @@ function __init__()
 
         if has_devitopro()
             copy!(enriched, pyimport("devitopro.types.enriched"))
+            copy!(transforms, pyimport("devitopro.transforms"))
         end
 
         # Utilities. Need to both load and also add to PYTHONPATH
@@ -567,6 +569,10 @@ struct Function{T,N,M} <: DiscreteFunction{T,N,M}
     o::PyObject
 end
 
+struct FFTFunction{T,N,M} <: DiscreteFunction{T,N,M}
+    o::PyObject
+end
+
 ismpi_distributed(o::PyObject) = (o._distributor === nothing) || (o._distributor.nprocs == 1) ? DevitoMPIFalse : DevitoMPITrue 
 
 """
@@ -610,6 +616,66 @@ function Function(o::PyObject)
         return Function{T,N,M}(o)
     else
         error("PyObject is not a devito.Function")
+    end
+end
+
+"""
+    Devito.FFTFunction(; kwargs...)
+
+Similar to Devito.Function to be used for FFT and IFFT.
+
+# Example
+```
+b = Devito.FFTFunction(name="b", grid=grid, space_order=0, dtype=Complex{Float32})
+```
+"""
+function FFTFunction(args...; kwargs...)
+    if has_devitopro()
+        o = pycall(devitopro.FFTFunction, PyObject, args...; reversedims(kwargs)...)
+    else
+        o = pycall(devitopro.Function, PyObject, args...; reversedims(kwargs)...)
+    end
+    T = numpy_eltype(o)
+    N = length(o.dimensions)
+    M = ismpi_distributed(o)
+    FFTFunction{T,N,M}(o)
+end
+
+"""
+    Devito.fft(f_out::FFTFunction, f_in::FFTFunction; kwargs...)
+
+Function to create an equation for the forward FFT.
+
+# Example
+```
+eq = Devito.fft(f_out, f_in; dims=z)
+op = Operator([eq])
+```
+"""
+function fft(f_out::FFTFunction, f_in::FFTFunction; kwargs...)
+    if has_devitopro()
+        return pycall(transforms.fft, PyObject, f_out, f_in; reversedims(kwargs)...)
+    else
+        error("FFT is only supported with devitopro backend")
+    end
+end
+
+"""
+    Devito.ifft(f_out::FFTFunction, f_in::FFTFunction; kwargs...)
+
+Function to create an equation for the inverse FFT.
+
+# Example
+```
+eq = Devito.ifft(f_out, f_in; dims=z)
+op = Operator([eq])
+```
+"""
+function ifft(f_out::FFTFunction, f_in::FFTFunction; kwargs...)
+    if has_devitopro()
+        return pycall(transforms.ifft, PyObject, f_out, f_in; reversedims(kwargs)...)
+    else
+        error("IFFT is only supported with devitopro backend")
     end
 end
 
@@ -808,6 +874,7 @@ PyCall.PyObject(x::DiscreteFunction) = x.o
 Return the grid corresponding to the discrete function `f`.
 """
 grid(x::Function{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
+grid(x::FFTFunction{T,N}) where {T,N} = Grid{T,N}(x.o.grid)
 grid(x::TimeFunction{T,N}) where {T,N} = Grid{T,N-1}(x.o.grid)
 
 function grid(x::SparseDiscreteFunction{T}) where {T}
@@ -1521,6 +1588,34 @@ Example:
 Is equivalent to f = Max(g,1) for Devito functions f,g
 """
 function Max end
+
+"""
+    Real(args...)
+
+Can be used in a Devito.Eq to return the real part of a complex expression
+Example:
+```julia
+    eqreal = Eq(f,Real(g))
+```
+Is equivalent to f = Real(g) for Devito functions f,g
+"""
+function Real(x::Union{DiscreteFunction,PyObject,Constant})
+     devito.Real(PyObject(x))
+end
+
+"""
+    Imag(args...)
+
+Can be used in a Devito.Eq to return the imaginary part of a complex expression
+Example:
+```julia
+    eqimag = Eq(f,Imag(g))
+```
+Is equivalent to f = Imag(g) for Devito functions f,g
+"""
+function Imag(x::Union{DiscreteFunction,PyObject,Constant})
+     devito.Imag(PyObject(x))
+end
 
 # metaprograming for Devito mathematical operations ( more exist and may be added as required, find them at https://github.com/devitocodes/devito/blob/a8a33dc55ac3be008644c58a76b671028625679a/devito/finite_differences/elementary.py )
 
