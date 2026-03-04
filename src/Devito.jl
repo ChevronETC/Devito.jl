@@ -1599,6 +1599,7 @@ Example:
 ```
 Is equivalent to f = Real(g) for Devito functions f,g
 """
+function Real end
 function Real(x::Union{DiscreteFunction,PyObject,Constant})
      devito.Real(PyObject(x))
 end
