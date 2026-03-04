@@ -424,8 +424,7 @@ end
     @test b_data ≈ b_data_test
 end
 
-@testset "FFTFunction, Fourier roundtrip" begin
-    nz = 16
+@testset "FFTFunction, Fourier roundtrip, nz=$(nz)" for nz in (16, 21, 30)
     n = (nz,5,6)
     grid = Grid(shape = n, dtype = Float32)
     z,y,x = dimensions(grid)
