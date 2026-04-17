@@ -533,11 +533,7 @@ end
     apply(op)
     for j in 1:div(size,factr)+1
         @test data(f)[j] == data(g)[(j-1)*factr+1]
-        if get(ENV,"DEVITO_BRANCH","main") in ("main", "devitopro")
-            @test data(f)[end] == data(g)[end]
-        else
-            @test_broken data(f)[end] == data(g)[end]
-        end
+        @test data(f)[end] == data(g)[end]
     end
 end
 
@@ -941,7 +937,7 @@ end
     ci = ConditionalDimension(name="ci", parent=i, factor=factr)
     @test parent(ci) == i
     g = Devito.Function(name="g", grid=grd, shape=(size,), dimensions=(i,))
-    f = Devito.Function(name="f", grid=grd, shape=(div(size,factr),), dimensions=(ci,))
+    f = Devito.Function(name="f", grid=grd, shape=(div(size,factr)+1,), dimensions=(ci,))
     op = Operator([Eq(g, i), Eq(f, g)],name="Conditional")
     apply(op)
     for j in 1:div(size,factr)
