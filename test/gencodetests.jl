@@ -1,130 +1,136 @@
-using Devito, PyCall, Test
+using Devito, PythonCall, Test
 
 configuration!("log-level", "DEBUG")
 configuration!("language", "openmp")
 configuration!("mpi", false)
 
+# Helper to execute Python code in __main__ namespace (like PyCall's py"...")
+const _pymain = Ref{Py}()
+function pyexec_main(code::String)
+    if !isassigned(_pymain)
+        _pymain[] = pyimport("__main__").__dict__
+    end
+    pybuiltins.exec(code, _pymain[])
+end
+
 # test independent derivatives
 function python_test_individual_derivatives() 
-    python_code = 
-        py"""
-        import numpy as np
-        from numpy.testing import assert_almost_equal
-        from devito import Grid, Function, Eq, Operator
+    pyexec_main("""
+import numpy as np
+from numpy.testing import assert_almost_equal
+from devito import Grid, Function, Eq, Operator
 
-        nx,ny,nz = 11,11,11
-        dx,dy,dz = 10,10,10
-        grid = Grid(extent=(dx*(nx-1),dy*(ny-1),dz*(nz-1)), shape=(nx,ny,nz), origin=(0,0,0), dtype=np.float32)
-        x,y,z = grid.dimensions
+nx,ny,nz = 11,11,11
+dx,dy,dz = 10,10,10
+grid = Grid(extent=(dx*(nx-1),dy*(ny-1),dz*(nz-1)), shape=(nx,ny,nz), origin=(0,0,0), dtype=np.float32)
+x,y,z = grid.dimensions
 
-        fx = Function(name='fx', grid=grid, space_order=2)
-        fy = Function(name='fy', grid=grid, space_order=2)
-        fz = Function(name='fz', grid=grid, space_order=2)
-        gx = Function(name='gx', grid=grid, space_order=2)
-        gy = Function(name='gy', grid=grid, space_order=2)
-        gz = Function(name='gz', grid=grid, space_order=2)
+fx = Function(name='fx', grid=grid, space_order=2)
+fy = Function(name='fy', grid=grid, space_order=2)
+fz = Function(name='fz', grid=grid, space_order=2)
+gx = Function(name='gx', grid=grid, space_order=2)
+gy = Function(name='gy', grid=grid, space_order=2)
+gz = Function(name='gz', grid=grid, space_order=2)
 
-        a,b,c = 2,3,4
+a,b,c = 2,3,4
 
-        eq_x0 = Eq(fx, x.spacing * a * x)
-        eq_y0 = Eq(fy, y.spacing * b * y)
-        eq_z0 = Eq(fz, z.spacing * c * z)
+eq_x0 = Eq(fx, x.spacing * a * x)
+eq_y0 = Eq(fy, y.spacing * b * y)
+eq_z0 = Eq(fz, z.spacing * c * z)
 
-        eq_dx = Eq(gx, fx.dx(x0 = x + x.spacing / 2))
-        eq_dy = Eq(gy, fy.dy(x0 = y + y.spacing / 2))
-        eq_dz = Eq(gz, fz.dz(x0 = z + z.spacing / 2))
+eq_dx = Eq(gx, fx.dx(x0 = x + x.spacing / 2))
+eq_dy = Eq(gy, fy.dy(x0 = y + y.spacing / 2))
+eq_dz = Eq(gz, fz.dz(x0 = z + z.spacing / 2))
 
-        spacing_map = grid.spacing_map
-        op = Operator([eq_x0, eq_y0, eq_z0, eq_dx, eq_dy, eq_dz], subs=spacing_map, name="Op1")
-        op.apply()
+spacing_map = grid.spacing_map
+op = Operator([eq_x0, eq_y0, eq_z0, eq_dx, eq_dy, eq_dz], subs=spacing_map, name="Op1")
+op.apply()
 
-        print(gx.data[5,5,5])
-        print(gy.data[5,5,5])
-        print(gz.data[5,5,5])
+print(gx.data[5,5,5])
+print(gy.data[5,5,5])
+print(gz.data[5,5,5])
 
-        assert_almost_equal(a, gx.data[nx//2,ny//2,nz//2], decimal=6)
-        assert_almost_equal(b, gy.data[nx//2,ny//2,nz//2], decimal=6)
-        assert_almost_equal(c, gz.data[nx//2,ny//2,nz//2], decimal=6)
+assert_almost_equal(a, gx.data[nx//2,ny//2,nz//2], decimal=6)
+assert_almost_equal(b, gy.data[nx//2,ny//2,nz//2], decimal=6)
+assert_almost_equal(c, gz.data[nx//2,ny//2,nz//2], decimal=6)
 
-        f = open("operator1.python.c", "w")
-        print(op, file=f)
-        f.close()
-        """
+f = open("operator1.python.c", "w")
+print(op, file=f)
+f.close()
+""")
 end
 
 # test folding two discretiations in a mixed derivative
 function python_test_mixed_derivatives() 
-    python_code = 
-        py"""
-        import numpy as np
-        from numpy.testing import assert_almost_equal
-        from devito import Grid, Function, Eq, Operator
+    pyexec_main("""
+import numpy as np
+from numpy.testing import assert_almost_equal
+from devito import Grid, Function, Eq, Operator
 
-        nx,ny,nz = 11,11,11
-        dx,dy,dz = 10,10,10
-        grid = Grid(extent=(dx*(nx-1),dy*(ny-1),dz*(nz-1)), shape=(nx,ny,nz), origin=(0,0,0), dtype=np.float32)
-        x,y,z = grid.dimensions
+nx,ny,nz = 11,11,11
+dx,dy,dz = 10,10,10
+grid = Grid(extent=(dx*(nx-1),dy*(ny-1),dz*(nz-1)), shape=(nx,ny,nz), origin=(0,0,0), dtype=np.float32)
+x,y,z = grid.dimensions
 
-        f = Function(name='f', grid=grid, space_order=2)
-        g = Function(name='g', grid=grid, space_order=2)
+f = Function(name='f', grid=grid, space_order=2)
+g = Function(name='g', grid=grid, space_order=2)
 
-        a,b,c = 2,3,4
+a,b,c = 2,3,4
 
-        eq = Eq(g, f.dx.dy.dz)
+eq = Eq(g, f.dx.dy.dz)
 
-        spacing_map = grid.spacing_map
-        op = Operator([eq], subs=spacing_map, name="Op2")
-        op.apply()
+spacing_map = grid.spacing_map
+op = Operator([eq], subs=spacing_map, name="Op2")
+op.apply()
 
-        print(gx.data[5,5,5])
-        print(gy.data[5,5,5])
-        print(gz.data[5,5,5])
+print(gx.data[5,5,5])
+print(gy.data[5,5,5])
+print(gz.data[5,5,5])
 
-        assert_almost_equal(a, gx.data[nx//2,ny//2,nz//2], decimal=6)
-        assert_almost_equal(b, gy.data[nx//2,ny//2,nz//2], decimal=6)
-        assert_almost_equal(c, gz.data[nx//2,ny//2,nz//2], decimal=6)
+assert_almost_equal(a, gx.data[nx//2,ny//2,nz//2], decimal=6)
+assert_almost_equal(b, gy.data[nx//2,ny//2,nz//2], decimal=6)
+assert_almost_equal(c, gz.data[nx//2,ny//2,nz//2], decimal=6)
 
-        f = open("operator2.python.c", "w")
-        print(op, file=f)
-        f.close()
-        """
+f = open("operator2.python.c", "w")
+print(op, file=f)
+f.close()
+""")
 end
 
 # test subdomain creation
 function python_test_subdomains() 
-    python_code = 
-        py"""
-        import numpy as np
-        from devito import SubDomain, Grid, Function, Eq, Operator
+    pyexec_main("""
+import numpy as np
+from devito import SubDomain, Grid, Function, Eq, Operator
 
-        class fs1(SubDomain):
-            name = "fs"
+class fs1(SubDomain):
+    name = "fs"
 
-            def define(self, dimensions):
-                x, y = dimensions
-                return {x: ("middle", 0, 0), y: ("left", 1)}
+    def define(self, dimensions):
+        x, y = dimensions
+        return {x: ("middle", 0, 0), y: ("left", 1)}
 
-        grid = Grid(shape=(4,4), dtype=np.float32, subdomains=(fs1()))
+grid = Grid(shape=(4,4), dtype=np.float32, subdomains=(fs1()))
 
-        fs  = grid.subdomains["fs"]
-        all = grid.subdomains["domain"]
+fs  = grid.subdomains["fs"]
+all = grid.subdomains["domain"]
 
-        f = Function(name="f", grid=grid, space_order=4)
+f = Function(name="f", grid=grid, space_order=4)
 
-        f.data[:] = 0
-        op1 = Operator([Eq(f, 1, subdomain=all)], name="subop1")
-        op1.apply()
-        out = open("subdomain.operator1.python.c", "w")
-        print(op1, file=out)
-        out.close()
+f.data[:] = 0
+op1 = Operator([Eq(f, 1, subdomain=all)], name="subop1")
+op1.apply()
+out = open("subdomain.operator1.python.c", "w")
+print(op1, file=out)
+out.close()
 
-        f.data[:] = 0
-        op2 = Operator([Eq(f, 1, subdomain=fs)], name="subop2")
-        op2.apply()
-        out = open("subdomain.operator2.python.c", "w")
-        print(op2, file=out)
-        out.close()
-        """
+f.data[:] = 0
+op2 = Operator([Eq(f, 1, subdomain=fs)], name="subop2")
+op2.apply()
+out = open("subdomain.operator2.python.c", "w")
+print(op2, file=out)
+out.close()
+""")
 end
 
 @testset "GenCodeDerivativesIndividual" begin

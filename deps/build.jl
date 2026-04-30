@@ -1,4 +1,4 @@
-using PyCall
+using PythonCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
 # Example 1 using the mirror: DEVITO_PRO="https://chevron@dev.azure.com/chevron/ETC-ESD-COFIICloud/_git/devitopro-chevron"
@@ -38,7 +38,8 @@ end
 
 # Setup pip command. This will automatically pickup whichever pip PyCall is setup with.
 function pip(pkg::String)
-    cmd_args = Vector{String}([PyCall.python, "-m", "pip", "install", "--no-cache-dir", split(pkg, " ")...])
+    python_exe = PythonCall.python_executable_path()
+    cmd_args = Vector{String}([python_exe, "-m", "pip", "install", "--no-cache-dir", split(pkg, " ")...])
     run(Cmd(cmd_args))
 end
 
