@@ -21,3 +21,13 @@ Devito.jl is a Julia API supporting a sub-set of [devitoproject.org](https://www
 
 [code-coverage-img]: https://codecov.io/gh/ChevronETC/Devito.jl/branch/master/graph/badge.svg
 [code-coverage-results]: https://codecov.io/gh/ChevronETC/Devito.jl
+
+
+
+1. extensively and rigorously study the source code in
+    - /home/cvx/dev/Devito
+    - /home/cvx/dev/devitopro-chevron
+2. convert Devito.jl from the exclusive use of PyCall to the exclusive use of PythonCall.
+    - ensure all unit tests pass
+    - try to make sure there are as minimum changes to the code as possible
+    
