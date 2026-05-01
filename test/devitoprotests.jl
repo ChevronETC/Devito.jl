@@ -1,4 +1,5 @@
-using Devito, Logging, PyCall, Test
+using Devito, Logging, PythonCall, Test
+import PythonCall: pycopy!
 
 @testset "ABox Expanding Source" begin
     g = Grid(shape=(8,8), extent=(7.0,7.0))
@@ -42,13 +43,13 @@ end
     data(vp) .= 1.0
 
     # unset devitopro
-    copy!(Devito.devitopro, pyimport("devito"))
+    pycopy!(Devito.devitopro, pyimport("devito"))
     @test_throws ErrorException ABox(src, nothing, vp, -1)
     # reset devitopro 
     try
-        copy!(Devito.devitopro, pyimport("devitopro"))
+        pycopy!(Devito.devitopro, pyimport("devitopro"))
     catch e
-        copy!(Devito.devitopro, pyimport("devito"))
+        pycopy!(Devito.devitopro, pyimport("devito"))
     end
 end
 
@@ -243,7 +244,9 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
     @testset "CCall with printf" begin
         # CCall test written to use gcc
         carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
-        @pywith switchconfig(;compiler=get(ENV, "CC", carch)) begin
+        ctx = switchconfig(;compiler=get(ENV, "CC", carch))
+        ctx.__enter__()
+        try
             pf = CCall("printf", header="stdio.h")
             @test Devito.name(pf) == "printf"
             @test Devito.header(pf) == "stdio.h"
@@ -252,7 +255,7 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             @test Devito.lib_dirs(pf) == pf.o.lib_dirs
             @test Devito.target(pf) == pf.o.target
             @test Devito.types(pf) == pf.o.types
-            @test PyObject(pf) == pf.o
+            @test Py(pf) == pf.o
             printingop = Operator([pf([""" "hello world!" """])])
             ccode(printingop, filename="helloworld.c")
             # read the program
@@ -269,18 +272,20 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             end
             # remove the file
             rm("helloworld.c", force=true)
+        finally
+            ctx.__exit__(pybuiltins.None, pybuiltins.None, pybuiltins.None)
         end
     end
 
     @testset "CCall errors without devitopro" begin
         # unset devitopro
-        copy!(Devito.devitopro, pyimport("devito"))
+        pycopy!(Devito.devitopro, pyimport("devito"))
         @test_throws ErrorException CCall("printf", header="stdio.h")
         # reset devitopro 
         try
-            copy!(Devito.devitopro, pyimport("devitopro"))
+            pycopy!(Devito.devitopro, pyimport("devitopro"))
         catch e
-            copy!(Devito.devitopro, pyimport("devito"))
+            pycopy!(Devito.devitopro, pyimport("devito"))
         end
     end
 end

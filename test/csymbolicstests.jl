@@ -1,20 +1,21 @@
-using Devito, PyCall, Test
+using Devito, PythonCall, Test
+import PythonCall: pynew, pycopy!
 
-const ctypes = PyNULL()
-copy!(ctypes, pyimport("ctypes"))
+const ctypes = pynew()
+pycopy!(ctypes, pyimport("ctypes"))
 
 @testset "Devito Pointer" begin
     p = Pointer(name="pointer")
-    @test getproperty(PyObject(p), :_C_ctype) == ctypes.c_void_p
+    @test pyconvert(Bool, Py(p)._C_ctype == ctypes.c_void_p)
 end
 
 @testset "Devito Unary Ops" begin
     g = Grid(shape=(4,4))
     f = Devito.Function(name="f", grid=g)
     bref = Byref(f)
-    @test getproperty(PyObject(bref), :_op) == "&"
+    @test pyconvert(String, Py(bref)._op) == "&"
     dref = Deref(f)
-    @test getproperty(PyObject(dref), :_op) == "*"
+    @test pyconvert(String, Py(dref)._op) == "*"
     cst  = Cast(f, "char *")
-    @test getproperty(PyObject( cst), :_op) == "(char*)"
+    @test pyconvert(String, Py(cst)._op) == "(char*)"
 end
