@@ -1,3 +1,6 @@
+[CondaPkg]
+backend = "Null"
+
 [MPIPreferences]
 __clear__ = ["preloads_env_switch"]
 _format = "1.0"
@@ -7,3 +10,6 @@ cclibs = []
 libmpi = "libmpi"
 mpiexec = "mpiexec"
 preloads = []
+
+[PythonCall]
+exe = "/home/cvx/.conda/envs/conda_jl/bin/python"
