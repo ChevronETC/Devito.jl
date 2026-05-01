@@ -354,10 +354,16 @@ struct Operator
     o::Py
 
     function Operator(args...; kwargs...)
-        if :name ∈ keys(kwargs)
-            new(devito.Operator(args...; kwargs...))
+        # Convert opt kwarg: if it's a tuple containing a Julia Dict,
+        # convert the Dict to a Python dict so devito's isinstance() checks work.
+        kw = Dict{Symbol,Any}(kwargs)
+        if haskey(kw, :opt) && kw[:opt] isa Tuple
+            kw[:opt] = tuple((v isa Dict ? pydict(v) : v for v in kw[:opt])...)
+        end
+        if :name ∈ keys(kw)
+            new(devito.Operator(args...; kw...))
         else
-            new(devito.Operator(args...; name="Kernel", kwargs...))
+            new(devito.Operator(args...; name="Kernel", kw...))
         end
     end
     
