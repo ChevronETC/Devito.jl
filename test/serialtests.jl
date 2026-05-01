@@ -1445,4 +1445,78 @@ end
     @test Py(x) == x.o
 end
 
+@testset "Dimension reversal, Julia↔Python, ndim=$ndim" for ndim in (2,3)
+    # Grid shape: Julia convention is (slow..., fast), Python is (fast..., slow)
+    jl_shape = ntuple(i -> i+2, ndim)  # e.g. (3,4) or (3,4,5)
+    py_shape = reverse(jl_shape)
+
+    grid = Grid(shape=jl_shape)
+
+    # shape reversal
+    @test size(grid) == jl_shape
+    @test pyconvert(NTuple{ndim,Int}, grid.o.shape) == py_shape
+
+    # named dimensions: Julia returns reversed order
+    dimnames_jl = [pyconvert(String, d.o.name) for d in dimensions(grid)]
+    dimnames_py = [pyconvert(String, grid.o.dimensions[i].name) for i in 0:ndim-1]
+    @test dimnames_jl == reverse(dimnames_py)
+
+    # extent and origin reversal
+    jl_extent = ntuple(i -> 10.0*i, ndim)
+    jl_origin = ntuple(i -> Float64(i), ndim)
+    grid2 = Grid(shape=jl_shape, extent=jl_extent, origin=jl_origin, dtype=Float64)
+    @test extent(grid2) == jl_extent
+    @test origin(grid2) == jl_origin
+    @test pyconvert(NTuple{ndim,Float64}, grid2.o.extent) == reverse(jl_extent)
+    @test pyconvert(NTuple{ndim,Float64}, grid2.o.origin) == reverse(jl_origin)
+
+    # Function data indexing: writing at Julia corners maps to reversed Python corners
+    f = Devito.Function(name="f", grid=grid, dtype=Float32)
+    d = data(f)
+    d .= 0
+    d[ones(Int,ndim)...] = 1.0f0   # Julia first corner
+    d[jl_shape...] = 2.0f0         # Julia last corner
+    pydata = f.o.data
+    @test pyconvert(Float32, pydata.__getitem__(ntuple(_->0, ndim))) == 1.0f0
+    @test pyconvert(Float32, pydata.__getitem__(py_shape .- 1)) == 2.0f0
+
+    # halo reversal
+    so = 2
+    fh = Devito.Function(name="fh", grid=grid, space_order=so, dtype=Float32)
+    jl_halo = halo(fh)
+    py_halo = pyconvert(NTuple{ndim,Tuple{Int,Int}}, fh.o.halo)
+    @test jl_halo == reverse(py_halo)
+
+    # size_with_halo reversal
+    @test size_with_halo(fh) == reverse(pyconvert(NTuple{ndim,Int}, fh.o.shape_with_halo))
+
+    # localmask reversal
+    lm = Devito.localmask(fh)
+    for i in 1:ndim
+        py_idx = ndim - i  # reversed index into Python mask tuple
+        py_start = pyconvert(Int, fh.o._mask_domain[py_idx].start)
+        py_stop  = pyconvert(Int, fh.o._mask_domain[py_idx].stop)
+        @test lm[i] == (py_start+1):py_stop
+    end
+end
+
+@testset "Sparse coordinate ordering, ndim=$ndim" for ndim in (2,3)
+    jl_shape = ntuple(i -> 5+i, ndim)
+    grid = Grid(shape=jl_shape, dtype=Float32)
+    npoint = 3
+    sf = SparseFunction(name="sf", grid=grid, npoint=npoint)
+    coords = coordinates_data(sf)
+
+    # coordinates_data has size (ndim, npoint), with slow-to-fast (Python) ordering
+    @test size(coords) == (ndim, npoint)
+
+    # write coords and verify Python sees the same values (no transposition)
+    test_vals = Float32.(reshape(1:ndim*npoint, ndim, npoint))
+    coords .= test_vals
+    py_coords = sf.o.coordinates.data
+    for p in 1:npoint, d in 1:ndim
+        @test coords[d,p] ≈ pyconvert(Float32, py_coords.__getitem__((p-1, d-1)))
+    end
+end
+
 nothing
