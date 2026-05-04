@@ -85,6 +85,10 @@ try
         mpi4py("$(dir)/submodules/devito/")
         rm(dir, recursive=true, force=true)
 
+        # Invalidate Python's import caches so newly pip-installed packages
+        # are visible to the already-running interpreter.
+        py"import importlib; importlib.invalidate_caches()"
+
         # Make sure it imports
         pyimport("devitopro")
         pyimport("devito")
@@ -98,6 +102,11 @@ try
             pip("devito[extras,tests]")
             mpi4py("https://raw.githubusercontent.com/devitocodes/devito/main/")
         end
+
+        # Invalidate Python's import caches so newly pip-installed packages
+        # are visible to the already-running interpreter.
+        py"import importlib; importlib.invalidate_caches()"
+
         # Make sure it imports
         pyimport("devito")
     end
