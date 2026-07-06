@@ -2,6 +2,38 @@ module Devito
 
 using PyCall, Strided
 
+# ---------------------------------------------------------------------------
+# GIL-safe finalizer (stopgap; PythonCall migration is the planned permanent fix)
+#
+# PyCall's default `pydecref` calls `Py_DecRef` with no GIL held (see
+# PyCall/src/PyCall.jl:117-126, v1.96.4). When a PyObject finalizer runs on a
+# Julia GC/finalizer thread that CPython has never seen — an "unregistered"
+# thread, as happens under `-t>1`, task migration, or process-spawned workers —
+# manipulating the GIL/refcount from that thread segfaults.
+#
+# We override `pydecref` to bracket the decref with PyGILState_Ensure/Release.
+# `PyGILState_Ensure` registers the calling thread with CPython and is reentrant,
+# so this is safe even when the thread already holds the GIL. The `_finalized[]`
+# guard is preserved from upstream: once the interpreter is torn down at exit we
+# must not touch Python (calling PyGILState_Ensure post-Py_Finalize would crash).
+#
+# This is type-piracy on PyCall's own method, matched to PyCall v1.96.4 internals
+# (pydecref / _finalized / PyPtr_NULL / @pysym). Revisit if the PyCall compat
+# bound is raised.
+function PyCall.pydecref(o::PyCall.PyObject)
+    p = PyCall.PyPtr(o)
+    if p != PyCall.PyPtr_NULL && !PyCall._finalized[]
+        gstate = ccall(PyCall.@pysym(:PyGILState_Ensure), Cint, ())
+        try
+            ccall(PyCall.@pysym(:Py_DecRef), Cvoid, (PyCall.PyPtr,), p)
+        finally
+            ccall(PyCall.@pysym(:PyGILState_Release), Cvoid, (Cint,), gstate)
+        end
+    end
+    setfield!(o, :o, PyCall.PyPtr_NULL)
+    return o
+end
+
 const numpy = PyNULL()
 const sympy = PyNULL()
 const devito = PyNULL()
