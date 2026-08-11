@@ -1,25 +1,20 @@
 module Devito
 
+__precompile__(false)
+
 using PythonCall, Strided
 import PythonCall: Py, pynew, pyisnull, pycopy!
 
 # Compatibility: PythonCall doesn't auto-convert Py<->Julia like PyCall did
 # Override == to return Bool instead of Py (needed for @test compatibility)
-# These are defined at runtime to avoid precompilation method overwrite errors
-function _define_py_equality()
-    # Skip during extension precompilation (module is closed, @eval would fail)
-    ccall(:jl_generating_output, Cint, ()) == 1 && return
-    @eval Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
-    @eval Base.:(==)(x::Py, y::Number) = pytruth(PythonCall.pyeq(x, Py(y)))
-    @eval Base.:(==)(x::Number, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
-    @eval Base.:(==)(x::Py, y::AbstractString) = pytruth(PythonCall.pyeq(x, Py(y)))
-    @eval Base.:(==)(x::AbstractString, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
-    @eval Base.:(==)(x::Py, ::Nothing) = pyis(x, pybuiltins.None)
-    @eval Base.:(==)(::Nothing, y::Py) = pyis(y, pybuiltins.None)
-    @eval Base.:(==)(x::Py, y::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}) = pytruth(PythonCall.pyeq(x, Py(y)))
-    @eval Base.:(==)(x::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
-    @eval Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
-end
+Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
+Base.:(==)(x::Py, y::Number) = pytruth(PythonCall.pyeq(x, Py(y)))
+Base.:(==)(x::Number, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
+Base.:(==)(x::Py, y::AbstractString) = pytruth(PythonCall.pyeq(x, Py(y)))
+Base.:(==)(x::AbstractString, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
+Base.:(==)(x::Py, ::Nothing) = pyis(x, pybuiltins.None)
+Base.:(==)(::Nothing, y::Py) = pyis(y, pybuiltins.None)
+Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
 
 # Allow getindex on Py dicts with Julia strings
 Base.getindex(x::Py, k::AbstractString) = x.__getitem__(k)
@@ -62,7 +57,6 @@ function _process_kwargs(nt::NamedTuple)
 end
 
 function __init__()
-    _define_py_equality()
     try
         pycopy!(numpy, pyimport("numpy"))
         pycopy!(sympy, pyimport("sympy"))
@@ -611,6 +605,14 @@ Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = pyconvert(Bool, x.o == y
 #
 
 abstract type DiscreteFunction{T,N,M} end
+
+# Py equality for Devito wrapper types
+Base.:(==)(x::Py, y::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}) = pytruth(PythonCall.pyeq(x, Py(y)))
+Base.:(==)(x::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
+
+# Py equality for Devito wrapper types (defined here after all types are available)
+Base.:(==)(x::Py, y::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}) = pytruth(PythonCall.pyeq(x, Py(y)))
+Base.:(==)(x::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
 
 struct Function{T,N,M} <: DiscreteFunction{T,N,M}
     o::Py
