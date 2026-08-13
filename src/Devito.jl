@@ -3,7 +3,7 @@ module Devito
 __precompile__(false)
 
 using PythonCall, Strided
-import PythonCall: Py, pynew, pyisnull, pycopy!, pyadd, pysub, pymul, pytruediv
+import PythonCall: Py, pynew, pyisnull, pycopy!
 
 # Compatibility: PythonCall doesn't auto-convert Py<->Julia like PyCall did
 # Override == to return Bool instead of Py (needed for @test compatibility)
@@ -476,24 +476,6 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 function SpaceDimension end
 
 Base.:(==)(x::AbstractDimension,y::AbstractDimension) = pyconvert(Bool, x.o == y.o)
-
-# Arithmetic between AbstractDimension and Py (needed for symbolic expressions like dim + shift*spacing(dim))
-Base.:(+)(x::AbstractDimension, y::Py) = pyadd(Py(x), y)
-Base.:(+)(x::Py, y::AbstractDimension) = pyadd(x, Py(y))
-Base.:(-)(x::AbstractDimension, y::Py) = pysub(Py(x), y)
-Base.:(-)(x::Py, y::AbstractDimension) = pysub(x, Py(y))
-Base.:(*)(x::AbstractDimension, y::Py) = pymul(Py(x), y)
-Base.:(*)(x::Py, y::AbstractDimension) = pymul(x, Py(y))
-Base.:(/)(x::AbstractDimension, y::Py) = pytruediv(Py(x), y)
-Base.:(/)(x::Py, y::AbstractDimension) = pytruediv(x, Py(y))
-Base.:(+)(x::AbstractDimension, y::Number) = pyadd(Py(x), Py(y))
-Base.:(+)(x::Number, y::AbstractDimension) = pyadd(Py(x), Py(y))
-Base.:(-)(x::AbstractDimension, y::Number) = pysub(Py(x), Py(y))
-Base.:(-)(x::Number, y::AbstractDimension) = pysub(Py(x), Py(y))
-Base.:(*)(x::AbstractDimension, y::Number) = pymul(Py(x), Py(y))
-Base.:(*)(x::Number, y::AbstractDimension) = pymul(Py(x), Py(y))
-Base.:(/)(x::AbstractDimension, y::Number) = pytruediv(Py(x), Py(y))
-Base.:(/)(x::Number, y::AbstractDimension) = pytruediv(Py(x), Py(y))
 
 # 2025-09-03 JKW this is covered in the metaprogramming for dimensions above
 # Py(x::AbstractDimension) = x.o
