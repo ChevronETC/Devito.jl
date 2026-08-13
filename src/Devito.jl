@@ -3,7 +3,7 @@ module Devito
 __precompile__(false)
 
 using PythonCall, Strided
-import PythonCall: Py, pynew, pyisnull, pycopy!
+import PythonCall: Py, pynew, pyisnull, pycopy!, pyadd, pysub, pymul, pytruediv
 
 # Compatibility: PythonCall doesn't auto-convert Py<->Julia like PyCall did
 # Override == to return Bool instead of Py (needed for @test compatibility)
@@ -476,6 +476,24 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 function SpaceDimension end
 
 Base.:(==)(x::AbstractDimension,y::AbstractDimension) = pyconvert(Bool, x.o == y.o)
+
+# Arithmetic between AbstractDimension and Py (needed for symbolic expressions like dim + shift*spacing(dim))
+Base.:(+)(x::AbstractDimension, y::Py) = pyadd(Py(x), y)
+Base.:(+)(x::Py, y::AbstractDimension) = pyadd(x, Py(y))
+Base.:(-)(x::AbstractDimension, y::Py) = pysub(Py(x), y)
+Base.:(-)(x::Py, y::AbstractDimension) = pysub(x, Py(y))
+Base.:(*)(x::AbstractDimension, y::Py) = pymul(Py(x), y)
+Base.:(*)(x::Py, y::AbstractDimension) = pymul(x, Py(y))
+Base.:(/)(x::AbstractDimension, y::Py) = pytruediv(Py(x), y)
+Base.:(/)(x::Py, y::AbstractDimension) = pytruediv(x, Py(y))
+Base.:(+)(x::AbstractDimension, y::Number) = pyadd(Py(x), Py(y))
+Base.:(+)(x::Number, y::AbstractDimension) = pyadd(Py(x), Py(y))
+Base.:(-)(x::AbstractDimension, y::Number) = pysub(Py(x), Py(y))
+Base.:(-)(x::Number, y::AbstractDimension) = pysub(Py(x), Py(y))
+Base.:(*)(x::AbstractDimension, y::Number) = pymul(Py(x), Py(y))
+Base.:(*)(x::Number, y::AbstractDimension) = pymul(Py(x), Py(y))
+Base.:(/)(x::AbstractDimension, y::Number) = pytruediv(Py(x), Py(y))
+Base.:(/)(x::Number, y::AbstractDimension) = pytruediv(Py(x), Py(y))
 
 # 2025-09-03 JKW this is covered in the metaprogramming for dimensions above
 # Py(x::AbstractDimension) = x.o
@@ -1350,7 +1368,21 @@ Derivative(x::Union{Constant, Number}, args...; kwargs...) = Py(0)
     ```
     
 """
-Derivative(x::Union{DiscreteFunction,Py}, args...; kwargs...) = devito.Derivative(Py(x), args...; kwargs...)
+function Derivative(x::Union{DiscreteFunction,Py}, args...; kwargs...)
+    # Convert x0 Dict keys from Julia AbstractDimension to Python Py objects
+    kw = Dict{Symbol,Any}(kwargs)
+    if haskey(kw, :x0) && kw[:x0] isa Dict
+        # Build a native Python dict explicitly to avoid JlWrap issues
+        py_x0 = pydict()
+        for (k, v) in kw[:x0]
+            py_x0[Py(k)] = Py(v)
+        end
+        kw[:x0] = py_x0
+    end
+    # Convert args that are AbstractDimension to Py
+    py_args = map(a -> a isa AbstractDimension ? Py(a) : a, args)
+    devito.Derivative(Py(x), py_args...; kw...)
+end
 
 # metaprograming for various derivative shorthands
 for F in (:dx,:dy,:dz,:dxr,:dyr,:dzr,:dxl,:dyl,:dzl,:dxc,:dyc,:dzc,:dx2,:dy2,:dz2,:dxdy,:dxdz,:dydz,:laplacian)
