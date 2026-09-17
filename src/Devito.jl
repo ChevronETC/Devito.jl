@@ -1,20 +1,17 @@
 module Devito
 
-__precompile__(false)
-
 using PythonCall, Strided
 import PythonCall: Py, pynew, pyisnull, pycopy!
 
 # Compatibility: PythonCall doesn't auto-convert Py<->Julia like PyCall did
-# Override == to return Bool instead of Py (needed for @test compatibility)
-Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
-Base.:(==)(x::Py, y::Number) = pytruth(PythonCall.pyeq(x, Py(y)))
-Base.:(==)(x::Number, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
+# Override == to return Bool instead of Py (needed for @test compatibility).
+# NOTE: Do not redefine == / != for (Py, Py), (Py, Number) or (Number, Py):
+# PythonCall already owns those methods and overwriting them makes the module
+# non-precompilable ("Method overwriting is not permitted during precompilation").
 Base.:(==)(x::Py, y::AbstractString) = pytruth(PythonCall.pyeq(x, Py(y)))
 Base.:(==)(x::AbstractString, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
 Base.:(==)(x::Py, ::Nothing) = pyis(x, pybuiltins.None)
 Base.:(==)(::Nothing, y::Py) = pyis(y, pybuiltins.None)
-Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
 
 # Allow getindex on Py dicts with Julia strings
 Base.getindex(x::Py, k::AbstractString) = x.__getitem__(k)
@@ -607,10 +604,6 @@ Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = pyconvert(Bool, x.o == y
 abstract type DiscreteFunction{T,N,M} end
 
 # Py equality for Devito wrapper types
-Base.:(==)(x::Py, y::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}) = pytruth(PythonCall.pyeq(x, Py(y)))
-Base.:(==)(x::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
-
-# Py equality for Devito wrapper types (defined here after all types are available)
 Base.:(==)(x::Py, y::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}) = pytruth(PythonCall.pyeq(x, Py(y)))
 Base.:(==)(x::Union{AbstractDimension,DiscreteFunction,Constant,AbstractSubDomain,Grid,Eq,Inc,Injection,Operator}, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
 
@@ -1778,7 +1771,7 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = pyconvert(String, x.o.name)
 
-Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = Py(x) == Py(y)
+Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = pyconvert(Bool, Py(x) == Py(y))
 
 Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection}) = reinterpret(UInt, pyconvert(Int, pybuiltins.hash(Py(x))))
 
