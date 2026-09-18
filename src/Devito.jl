@@ -237,7 +237,7 @@ for (M,F) in ((:devito,:SpaceDimension),
         end
         Py(x::$F) = x.o
         Base.convert(::Type{$F}, x::Py) = $F(x)
-        $F(args...; kwargs...) = $F($M.$F(args...; kwargs...))
+        $F(args...; kwargs...) = $F($M.$F(args...; _process_kwargs((; kwargs...))...))
         export $F
     end
 end
