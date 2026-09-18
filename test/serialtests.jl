@@ -1,5 +1,14 @@
 using Devito, PythonCall, Random, Strided, Test
 
+# Test-only: make `Py == Py` / `Py != Py` return a Julia Bool so `@test` accepts
+# them. The library intentionally does NOT define these (doing so pirates
+# PythonCall's methods and makes Devito non-precompilable); tests run in `Main`,
+# which isn't precompiled, so defining them here is safe.
+Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
+Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
+Base.:(==)(x::Py, y::Number) = pytruth(PythonCall.pyeq(x, Py(y)))
+Base.:(==)(x::Number, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
+
 # configuration!("log-level", "DEBUG")
 configuration!("log-level", "WARNING")
 configuration!("language", "openmp")
