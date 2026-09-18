@@ -1,6 +1,13 @@
 using Devito, Logging, PythonCall, Test
 import PythonCall: pycopy!
 
+# Test-only: make `Py == Py` / `Py != Py` return a Julia Bool so `@test` accepts
+# them. The library intentionally does NOT define these (doing so pirates
+# PythonCall's methods and makes Devito non-precompilable); tests run in `Main`,
+# which isn't precompiled, so defining them here is safe.
+Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
+Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
+
 @testset "ABox Expanding Source" begin
     g = Grid(shape=(8,8), extent=(7.0,7.0))
     nt = 3
