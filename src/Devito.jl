@@ -16,6 +16,14 @@ Base.:(==)(::Nothing, y::Py) = pyis(y, pybuiltins.None)
 # Allow getindex on Py dicts with Julia strings
 Base.getindex(x::Py, k::AbstractString) = x.__getitem__(k)
 
+# PythonCall provides no generic `convert(::Type{Py}, x)` (PyCall did, via
+# `convert(::Type{PyObject}, x) = PyObject(x)`). Devito's wrapper types are held
+# in `o::Py` struct fields and passed to Python calls -- both of which convert
+# via `convert(Py, x)` (e.g. `Pointer(indexed(f))`). Provide the same fallback
+# that defers to the `Py(x)` constructors defined for those wrapper types.
+Base.convert(::Type{Py}, x::Py) = x
+Base.convert(::Type{Py}, x) = Py(x)
+
 const numpy = pynew()
 const sympy = pynew()
 const devito = pynew()
