@@ -41,6 +41,17 @@ function pip(pkg::String)
     run(Cmd(cmd_args))
 end
 
+# Validate that a tag or branch actually exists on the remote before cloning.
+# `git ls-remote` prints one line per matching ref and nothing when there is no
+# match (while still exiting 0), so we check for empty output rather than the
+# exit code.
+function validate_remote_ref(repo, ref)
+    out = read(`git ls-remote $(repo) $(ref)`, String)
+    if isempty(strip(out))
+        error("The tag/branch '$(ref)' was not found in the repository $(repo).")
+    end
+end
+
 # MPI4PY and optional nvidia requirements
 function mpi4py(mpireqs)
     try
@@ -72,15 +83,27 @@ try
         # the submodules. So we need to clone it with git by hand.
         dir = abspath("$(tempname())-devitopro")
         Sys.which("git") === nothing && error("git is not installed")
+        if dpro_tag != "" && dpro_commit_sha != ""
+            @info "Both DEVITO_PRO_TAG ('$(dpro_tag)') and DEVITO_PRO_COMMIT_SHA ('$(dpro_commit_sha)') are set; the commit SHA will override the tag."
+        end
         if dpro_tag == "" && dpro_commit_sha == ""
             run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
-        elseif dpro_tag != "" && dpro_commit_sha == ""
-            run(`git clone --recurse-submodules --branch $(dpro_tag) --depth 1 $(dpro_repo) $(dir)`)
         elseif dpro_commit_sha != ""
             run(`git clone --recurse-submodules $(dpro_repo) $(dir)`)
             cd(dir)
+            # A plain commit SHA cannot be checked via ls-remote, so validate it
+            # against the freshly cloned repository before checking it out.
+            if !success(pipeline(`git cat-file -t $(dpro_commit_sha)`, stdout=devnull, stderr=devnull))
+                cd("..")
+                rm(dir, recursive=true, force=true)
+                error("The commit SHA '$(dpro_commit_sha)' was not found in the repository $(dpro_repo).")
+            end
             run(`git checkout $(dpro_commit_sha)`)
             cd("..")
+        elseif dpro_tag != ""
+            # Fail early with a clear message if the tag/branch does not exist.
+            validate_remote_ref(dpro_repo, dpro_tag)
+            run(`git clone --recurse-submodules --branch $(dpro_tag) --depth 1 $(dpro_repo) $(dir)`)
         end
 
         cd(dir)
