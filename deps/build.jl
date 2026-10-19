@@ -1,6 +1,11 @@
 using PyCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
+# Example 1 using the mirror: DEVITO_PRO="https://chevron@dev.azure.com/chevron/ETC-ESD-COFIICloud/_git/devitopro-chevron"
+# Example 2 using the original github: DEVITO_PRO="https://<username>:<token>@github.com/devitocodes/devitopro"
+
+dpro_tag = get(ENV, "DEVITO_PRO_TAG", "")
+dpro_commit_sha = get(ENV, "DEVITO_PRO_COMMIT_SHA", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
 
 # Check if packages altready installed
@@ -67,7 +72,16 @@ try
         # the submodules. So we need to clone it with git by hand.
         dir = abspath("$(tempname())-devitopro")
         Sys.which("git") === nothing && error("git is not installed")
-        run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
+        if dpro_tag == "" && dpro_commit_sha == ""
+            run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
+        elseif dpro_tag != "" && dpro_commit_sha == ""
+            run(`git clone --recurse-submodules --branch $(dpro_tag) --depth 1 $(dpro_repo) $(dir)`)
+        elseif dpro_commit_sha != ""
+            run(`git clone --recurse-submodules $(dpro_repo) $(dir)`)
+            cd(dir)
+            run(`git checkout $(dpro_commit_sha)`)
+            cd("..")
+        end
 
         cd(dir)
 
