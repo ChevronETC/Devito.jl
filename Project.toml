@@ -4,6 +4,7 @@ authors = ["Sam Kaplan <Sam.Kaplan@chevron.com>"]
 version = "1.5.0"
 
 [deps]
+CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
 Strided = "5e0ebb24-38b0-5f93-81fe-25c709ecae67"
 
@@ -14,6 +15,7 @@ MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 MPIExt = "MPI"
 
 [compat]
+CondaPkg = "0.2"
 MPI = "0.20"
 PythonCall = "0.9"
 Strided = "2"

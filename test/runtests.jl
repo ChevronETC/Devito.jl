@@ -10,6 +10,11 @@ To change to a different implementation do (for example):
     ]activate .
     using MPIPreferences
     MPIPreferences.use_jll_binary("MPICH_jll")
+
+In addition, when running the `Pkg.test` method and you need to use non-defaults for CondaPkg, you will need
+to set environment variables (using LocalPreferences.toml will not work for this).  For example:
+
+    JULIA_CONDAPKG_BACKEND=MicroMamba JULIA_CONDAPKG_PIP_BACKEND=pip julia -e 'using Pkg; Pkg.test("Devito")'
 """
 
 for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl", "csotests.jl")
