@@ -9,8 +9,6 @@ dpro_commit_sha = get(ENV, "DEVITO_PRO_COMMIT_SHA", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
 force_install = get(ENV, "DEVITO_FORCE_INSTALL", false) == "1"
 
-@show force_install
-
 # Check if packages altready installed
 # The assumption is that if the packages are already installed, the user 
 # has already set up the environment and we don't need to do anything
