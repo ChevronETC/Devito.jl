@@ -2,11 +2,14 @@ using PyCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
 # Example 1 using the mirror: DEVITO_PRO="https://chevron@dev.azure.com/chevron/ETC-ESD-COFIICloud/_git/devitopro-chevron"
-# Example 2 using the original github: DEVITO_PRO="https://<username>:<token>@github.com/devitocodes/devitopro"
+# Example 2 using the original github: DEVITO_PRO="https://<username>:<token>@github.com/devitocodespro/devitopro-chevron"
 
 dpro_tag = get(ENV, "DEVITO_PRO_TAG", "")
 dpro_commit_sha = get(ENV, "DEVITO_PRO_COMMIT_SHA", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
+force_install = get(ENV, "DEVITO_FORCE_INSTALL", false) == "1"
+
+@show force_install
 
 # Check if packages altready installed
 # The assumption is that if the packages are already installed, the user 
@@ -30,9 +33,9 @@ catch e
     dpro_repo == ""
 end
 
-if (devito && devitopro)
+if (devito && devitopro) && !force_install
     @info "Devito and DevitoPRO are already installed, no need to build"
-    return
+    exit(0)
 end
 
 # Setup pip command. This will automatically pickup whichever pip PyCall is setup with.
