@@ -10,6 +10,11 @@ To change to a different implementation do (for example):
     ]activate .
     using MPIPreferences
     MPIPreferences.use_jll_binary("MPICH_jll")
+
+In addition, when running the `Pkg.test` method and you need to use non-defaults for CondaPkg, you will need
+to set environment variables (using LocalPreferences.toml will not work for this).  For example:
+
+    JULIA_CONDAPKG_BACKEND=MicroMamba JULIA_CONDAPKG_PIP_BACKEND=pip julia -e 'using Pkg; Pkg.test("Devito")'
 """
 
 for testscript in ("serialtests.jl", "gencodetests.jl", "csymbolicstests.jl", "csotests.jl")
@@ -23,7 +28,7 @@ if Devito.has_devitopro()
     include("devitoprotests.jl")
     @info "running pro tests with the decoupler"
     withenv("DEVITO_DECOUPLER"=>"1", "DEVITO_DECOUPLER_WORKERS"=>"2", "MPI4PY_RC_RECV_MPROBE"=>"0") do
-        run(`$(mpiexec()) -n 1 julia --code-coverage devitoprotests.jl`)
+        run(`$(mpiexec()) -n 1 julia --project=$(Base.active_project()) --code-coverage devitoprotests.jl`)
     end
 else
     @info "not running devito pro tests"
@@ -32,5 +37,5 @@ end
 
 @info "mpi tests with DEVITO_AUTOPADDING=0"
 withenv("DEVITO_AUTOPADDING" => "0") do
-    run(`$(mpiexec()) -n 2 julia --code-coverage mpitests_2ranks.jl`)
+    run(`$(mpiexec()) -n 2 julia --project=$(Base.active_project()) --code-coverage mpitests_2ranks.jl`)
 end

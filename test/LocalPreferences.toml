@@ -7,3 +7,7 @@ cclibs = []
 libmpi = "libmpi"
 mpiexec = "mpiexec"
 preloads = []
+
+[CondaPkg]
+backend = "MicroMamba"
+pip_backend = "pip"
