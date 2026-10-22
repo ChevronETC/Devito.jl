@@ -1,7 +1,13 @@
 using PyCall
 
 dpro_repo = get(ENV, "DEVITO_PRO", "")
+# Example 1 using the mirror: DEVITO_PRO="https://chevron@dev.azure.com/chevron/ETC-ESD-COFIICloud/_git/devitopro-chevron"
+# Example 2 using the original github: DEVITO_PRO="https://<username>:<token>@github.com/devitocodespro/devitopro-chevron"
+
+dpro_tag = get(ENV, "DEVITO_PRO_TAG", "")
+dpro_commit_sha = get(ENV, "DEVITO_PRO_COMMIT_SHA", "")
 which_devito = get(ENV,"DEVITO_BRANCH", "")
+force_install = get(ENV, "DEVITO_FORCE_INSTALL", false) == "1"
 
 # Check if packages altready installed
 # The assumption is that if the packages are already installed, the user 
@@ -25,15 +31,26 @@ catch e
     dpro_repo == ""
 end
 
-if (devito && devitopro)
+if (devito && devitopro) && !force_install
     @info "Devito and DevitoPRO are already installed, no need to build"
-    return
+    exit(0)
 end
 
 # Setup pip command. This will automatically pickup whichever pip PyCall is setup with.
 function pip(pkg::String)
     cmd_args = Vector{String}([PyCall.python, "-m", "pip", "install", "--no-cache-dir", split(pkg, " ")...])
     run(Cmd(cmd_args))
+end
+
+# Validate that a tag or branch actually exists on the remote before cloning.
+# `git ls-remote` prints one line per matching ref and nothing when there is no
+# match (while still exiting 0), so we check for empty output rather than the
+# exit code.
+function validate_remote_ref(repo, ref)
+    out = read(`git ls-remote $(repo) $(ref)`, String)
+    if isempty(strip(out))
+        error("The tag/branch '$(ref)' was not found in the repository $(repo).")
+    end
 end
 
 # MPI4PY and optional nvidia requirements
@@ -67,7 +84,28 @@ try
         # the submodules. So we need to clone it with git by hand.
         dir = abspath("$(tempname())-devitopro")
         Sys.which("git") === nothing && error("git is not installed")
-        run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
+        if dpro_tag != "" && dpro_commit_sha != ""
+            @info "Both DEVITO_PRO_TAG ('$(dpro_tag)') and DEVITO_PRO_COMMIT_SHA ('$(dpro_commit_sha)') are set; the commit SHA will override the tag."
+        end
+        if dpro_tag == "" && dpro_commit_sha == ""
+            run(`git clone --recurse-submodules --depth 1 $(dpro_repo) $(dir)`)
+        elseif dpro_commit_sha != ""
+            run(`git clone --recurse-submodules $(dpro_repo) $(dir)`)
+            cd(dir)
+            # A plain commit SHA cannot be checked via ls-remote, so validate it
+            # against the freshly cloned repository before checking it out.
+            if !success(pipeline(`git cat-file -t $(dpro_commit_sha)`, stdout=devnull, stderr=devnull))
+                cd("..")
+                rm(dir, recursive=true, force=true)
+                error("The commit SHA '$(dpro_commit_sha)' was not found in the repository $(dpro_repo).")
+            end
+            run(`git checkout $(dpro_commit_sha)`)
+            cd("..")
+        elseif dpro_tag != ""
+            # Fail early with a clear message if the tag/branch does not exist.
+            validate_remote_ref(dpro_repo, dpro_tag)
+            run(`git clone --recurse-submodules --branch $(dpro_tag) --depth 1 $(dpro_repo) $(dir)`)
+        end
 
         cd(dir)
 
