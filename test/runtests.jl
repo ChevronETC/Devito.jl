@@ -23,7 +23,7 @@ if Devito.has_devitopro()
     include("devitoprotests.jl")
     @info "running pro tests with the decoupler"
     withenv("DEVITO_DECOUPLER"=>"1", "DEVITO_DECOUPLER_WORKERS"=>"2", "MPI4PY_RC_RECV_MPROBE"=>"0") do
-        run(`$(mpiexec()) -n 1 julia --code-coverage devitoprotests.jl`)
+        run(`$(mpiexec()) -n 1 julia --project=$(Base.active_project()) --code-coverage devitoprotests.jl`)
     end
 else
     @info "not running devito pro tests"
@@ -32,5 +32,5 @@ end
 
 @info "mpi tests with DEVITO_AUTOPADDING=0"
 withenv("DEVITO_AUTOPADDING" => "0") do
-    run(`$(mpiexec()) -n 2 julia --code-coverage mpitests_2ranks.jl`)
+    run(`$(mpiexec()) -n 2 julia --project=$(Base.active_project()) --code-coverage mpitests_2ranks.jl`)
 end
