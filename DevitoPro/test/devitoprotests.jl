@@ -297,6 +297,40 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
     end
 end
 
+# devitotuner autotuning smoke test (DevitoPro only). Mirrors devitopro's tests/test_tuner.py:
+# an operator is run under tuner_enabled and the sweep must record results to the output file.
+if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
+    @testset "tuner_enabled autotuning" begin
+        carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
+        ctx = switchconfig(; compiler=get(ENV, "CC", carch))
+        ctx.__enter__()
+        outfile = tempname() * ".json"
+        write(outfile, "{}")  # devitotuner updates an existing results file
+        ran = Ref(false)
+        try
+            grid = Grid(shape=(30, 30, 30), extent=(290.0, 290.0, 290.0), dtype=Float32)
+            u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
+            data(u) .= 0
+            # small block-tileable stencil; tuner_enabled swallows the end-of-sweep DevitotunerAccomplished
+            Devito.tuner_enabled("TunerSmokeTest", outfile;
+                    options=Dict("timesteps_per_run" => 2, "blk_size_min" => 8,
+                                 "blk_size_max" => 16, "blk_size_step" => 8)) do
+                op = Operator([Eq(forward(u), 2 * u - backward(u) + laplacian(u))], name="TunerSmokeTest")
+                ran[] = true
+                apply(op, time_M=6)
+            end
+            @test ran[]
+            @test isfile(outfile)
+            content = pyimport("json").loads(read(outfile, String))
+            @test pyconvert(Bool, pybuiltins.isinstance(content, pybuiltins.dict))
+            @test pyconvert(Int, pybuiltins.len(content)) > 0
+        finally
+            ctx.__exit__(pybuiltins.None, pybuiltins.None, pybuiltins.None)
+            rm(outfile, force=true)
+        end
+    end
+end
+
 # currently only gcc and nvc are useful
 compression = []
 (lowercase(devito_arch) == "nvc") && (push!(compression, "bitcomp"))

@@ -31,6 +31,7 @@ const devitopro = pynew()
 const seismic = pynew()
 const utils = pynew()
 const enriched = pynew()
+const devitotuner = pynew()
 
 include("cso.jl")
 
@@ -75,6 +76,11 @@ function __init__()
 
         if has_devitopro()
             pycopy!(enriched, pyimport("devitopro.types.enriched"))
+            try
+                pycopy!(devitotuner, pyimport("devitotuner"))
+            catch
+                # devitotuner is optional; tuner_enabled errors if used when it is unavailable
+            end
         end
 
         # Utilities. Need to both load and also add to PYTHONPATH
@@ -1894,6 +1900,61 @@ types(x::CCall) = x.o.types
 (f::CCall)(args...; kwargs...) = f.o(args...; kwargs...)
 
 export CCall
+
+# Autotuning (devitotuner; DevitoPro only)
+
+_pydict_maybe(x) = x === nothing ? nothing : pydict(x)
+
+# devitotuner raises DevitotunerAccomplished when a sweep finishes; a non-compilable variant
+# raises devito's CompilationError. Both mean "this tuning run is finished/skipped".
+function _is_tuning_signal(e)
+    e isa PythonCall.PyException || return false
+    pyconvert(Bool, pybuiltins.isinstance(e._v, devitotuner.exceptions.DevitotunerAccomplished)) ||
+        pyconvert(Bool, pybuiltins.isinstance(e._v, devito.exceptions.CompilationError))
+end
+
+"""
+    tuner_enabled(f, opname, outfile; opt, target, options, skip, fixed, errfile, mode)
+
+Run `f` (a zero-arg function, typically a `do` block that builds and `apply`s an `Operator`)
+inside devitotuner's `tuner_enabled` context manager, autotuning the operator named `opname`
+and writing results to `outfile`. DevitoPro only.
+
+devitotuner raises `DevitotunerAccomplished` when a sweep completes, and devito raises
+`CompilationError` for a non-compilable variant; both are caught here (the run is treated as
+finished/skipped) so callers need no Python-level exception handling. Returns `f()`'s value on
+a normal run, or `nothing` when such a signal was caught.
+
+`options`, `skip` and `fixed` accept a Julia `Dict`; the remaining keywords mirror
+`devitotuner.tuner_enabled`.
+
+# Example
+```julia
+summary = tuner_enabled("MyOperator_nlfwd", "results.json"; fixed=Dict("cire-schedule" => 0)) do
+    op = Operator(eqns, subs=smap, name="MyOperator_nlfwd")
+    apply(op)
+end
+```
+"""
+function tuner_enabled(f, opname::AbstractString, outfile::AbstractString;
+                       opt=nothing, target=nothing, options=nothing, skip=nothing,
+                       fixed=nothing, errfile=nothing, mode=nothing)
+    pyisnull(devitotuner) && error("tuner_enabled requires devitotuner, which is only available with DevitoPro")
+    cm = devitotuner.tuner_enabled(opname, outfile; opt=opt, target=target,
+        options=_pydict_maybe(options), skip=_pydict_maybe(skip),
+        fixed=_pydict_maybe(fixed), errfile=errfile, mode=mode)
+    cm.__enter__()
+    result = nothing
+    try
+        result = f()
+    catch e
+        _is_tuning_signal(e) || rethrow(e)
+    finally
+        cm.__exit__(pybuiltins.None, pybuiltins.None, pybuiltins.None)
+    end
+    result
+end
+export tuner_enabled
 
 
 export Buffer, Constant, CoordSlowSparseFunction, Derivative, DiscreteFunction, Grid
