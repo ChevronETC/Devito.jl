@@ -2,7 +2,11 @@
 # is contributed by exactly one companion package: DevitoOpen or DevitoPro.
 [deps]
 python = ">=3.10,<3.14"  # devito/devitopro require Python <3.14
-tzdata = "<2026e" # temporary restriction on tzdata, TODO: remove when appropriate
+
+# temporary restriction on tzdata, TODO: remove when appropriate...
+tzdata = "<2026e"
+ca-certificates = "<2026.10.23"
+# ...
 
 [pip.deps]
 # versions from devito's requirements-mpi.txt; binary="no" forces a source build so
