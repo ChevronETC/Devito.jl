@@ -33,9 +33,9 @@ end
     @test eltype(grid) == T
     @show ex
     @show extent(grid)
-    @test extent(grid) == ex
-    @test origin(grid) == ori
-    @test spacing(grid) == ex ./ (n .- 1)
+    @test extent(grid) == T.(ex)
+    @test origin(grid) == T.(ori)
+    @test spacing(grid) == T.(ex ./ (n .- 1))
     for i in 1:length(n)
         @test size(grid,i) == n[i]
     end

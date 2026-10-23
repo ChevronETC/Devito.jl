@@ -506,7 +506,7 @@ op = Operator([Eq(g, 1), Eq(f, g)],name="Cond")
 function ConditionalDimension end
 
 
-factor(x::ConditionalDimension) = x.o.factor
+factor(x::ConditionalDimension) = pyconvert(Union{Int,Nothing}, x.o.factor)
 export factor
 Base.parent(x::Union{ConditionalDimension,SteppingDimension}) = x.o.parent
 
@@ -547,20 +547,20 @@ Py(x::Grid) = x.o
 
 Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = pyconvert(Bool, x.o == y.o)
 Base.size(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, grid.o.shape))
-extent(grid::Grid{T,N}) where {T,N} = convert.(Float64, reverse(pyconvert(NTuple{N,Float64}, grid.o.extent)))
+extent(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,T}, grid.o.extent))
 
 """
     origin(grid)
 
 returns the tuple corresponding to the grid's origin
 """
-origin(grid::Grid{T,N}) where {T,N} = convert.(Float64, reverse(pyconvert(NTuple{N,Float64}, grid.o.origin)))
+origin(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,T}, grid.o.origin))
 size_with_halo(grid::Grid{T,N}, h) where {T,N} = ntuple(i->size(grid)[i] + h[i][1] + h[i][2], N)
 Base.size(grid::Grid, i::Int) = size(grid)[i]
 Base.ndims(grid::Grid{T,N}) where {T,N} = N
 Base.eltype(grid::Grid{T}) where {T} = T
 
-spacing(x::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Py}, x.o.spacing))
+spacing(x::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,T}, x.o.spacing))
 function spacing_map(x::Grid{T,N}) where {T,N}
     pymap = x.o.spacing_map
     d = Dict{Py, T}()
@@ -1845,8 +1845,8 @@ end
 
 intersection(box::ABox{N}, sub::Devito.SubDomain{N}) where {N} = ABox{N}(Py(box).intersection(Py(sub)))
 
-vp(abox::ABox) = Devito.Function(abox.o.vp)
-eps(abox::ABox) = abox.o.eps
+vp(abox::ABox) = pyis(abox.o.vp, pybuiltins.None) ? nothing : Devito.Function(abox.o.vp)
+eps(abox::ABox) = pyis(abox.o.eps, pybuiltins.None) ? nothing : Devito.Function(abox.o.eps)
 src(abox::ABox) = pyis(abox.o.src, pybuiltins.None) ? nothing : Devito.SparseTimeFunction(abox.o.src)
 rcv(abox::ABox) = pyis(abox.o.rcv, pybuiltins.None) ? nothing : Devito.SparseTimeFunction(abox.o.rcv)
 grid(abox::ABox) = Devito.grid(vp(abox))
@@ -1884,10 +1884,10 @@ function CCall(name::String; header=nothing, header_dirs = (), libs = (), lib_di
 end
 
 name(x::CCall) = pyconvert(String, x.o.name)
-header(x::CCall) = x.o.header
-header_dirs(x::CCall) = x.o.header_dirs
-libs(x::CCall) = x.o.libs
-lib_dirs(x::CCall) = x.o.lib_dirs
+header(x::CCall) = pyconvert(Union{String,Nothing}, x.o.header)
+header_dirs(x::CCall) = pyconvert(Vector{String}, x.o.header_dirs)
+libs(x::CCall) = pyconvert(Vector{String}, x.o.libs)
+lib_dirs(x::CCall) = pyconvert(Vector{String}, x.o.lib_dirs)
 target(x::CCall) = x.o.target
 types(x::CCall) = x.o.types
 

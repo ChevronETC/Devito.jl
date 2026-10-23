@@ -3,9 +3,9 @@ module MPIExt
 using MPI
 
 using Devito
-using Devito.PythonCall
-using Devito.PythonCall: pynew, pyisnull, pycopy!
-using Devito.Strided
+using PythonCall
+using PythonCall: pynew, pyisnull, pycopy!
+using Strided
 
 import Devito: DiscreteFunction, TimeFunction, SparseFunction, SparseTimeFunction, SubFunction, SparseDiscreteFunction
 import Devito: DevitoMPITrue, Function, inhalo, size_with_inhalo, halo, mycoords, topology, decomposition, parent
