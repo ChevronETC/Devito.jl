@@ -1,0 +1,9 @@
+[deps]
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
+Devito = "06ed14b1-0e40-4084-abdf-764a285f8c42"
+DevitoOpen = "352aed59-a538-47e5-8f62-806659e06dfc"
+
+# in-repo, unregistered: the code package + the open backend selector
+[sources]
+Devito = { path = "../../Devito" }
+DevitoOpen = { path = ".." }

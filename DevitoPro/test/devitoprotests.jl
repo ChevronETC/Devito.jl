@@ -257,9 +257,9 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             pf = CCall("printf", header="stdio.h")
             @test Devito.name(pf) == "printf"
             @test Devito.header(pf) == "stdio.h"
-            @test Devito.header_dirs(pf) == pf.o.header_dirs
-            @test Devito.libs(pf) == pf.o.libs
-            @test Devito.lib_dirs(pf) == pf.o.lib_dirs
+            @test Devito.header_dirs(pf) == String[]
+            @test Devito.libs(pf) == String[]
+            @test Devito.lib_dirs(pf) == String[]
             @test Devito.target(pf) == pf.o.target
             @test Devito.types(pf) == pf.o.types
             @test Py(pf) == pf.o

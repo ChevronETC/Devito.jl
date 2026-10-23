@@ -1,0 +1,10 @@
+# Common Python deps shared by either backend. The backend itself (devito or devitopro)
+# is contributed by exactly one companion package: DevitoOpen or DevitoPro.
+[deps]
+python = ">=3.10,<3.14"  # devito/devitopro require Python <3.14
+
+[pip.deps]
+# versions from devito's requirements-mpi.txt; binary="no" forces a source build so
+# mpi4py links the same system Open MPI as Julia's MPI.jl (ABI must match)
+mpi4py = { version = "<4.1.3", binary = "no" }
+ipyparallel = "<9.3"
