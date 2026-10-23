@@ -1,5 +1,12 @@
 using Devito, MPI
 
+@info """
+MPI implementation is set via test/LocalPreferences.toml (MPIPreferences.binary=$(MPIPreferences.binary)).
+CondaPkg non-defaults for the test subprocess must be set via environment variables, e.g.:
+
+    JULIA_CONDAPKG_BACKEND=MicroMamba JULIA_CONDAPKG_PIP_BACKEND=pip julia -e 'using Pkg; Pkg.test("DevitoPro")'
+"""
+
 @assert Devito.has_devitopro() "DevitoPro test environment must provide devitopro"
 
 # Reuse the shared open-source suite from DevitoOpen (included by file, not depended on
