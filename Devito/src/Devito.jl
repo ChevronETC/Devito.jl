@@ -1307,6 +1307,35 @@ function apply(x::Operator, args...; kwargs...)
     summary
 end
 
+"""
+    operator_timers(op::Operator)
+
+Return an applied `Operator`'s Python profiler timers as a `Dict{String,Any}`. Top-level
+values are elapsed seconds (`Float64`) — e.g. the devito-pro decoupler's `"decoupler-prepare"`
+and `"decoupler-execute"` entries — or nested per-section timer dicts.
+"""
+function operator_timers(op::Operator)
+    timers = Dict{String,Any}()
+    for item in op.o._profiler.py_timers.items()
+        timers[pyconvert(String, item[0])] = pyconvert(Any, item[1])
+    end
+    timers
+end
+
+"""
+    operator_options(op::Operator)
+
+Return an `Operator`'s compilation options as a `Dict{String,Any}` (mirrors the Python
+operator's `_options`).
+"""
+function operator_options(op::Operator)
+    options = Dict{String,Any}()
+    for item in op.o._options.items()
+        options[pyconvert(String, item[0])] = pyconvert(Any, item[1])
+    end
+    options
+end
+
 # derivative function
 """
     Derivative(x::Union{Constant, Number}, args...; kwargs...)

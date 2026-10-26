@@ -1540,4 +1540,29 @@ end
     end
 end
 
+@testset "Operator, operator_timers" begin
+    grid = Grid(shape=(8,9), dtype=Float32)
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+    op = Operator([Eq(forward(u), u + 1.0f0)], name="TimerOp")
+    apply(op, time_M=3)
+    t = Devito.operator_timers(op)
+    @test t isa Dict{String,Any}
+    @test !isempty(t)   # an applied operator records section timers
+    # keys match the python profiler's py_timers (nothing dropped/added)
+    @test sort(collect(keys(t))) == sort([pyconvert(String, k) for k in op.o._profiler.py_timers])
+end
+
+@testset "Operator, operator_options" begin
+    grid = Grid(shape=(8,9), dtype=Float32)
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+    op = Operator([Eq(forward(u), u + 1.0f0)], name="OptionOp")
+    o = Devito.operator_options(op)
+    @test o isa Dict{String,Any}
+    @test !isempty(o)
+    # the writeoperators call site does sort(collect(keys(...))) then indexes
+    @test sort(collect(keys(o))) isa Vector{String}
+    # keys match the python operator's _options (nothing dropped/added)
+    @test sort(collect(keys(o))) == sort([pyconvert(String, k) for k in op.o._options])
+end
+
 nothing
