@@ -911,6 +911,17 @@ size_with_inhalo(x::DiscreteFunction{T,N}) where {T,N} = reverse(pyconvert(NTupl
 
 size_with_halo(x::SparseDiscreteFunction) = size(x)
 
+"""
+    csize_allocated(x::DiscreteFunction, dim::AbstractDimension)
+
+Symbolic extent of `x`'s allocated data field along dimension `dim` — Devito's FULL data
+region (domain + halo + padding). Returns the devito C-code expression (e.g. `b_vec->size[1]`,
+an `IndexedPointer`), *not* a Julia integer; use it where devito expects such an expression
+(e.g. as a `CCall` argument).
+"""
+csize_allocated(x::DiscreteFunction, dim::AbstractDimension) =
+    x.o._C_get_field(devito.data.FULL, Py(dim)).size
+
 function in_range(i::Int, ranges)
     for rang in enumerate(ranges)
         if i ∈ rang[2]
@@ -1963,7 +1974,7 @@ export backward, ccode, configuration, configuration!, switchconfig, coordinates
 export data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions
 export dx, dy, dz, evaluate, extent, forward, grid, halo, indexed, inject, interpolate
 export localindices, localindices_with_halo, localindices_with_inhalo, name
-export nsimplify, origin, size_with_halo, simplify, solve, space_order, spacing, spacing_map
+export nsimplify, origin, csize_allocated, size_with_halo, simplify, solve, space_order, spacing, spacing_map
 export step, subdomains, subs, thickness, value, value!
 
 end

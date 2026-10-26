@@ -80,6 +80,18 @@ end
     @test ntuple(_->(so,so), length(n)) == halo(b)
 end
 
+@testset "Function, csize_allocated, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    dims = dimensions(b)
+    # csize_allocated yields the symbolic FULL-field extent used in generated C code
+    # (e.g. "b_vec->size[k]"); dimensions(b)[i] (i-th fast Julia dim) is python index length(n)-i.
+    for i = 1:length(n)
+        @test csize_allocated(b, dims[i]) != nothing
+        @test occursin("size[$(length(n)-i)]", string(csize_allocated(b, dims[i])))
+    end
+end
+
 @testset "Function, ndims, n=$n" for n in ( (4,5), (4,5,6) )
     grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
