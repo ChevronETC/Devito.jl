@@ -280,6 +280,21 @@ end
     @test size(coordinates_data(sf)) == (length(n), npoint)
 end
 
+@testset "CoordSlowSparseFunction, Complex, T=$T, n=$n" for T in (ComplexF32, ComplexF64), n in ((3,4),(3,4,5))
+    g = Grid(shape=n, dtype=real(T))
+    recdim = Dimension(name="recdim")
+    nfdim, npoint = 7, 5
+    fdim = DefaultDimension(name="fdim", default_value=nfdim)
+    sf = CoordSlowSparseFunction(name="sf", grid=g, dimensions=(fdim,recdim), npoint=npoint, shape=(nfdim,npoint), dtype=T)
+    @test sf isa SparseFunction{T}
+    @test eltype(data(sf)) == T
+    @test size(data(sf)) == (nfdim, npoint)
+    @test size(coordinates_data(sf)) == (length(n), npoint)
+    vals = T[complex(i, -j) for i in 1:nfdim, j in 1:npoint]
+    data(sf) .= vals
+    @test data(sf) == vals
+end
+
 @testset "Sparse time function grid, n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
     N = length(n)
     grd = Grid(shape=n, dtype=T)

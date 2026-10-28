@@ -850,7 +850,7 @@ function SparseFunction(o::Py)
 end
 
 function CoordSlowSparseFunction(args...; kwargs...)
-    return SparseFunction(utils.coordslowsparse(args...; reversedims(kwargs)...))
+    return SparseFunction(utils.coordslowsparse(args...; _process_kwargs(reversedims(kwargs))...))
 end
 
 Py(x::DiscreteFunction) = x.o
