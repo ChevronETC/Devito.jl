@@ -496,6 +496,24 @@ end
     end  
 end
 
+@testset "DevReal, DevImag, DevConj, T=$T" for T in (ComplexF32, ComplexF64)
+    # mixed re/im values expose sympy's purely-imaginary bug (sympy.re(f)→0, sympy.conjugate(f)→-f)
+    vals = T[-10+2im, -1-3im, 0, 1.5im, 2-0.5im, pi+pi*im, 10]
+    grid = Grid(shape=(length(vals),), dtype=real(T))
+    f = Devito.Function(name="f", grid=grid, dtype=T)
+    fre = Devito.Function(name="fre", grid=grid, dtype=real(T))
+    fim = Devito.Function(name="fim", grid=grid, dtype=real(T))
+    fconj = Devito.Function(name="fconj", grid=grid, dtype=T)
+    @test pyisinstance(DevReal(f), Devito.differentiable.Real)
+    @test pyisinstance(DevImag(f), Devito.differentiable.Imag)
+    @test pyisinstance(DevConj(f), Devito.differentiable.Conj)
+    data(f) .= vals
+    apply(Operator([Eq(fre, DevReal(f)), Eq(fim, DevImag(f)), Eq(fconj, DevConj(f))], name="DevComplexOp"))
+    @test data(fre) ≈ real.(vals)
+    @test data(fim) ≈ imag.(vals)
+    @test data(fconj) ≈ conj.(vals)
+end
+
 @testset "Unitary Minus" begin
     grid = Grid(shape=(11,), dtype=Float32)
     f = Devito.Function(name="f", grid=grid)

@@ -27,6 +27,7 @@ Base.convert(::Type{Py}, x) = Py(x)
 const numpy = pynew()
 const sympy = pynew()
 const devito = pynew()
+const differentiable = pynew()
 const devitopro = pynew()
 const seismic = pynew()
 const utils = pynew()
@@ -67,6 +68,7 @@ function __init__()
         pycopy!(numpy, pyimport("numpy"))
         pycopy!(sympy, pyimport("sympy"))
         pycopy!(devito, pyimport("devito"))
+        pycopy!(differentiable, pyimport("devito.finite_differences.differentiable"))
         try
             pycopy!(devitopro, pyimport("devitopro"))
         catch e
@@ -1336,6 +1338,22 @@ function operator_options(op::Operator)
     options
 end
 
+"""
+    DevReal(x)
+    DevImag(x)
+    DevConj(x)
+
+Symbolic real part, imaginary part, and conjugate of a complex-typed Devito expression `x`,
+returned as devito symbolic nodes from `devito.finite_differences.differentiable` (*not* Julia
+numbers). Use them inside Devito equations on complex-typed `Function`s: they emit correct C
+code, whereas `sympy.re`/`im`/`conjugate` hit a devito assumption bug
+(`AbstractSymbol._eval_is_imaginary` is `True` for complex dtypes, so sympy treats the Function
+as purely imaginary).
+"""
+DevReal(x) = differentiable.Real(x)
+DevImag(x) = differentiable.Imag(x)
+DevConj(x) = differentiable.Conj(x)
+
 # derivative function
 """
     Derivative(x::Union{Constant, Number}, args...; kwargs...)
@@ -1997,7 +2015,7 @@ end
 export tuner_enabled
 
 
-export Buffer, Constant, CoordSlowSparseFunction, Derivative, DiscreteFunction, Grid
+export Buffer, Constant, CoordSlowSparseFunction, Derivative, DevConj, DevImag, DevReal, DiscreteFunction, Grid
 export Function, SparseFunction, SparseTimeFunction, SubDomain, TimeFunction, apply
 export backward, ccode, configuration, configuration!, switchconfig, coordinates, coordinates_data
 export data, data_allocated, data_with_halo, data_with_inhalo, dimension, dimensions
