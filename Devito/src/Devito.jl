@@ -116,27 +116,27 @@ function numpy_eltype(o::Py)
 end
 
 function _numpy_eltype(dtype)
-    if pyconvert(Bool, dtype == numpy.float32)
+    if pyeq(Bool, dtype, numpy.float32)
         return Float32
-    elseif pyconvert(Bool, dtype == numpy.float64)
+    elseif pyeq(Bool, dtype, numpy.float64)
         return Float64
-    elseif pyconvert(Bool, dtype == numpy.int8)
+    elseif pyeq(Bool, dtype, numpy.int8)
         return Int8
-    elseif pyconvert(Bool, dtype == numpy.uint8)
+    elseif pyeq(Bool, dtype, numpy.uint8)
         return UInt8
-    elseif pyconvert(Bool, dtype == numpy.int16)
+    elseif pyeq(Bool, dtype, numpy.int16)
         return Int16
-    elseif pyconvert(Bool, dtype == numpy.uint16)
+    elseif pyeq(Bool, dtype, numpy.uint16)
         return UInt16
-    elseif pyconvert(Bool, dtype == numpy.int32)
+    elseif pyeq(Bool, dtype, numpy.int32)
         return Int32
-    elseif pyconvert(Bool, dtype == numpy.int64)
+    elseif pyeq(Bool, dtype, numpy.int64)
         return Int64
-    elseif pyconvert(Bool, dtype == numpy.complex64)
+    elseif pyeq(Bool, dtype, numpy.complex64)
         return ComplexF32
-    elseif pyconvert(Bool, dtype == numpy.complex128)
+    elseif pyeq(Bool, dtype, numpy.complex128)
         return ComplexF64
-    elseif pyconvert(Bool, pybuiltins.isinstance(dtype, devitopro.data.FloatX))
+    elseif pyisinstance(dtype, devitopro.data.FloatX)
         dcmtype = _numpy_eltype(dtype.dcmptype)
         comptype = _numpy_eltype(dtype.nptype)
         return FloatX{convert(dcmtype, pyconvert(dcmtype, dtype.m.data)), convert(dcmtype, pyconvert(dcmtype, dtype.M.data)), dcmtype, comptype}
@@ -355,7 +355,7 @@ for (M,F) in ((:devito,:Eq), (:devito,:Injection), (:devito, :Inc))
     end
 end
 
-Base.:(==)(x::Eq,y::Eq) = pyconvert(Bool, x.o == y.o)
+Base.:(==)(x::Eq,y::Eq) = pyeq(Bool, x.o, y.o)
 
 struct Operator
     o::Py
@@ -433,7 +433,7 @@ function Constant(args...; kwargs...)
 end
 
 function Constant(o::Py)
-    if pyhasattr(o, "is_const") && pyconvert(Bool, o.is_const)
+    if pyhasattr(o, "is_const") && pytruth(o.is_const)
         T = numpy_eltype(o)
         Constant{T}(o)
     else
@@ -463,7 +463,7 @@ value(x::Constant{T}) where {T} = pyconvert(T,x.o._value)
 
 True if the symbol value cannot be modified within an Operator (and thus its value is provided by the user directly from Python-land), False otherwise.
 """
-Base.isconst(x::Constant) = pyconvert(Bool, x.o.is_const)
+Base.isconst(x::Constant) = pytruth(x.o.is_const)
 
 """
     value!(x::Constant{T},y::T)
@@ -488,7 +488,7 @@ x = SpaceDimension(name="x", spacing=Constant(name="h_x", value=5.0))
 """
 function SpaceDimension end
 
-Base.:(==)(x::AbstractDimension,y::AbstractDimension) = pyconvert(Bool, x.o == y.o)
+Base.:(==)(x::AbstractDimension,y::AbstractDimension) = pyeq(Bool, x.o, y.o)
 
 # 2025-09-03 JKW this is covered in the metaprogramming for dimensions above
 # Py(x::AbstractDimension) = x.o
@@ -553,7 +553,7 @@ end
 
 Py(x::Grid) = x.o
 
-Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = pyconvert(Bool, x.o == y.o)
+Base.:(==)(x::Grid{T,N},y::Grid{T,N}) where{T,N} = pyeq(Bool, x.o, y.o)
 Base.size(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,Int}, grid.o.shape))
 extent(grid::Grid{T,N}) where {T,N} = reverse(pyconvert(NTuple{N,T}, grid.o.extent))
 
@@ -611,7 +611,7 @@ returns the interior subdomain of a Devito grid
 """
 interior(x::Grid{T,N}) where {T,N} = SubDomain{N}(x.o.interior)
 
-Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = pyconvert(Bool, x.o == y.o)
+Base.:(==)(x::AbstractSubDomain,y::AbstractSubDomain) = pyeq(Bool, x.o, y.o)
 
 #
 # Functions
@@ -660,9 +660,9 @@ end
 
 function Function(o::Py)
     # ensure pyobject corresponds to a devito function
-    isafunction = pyhasattr(o, "is_Function") && pyconvert(Bool, o.is_Function)
-    isatimefunction = pyhasattr(o, "is_TimeFunction") && pyconvert(Bool, o.is_TimeFunction)
-    isasparsefunction = pyhasattr(o, "is_SparseFunction") && pyconvert(Bool, o.is_SparseFunction)
+    isafunction = pyhasattr(o, "is_Function") && pytruth(o.is_Function)
+    isatimefunction = pyhasattr(o, "is_TimeFunction") && pytruth(o.is_TimeFunction)
+    isasparsefunction = pyhasattr(o, "is_SparseFunction") && pytruth(o.is_SparseFunction)
     if (isafunction && ~(isatimefunction || isasparsefunction))
         T = numpy_eltype(o)
         N = pyconvert(Int, pybuiltins.len(o.dimensions))
@@ -720,7 +720,7 @@ end
 
 function TimeFunction(o::Py)
     # ensure pyobject corresponds to a devito timefunction
-    isatimefunction = pyhasattr(o, "is_TimeFunction") && pyconvert(Bool, o.is_TimeFunction)
+    isatimefunction = pyhasattr(o, "is_TimeFunction") && pytruth(o.is_TimeFunction)
     if (isatimefunction)
         T = numpy_eltype(o)
         N = pyconvert(Int, pybuiltins.len(o.dimensions))
@@ -793,7 +793,7 @@ function SparseTimeFunction(args...; kwargs...)
 end
 
 function SparseTimeFunction(o::Py)
-    if pyhasattr(o, "is_SparseTimeFunction") && pyconvert(Bool, o.is_SparseTimeFunction)
+    if pyhasattr(o, "is_SparseTimeFunction") && pytruth(o.is_SparseTimeFunction)
         T = numpy_eltype(o)
         N = pyconvert(Int, pybuiltins.len(o.shape))
         M = ismpi_distributed(o)
@@ -837,8 +837,8 @@ function SparseFunction(args...; kwargs...)
 end
 
 function SparseFunction(o::Py)
-    isasparse = pyhasattr(o, "is_SparseFunction") && pyconvert(Bool, o.is_SparseFunction)
-    isasparsetime = pyhasattr(o, "is_SparseTimeFunction") && pyconvert(Bool, o.is_SparseTimeFunction)
+    isasparse = pyhasattr(o, "is_SparseFunction") && pytruth(o.is_SparseFunction)
+    isasparsetime = pyhasattr(o, "is_SparseTimeFunction") && pytruth(o.is_SparseTimeFunction)
     if isasparse && !isasparsetime
         T = numpy_eltype(o)
         N = pyconvert(Int, pybuiltins.len(o.shape))
@@ -1113,7 +1113,7 @@ function topology(x::DiscreteFunction)
     topoout = ()
     j = 1
     for i in 1:length(functiondims)
-        if (j <= length(distributordims)) && pyconvert(Bool, Py(functiondims[i]) == Py(distributordims[j]))
+        if (j <= length(distributordims)) && pyeq(Bool, Py(functiondims[i]), Py(distributordims[j]))
             topoout = (topoout..., topopre[j])
             j = j+1
         else
@@ -1131,7 +1131,7 @@ function mycoords(x::DiscreteFunction)
     mycoordsout = ()
     j = 1
     for i in 1:length(functiondims)
-        if (j <= length(distributordims)) && pyconvert(Bool, Py(functiondims[i]) == Py(distributordims[j]))
+        if (j <= length(distributordims)) && pyeq(Bool, Py(functiondims[i]), Py(distributordims[j]))
             mycoordsout = (mycoordsout..., mycoordspre[j])
             j = j+1
         else
@@ -1172,17 +1172,17 @@ coordinates_data(x::SparseDiscreteFunction{T,N,M}) where {T,N,M} = data(coordina
 export DevitoArray, localindices, SubFunction
 function dimension(o::Py)
     if pyhasattr(o, "is_Dimension")
-        if pyconvert(Bool, o.is_Conditional)
+        if pytruth(o.is_Conditional)
             return ConditionalDimension(o)
-        elseif pyconvert(Bool, o.is_Stepping)
+        elseif pytruth(o.is_Stepping)
             return SteppingDimension(o)
-        elseif pyconvert(Bool, o.is_Space)
+        elseif pytruth(o.is_Space)
             return SpaceDimension(o)
-        elseif pyconvert(Bool, o.is_Time)
+        elseif pytruth(o.is_Time)
             return TimeDimension(o)
-        elseif pyconvert(Bool, o.is_Default)
+        elseif pytruth(o.is_Default)
             return DefaultDimension(o)
-        elseif pyconvert(Bool, o.is_Dimension)
+        elseif pytruth(o.is_Dimension)
             return Dimension(o)
         end
     end
@@ -1567,7 +1567,7 @@ Base.:(+)(x::Union{AbstractDimension,DiscreteFunction,Py,Constant}) = x
 # metaprogramming to access Devito dimension boolean attributes
 for F in (:is_Dimension, :is_Space, :is_Time, :is_Default, :is_Custom, :is_Derived, :is_NonlinearDerived, :is_Sub, :is_Conditional, :is_Stepping, :is_Modulo, :is_Incr)
     @eval begin
-        $F(x::AbstractDimension) = pyconvert(Bool, x.o.$F)
+        $F(x::AbstractDimension) = pytruth(x.o.$F)
         export $F
     end
 end
@@ -1724,7 +1724,7 @@ Base.getindex(x::IndexedData,args...) = Indexed(pygetindex(x.o, args...))
 
 struct Indexed
     o::Py
-    Indexed(o) = ( pyhasattr(o, "is_Indexed") && pyconvert(Bool, o.is_Indexed) ? new(o) : error("not indexed"))
+    Indexed(o) = ( pyhasattr(o, "is_Indexed") && pytruth(o.is_Indexed) ? new(o) : error("not indexed"))
 end
 
 Py(x::Indexed) = x.o
@@ -1843,7 +1843,7 @@ returns the name of the Devito object
 """
 name(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator}) = pyconvert(String, x.o.name)
 
-Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = pyconvert(Bool, Py(x) == Py(y))
+Base.isequal(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}, y::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection, SparseDiscreteFunction}) = pyeq(Bool, Py(x), Py(y))
 
 Base.hash(x::Union{SubDomain, DiscreteFunction, Constant, AbstractDimension, Operator, Grid, Eq, Inc, Injection}) = reinterpret(UInt, pyconvert(Int, pybuiltins.hash(Py(x))))
 
@@ -1967,8 +1967,8 @@ _pydict_maybe(x) = x === nothing ? nothing : pydict(x)
 # raises devito's CompilationError. Both mean "this tuning run is finished/skipped".
 function _is_tuning_signal(e)
     e isa PythonCall.PyException || return false
-    pyconvert(Bool, pybuiltins.isinstance(e._v, devitotuner.exceptions.DevitotunerAccomplished)) ||
-        pyconvert(Bool, pybuiltins.isinstance(e._v, devito.exceptions.CompilationError))
+    pyisinstance(e._v, devitotuner.exceptions.DevitotunerAccomplished) ||
+        pyisinstance(e._v, devito.exceptions.CompilationError)
 end
 
 """
