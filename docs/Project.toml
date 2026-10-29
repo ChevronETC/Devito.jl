@@ -4,4 +4,4 @@ DevitoOpen = "352aed59-a538-47e5-8f62-806659e06dfc"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 
 [compat]
-Documenter = "0.25"
+Documenter = "1"
