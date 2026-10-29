@@ -54,6 +54,15 @@ end
     @test devito_array ≈ ones(T, n...)
 end
 
+@testset "numpy dtype conversion" begin
+    for (T, np) in ((Float32, :float32), (Float64, :float64), (Int8, :int8), (UInt8, :uint8), (Int16, :int16),
+                    (UInt16, :uint16), (Int32, :int32), (Int64, :int64), (ComplexF32, :complex64), (ComplexF64, :complex128))
+        @test pyis(Devito._to_numpy_dtype(T), getproperty(Devito.numpy, np))
+    end
+    # types without a numpy mapping are passed through unchanged
+    @test pyeq(Bool, Devito._to_numpy_dtype(Float16), Py(Float16))
+end
+
 @testset "Function, data_with_halo n=$n" for n in ( (4,5), (4,5,6) )
     grid = Grid(shape = n, dtype = Float32)
     b = Devito.Function(name="b", grid=grid, space_order=2)
@@ -419,6 +428,15 @@ end
     @test eq7 == eq8
 end
 
+@testset "Eq, Inc and Injection from Py" begin
+    grid = Grid(shape=(5,6))
+    f = Devito.Function(name="f", grid=grid)
+    src = SparseFunction(name="src", grid=grid, npoint=1)
+    for term in (Eq(f, 1), Inc(f, 1), inject(src; field=f, expr=src))
+        @test convert(typeof(term), Py(term)) === term
+    end
+end
+
 @testset "Symbolic Min, Max, Size, and Spacing" begin
     x = SpaceDimension(name="x")
     y = SpaceDimension(name="y")
@@ -596,6 +614,21 @@ end
     @test Py(x) === x.o
 end
 
+@testset "Equality and conversion between Devito objects and Py" begin
+    grid = Grid(shape=(5,6))
+    y, x = dimensions(grid)
+    f = Devito.Function(name="f", grid=grid)
+    op = Operator(Eq(f, 1), name="PyEqualityOp")
+    for obj in (x, grid, f, op)
+        @test obj == Py(obj)
+        @test Py(obj) == obj
+        @test convert(Py, obj) === Py(obj)
+    end
+    @test !(x == Py(y))
+    @test "f" == Py(f).name
+    @test !("g" == Py(f).name)
+end
+
 @testset "Multiply and Divide" begin
     x = SpaceDimension(name="x")
     grid = Grid(shape=(5,), dtype=Float64, dimensions=(x,))
@@ -761,6 +794,7 @@ end
     for _dim in (a,b,c,d,e,f)
         @test typeof(dimension(Py(_dim))) == typeof(_dim)
         @test dimension(Py(_dim)) === _dim
+        @test convert(typeof(_dim), Py(_dim)) === _dim
     end
     # tests for ErrorExceptiosn
     grd = Grid(shape=(5,4))
@@ -775,6 +809,7 @@ end
     for subdim in (dl,dr,dm)
         @test parent(subdim) == d
         @test Py(subdim) == subdim.o
+        @test convert(typeof(subdim), Py(subdim)) === subdim
     end
     @test (thickness(dl)[0].value, thickness(dl)[1].value) == (2, nothing)
     @test (thickness(dr)[0].value, thickness(dr)[1].value) == (nothing, 3)
@@ -931,6 +966,21 @@ end
     @test data(h1) ≈ data(h2)
     @test data(j1) ≈ data(j2)
     @test data(k1) ≈ data(k2)
+end
+
+@testset "Derivative with x0 Dict" begin
+    grid = Grid(shape=(6,7), extent=(5.0,6.0))
+    y, x = dimensions(grid)
+    f = Devito.Function(name="f", grid=grid, space_order=4)
+    g1 = Devito.Function(name="g1", grid=grid, space_order=4)
+    g2 = Devito.Function(name="g2", grid=grid, space_order=4)
+    g3 = Devito.Function(name="g3", grid=grid, space_order=4)
+    data(f) .= reshape(Float32.(1:length(data(f))) .^ 2, size(data(f)))
+    d = Derivative(f, x; x0=Dict(x => x + spacing(x)/2))
+    @test d == Devito.devito.Derivative(Py(f), Py(x); x0=pydict(Dict(Py(x) => Py(x + spacing(x)/2))))
+    apply(Operator([Eq(g1, d), Eq(g2, dx(f; x0=x + spacing(x)/2)), Eq(g3, Derivative(f, x))], name="DerivX0Op"))
+    @test data(g1) ≈ data(g2)
+    @test !(data(g1) ≈ data(g3))
 end
 
 @testset "Derivatives on Constants" begin
@@ -1596,6 +1646,9 @@ end
     @test sort(collect(keys(o))) isa Vector{String}
     # keys match the python operator's _options (nothing dropped/added)
     @test sort(collect(keys(o))) == sort([pyconvert(String, k) for k in op.o._options])
+    # opt=(mode, Dict) reaches devito with the Dict converted to a Python dict
+    op2 = Operator([Eq(forward(u), u + 1.0f0)], name="OptionDictOp", opt=("advanced", Dict("blocklevels" => 2)))
+    @test Devito.operator_options(op2)["blocklevels"] == 2
 end
 
 nothing

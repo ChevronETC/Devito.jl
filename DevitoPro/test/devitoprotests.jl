@@ -329,6 +329,23 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             rm(outfile, force=true)
         end
     end
+
+    @testset "tuner_enabled signal handling" begin
+        outfile = tempname() * ".json"
+        write(outfile, "{}")
+        raise(exc) = pybuiltins.exec("raise e", pydict(Dict("e" => exc)))
+        try
+            # devitotuner's end-of-sweep signal and devito's CompilationError end the run quietly
+            @test Devito.tuner_enabled(() -> raise(Devito.devitotuner.exceptions.DevitotunerAccomplished()), "SignalOp", outfile) === nothing
+            @test Devito.tuner_enabled(() -> raise(Devito.devito.exceptions.CompilationError("skip")), "SignalOp", outfile) === nothing
+            # other errors propagate, and a normal run returns its value
+            @test_throws PythonCall.PyException Devito.tuner_enabled(() -> raise(pybuiltins.ValueError("boom")), "SignalOp", outfile)
+            @test_throws ErrorException Devito.tuner_enabled(() -> error("boom"), "SignalOp", outfile)
+            @test Devito.tuner_enabled(() -> 42, "SignalOp", outfile) == 42
+        finally
+            rm(outfile, force=true)
+        end
+    end
 end
 
 # currently only gcc and nvc are useful
