@@ -50,11 +50,17 @@ jobs:
         env:
           DEVITO_PRO: ${{ secrets.DEVITOPRO }}
 
-      - name: Configure system MPI for the test env
-        run: julia --project=${{ matrix.backend }}/test -e 'using Pkg; Pkg.instantiate(); using MPIPreferences; MPIPreferences.use_system_binary()'
+      # Dev this checkout's packages into a scratch project; Julia 1.10 ignores [sources].
+      - name: Set up test environment
+        run: julia --color=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("${{ matrix.backend }}"))]); Pkg.add("MPIPreferences")'
 
+      # Writes the backend's test/LocalPreferences.toml, which Pkg.test copies into the test env.
+      - name: Configure system MPI for the test env
+        run: julia --project="$RUNNER_TEMP/testenv" -e 'using Pkg, MPIPreferences; Pkg.activate("${{ matrix.backend }}/test"); MPIPreferences.use_system_binary()'
+
+      # coverage=true would only track the backend package, so track Devito's code instead.
       - name: Run tests
-        run: julia --color=yes --check-bounds=yes --project=${{ matrix.backend }} -e 'using Pkg; Pkg.test(coverage=true)'
+        run: julia --color=yes --check-bounds=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.test("${{ matrix.backend }}"; coverage="@" * abspath("Devito"))'
 
       - uses: julia-actions/julia-processcoverage@v1
         with:
@@ -85,7 +91,7 @@ jobs:
           mpi: 'openmpi'
 
       - name: Instantiate docs
-        run: julia --project=docs -e 'using Pkg; Pkg.instantiate()'
+        run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("DevitoOpen"))]); Pkg.instantiate()'
 
       - name: Build and deploy docs
         run: julia --color=yes --project=docs docs/make.jl

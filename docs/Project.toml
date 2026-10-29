@@ -3,10 +3,5 @@ Devito = "06ed14b1-0e40-4084-abdf-764a285f8c42"
 DevitoOpen = "352aed59-a538-47e5-8f62-806659e06dfc"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
 
-# in-repo, unregistered: the code package + a backend so `using Devito` resolves during the build
-[sources]
-Devito = { path = "../Devito" }
-DevitoOpen = { path = "../DevitoOpen" }
-
 [compat]
 Documenter = "0.25"

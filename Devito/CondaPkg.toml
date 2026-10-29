@@ -6,6 +6,7 @@ python = ">=3.10,<3.14"  # devito/devitopro require Python <3.14
 # temporary restriction on tzdata, TODO: remove when appropriate...
 tzdata = "<2026e"
 ca-certificates = "<2026.10.23"
+python-tzdata = "<2026.6"
 # ...
 
 [pip.deps]
