@@ -2,9 +2,11 @@ using Devito, MPI
 
 @info """
 MPI implementation is set via test/LocalPreferences.toml (MPIPreferences.binary=\$(MPIPreferences.binary)).
-CondaPkg non-defaults for the test subprocess must be set via environment variables, e.g.:
-
-    JULIA_CONDAPKG_BACKEND=MicroMamba JULIA_CONDAPKG_PIP_BACKEND=pip julia -e 'using Pkg; Pkg.test("DevitoPro")'
+CondaPkg settings come from test/LocalPreferences.toml plus the preferences of the project that runs
+Pkg.test; set env = "@<name>" there to reuse one conda environment across test runs.
+With a shared environment, wrap Pkg.test in withenv("JULIA_CONDAPKG_OFFLINE" => "yes") do ... end to skip
+reinstalling the Python packages (and rebuilding devitopro) on every run; after changing Python
+dependencies, run CondaPkg.resolve(force=true) from that project first.
 """
 
 @assert Devito.has_devitopro() "DevitoPro test environment must provide devitopro"
