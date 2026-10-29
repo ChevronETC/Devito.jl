@@ -43,8 +43,8 @@ As with `DevitoOpen`, this will install a Conda environment in the active Julia 
 ## CondaPkg notes
 It is important to note that the installation of python-devito does take some time (minutes), and devitopro takes longer since it is compiled.  Therefore, it may be useful to share conda environments between Julia projects so that each Julia project does not need its own installation.  For example, to have the current project use a shared environment named `@devito-open` (stored in `~/.julia/conda_environments/devito-open`), do:
 ```
-pkg> add CondaPkg
-julia> using PreferenceTools
+pkg> add CondaPkg, PreferenceTools
+julia> using CondaPkg PreferenceTools
 pkg> preference add CondaPkg env=@devito-open
 ```
 This writes `env = "@devito-open"` under `[CondaPkg]` in the project's `LocalPreferences.toml`.  There is no separate install step for the shared environment: the first time CondaPkg resolves in a project with this setting (on `using Devito`, or explicitly with `CondaPkg.resolve()`), it creates `~/.julia/conda_environments/devito-open` and installs into it the Python dependencies declared by the project's packages (their `CondaPkg.toml` files).  Later projects with the same setting re-use it, and CondaPkg only installs what they add.  To build it right away, restart Julia so that the new preference is read, and then do:
