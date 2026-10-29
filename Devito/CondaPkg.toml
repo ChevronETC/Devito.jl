@@ -3,12 +3,6 @@
 [deps]
 python = ">=3.10,<3.14"  # devito/devitopro require Python <3.14
 
-# temporary restriction on tzdata, TODO: remove when appropriate...
-tzdata = "<2026e"
-ca-certificates = "<2026.10.23"
-python-tzdata = "<2026.6"
-# ...
-
 [pip.deps]
 # versions from devito's requirements-mpi.txt; binary="no" forces a source build so
 # mpi4py links the same system Open MPI as Julia's MPI.jl (ABI must match)
