@@ -1,4 +1,13 @@
-using Devito, PyCall, Random, Strided, Test
+using Devito, PythonCall, Random, Strided, Test
+
+# Test-only: make `Py == Py` / `Py != Py` return a Julia Bool so `@test` accepts
+# them. The library intentionally does NOT define these (doing so pirates
+# PythonCall's methods and makes Devito non-precompilable); tests run in `Main`,
+# which isn't precompiled, so defining them here is safe.
+Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
+Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
+Base.:(==)(x::Py, y::Number) = pytruth(PythonCall.pyeq(x, Py(y)))
+Base.:(==)(x::Number, y::Py) = pytruth(PythonCall.pyeq(Py(x), y))
 
 # configuration!("log-level", "DEBUG")
 configuration!("log-level", "WARNING")
@@ -24,9 +33,9 @@ end
     @test eltype(grid) == T
     @show ex
     @show extent(grid)
-    @test extent(grid) == ex
-    @test origin(grid) == ori
-    @test spacing(grid) == ex ./ (n .- 1)
+    @test extent(grid) == T.(ex)
+    @test origin(grid) == T.(ori)
+    @test spacing(grid) == T.(ex ./ (n .- 1))
     for i in 1:length(n)
         @test size(grid,i) == n[i]
     end
@@ -37,12 +46,21 @@ end
     @test size_with_halo(grid,halo) == size(grid) .+ (sum.(halo)...,)
 end
 
-@testset "DevitoArray creation from PyObject n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
+@testset "DevitoArray creation from Py n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
     N = length(n)
-    array = PyObject(ones(T,n...))
+    array = Devito.numpy.array(ones(T,reverse(n)...), dtype=Devito._to_numpy_dtype(T))
     devito_array = DevitoArray(array)
     @test typeof(devito_array) <: DevitoArray{T,N}
-    @test devito_array ≈ ones(T, reverse(n)...)
+    @test devito_array ≈ ones(T, n...)
+end
+
+@testset "numpy dtype conversion" begin
+    for (T, np) in ((Float32, :float32), (Float64, :float64), (Int8, :int8), (UInt8, :uint8), (Int16, :int16),
+                    (UInt16, :uint16), (Int32, :int32), (Int64, :int64), (ComplexF32, :complex64), (ComplexF64, :complex128))
+        @test pyis(Devito._to_numpy_dtype(T), getproperty(Devito.numpy, np))
+    end
+    # types without a numpy mapping are passed through unchanged
+    @test pyeq(Bool, Devito._to_numpy_dtype(Float16), Py(Float16))
 end
 
 @testset "Function, data_with_halo n=$n" for n in ( (4,5), (4,5,6) )
@@ -69,6 +87,18 @@ end
     so = 2
     b = Devito.Function(name="b", grid=grid, space_order=so)
     @test ntuple(_->(so,so), length(n)) == halo(b)
+end
+
+@testset "Function, csize_allocated, n=$n" for n in ( (4,5), (4,5,6) )
+    grid = Grid(shape = n, dtype = Float32)
+    b = Devito.Function(name="b", grid=grid, space_order=2)
+    dims = dimensions(b)
+    # csize_allocated yields the symbolic FULL-field extent used in generated C code
+    # (e.g. "b_vec->size[k]"); dimensions(b)[i] (i-th fast Julia dim) is python index length(n)-i.
+    for i = 1:length(n)
+        @test csize_allocated(b, dims[i]) != nothing
+        @test occursin("size[$(length(n)-i)]", string(csize_allocated(b, dims[i])))
+    end
 end
 
 @testset "Function, ndims, n=$n" for n in ( (4,5), (4,5,6) )
@@ -118,17 +148,17 @@ end
     @test value(a) == data(a)
     value!(a, π)
     @test value(a) == convert(Float32,π)
-    @test typeof(convert(Constant,PyObject(a))) == Constant{Float32}
-    @test convert(Constant,PyObject(a)) === a
+    @test typeof(convert(Constant,Py(a))) == Constant{Float32}
+    @test convert(Constant,Py(a)) === a
 
     p = Constant(name="p", dtype=Float64, value=π)
     @test typeof(value(p)) == Float64
     @test value(p) == convert(Float64,π)
     @test data(p) == value(p)
-    @test typeof(convert(Constant,PyObject(p))) == Constant{Float64}
-    @test convert(Constant,PyObject(p)) === p
+    @test typeof(convert(Constant,Py(p))) == Constant{Float64}
+    @test convert(Constant,Py(p)) === p
 
-    @test_throws  ErrorException("PyObject is not a Constant")  convert(Constant,PyObject(Dimension(name="d")))
+    @test_throws  ErrorException("PyObject is not a Constant")  convert(Constant,Py(Dimension(name="d")))
 end
 
 @testset "TimeFunction, data with halo, n=$n" for n in ( (4,5), (4,5,6) )
@@ -186,7 +216,7 @@ end
     g = Grid(shape=n, dtype=T)
     sf = SparseFunction(name="sf", grid=g, npoint=npoint)
     @test typeof(sf) <: SparseFunction{T,1}
-    @test sf.o === PyObject(sf)
+    @test sf.o === Py(sf)
 end
 
 @testset "SparseFunction grid method, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
@@ -229,12 +259,12 @@ end
     @test _sf_coords ≈ x
 end
 
-@testset "SparseFunction from PyObject, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
+@testset "SparseFunction from Py, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
     g = Grid(shape=n, dtype=T)
     sf = SparseFunction(name="sf", grid=g, npoint=npoint)
-    @test SparseFunction(PyObject(sf)) === sf
+    @test SparseFunction(Py(sf)) === sf
     stf = SparseTimeFunction(name="stf", grid=g, npoint=npoint, nt=5)
-    @test_throws ErrorException("PyObject is not a devito.SparseFunction") SparseFunction(PyObject(stf))
+    @test_throws ErrorException("PyObject is not a devito.SparseFunction") SparseFunction(Py(stf))
 end
 
 @testset "Multidimensional SparseFunction, T=$T, n=$n, npoint=$npoint" for T in (Float32, Float64), n in ((3,4),(3,4,5)), npoint in (1,5,10)
@@ -257,6 +287,21 @@ end
     @test dimensions(sf) == (fdim, recdim)
     @test size(data(sf)) == (nfdim, npoint)
     @test size(coordinates_data(sf)) == (length(n), npoint)
+end
+
+@testset "CoordSlowSparseFunction, Complex, T=$T, n=$n" for T in (ComplexF32, ComplexF64), n in ((3,4),(3,4,5))
+    g = Grid(shape=n, dtype=real(T))
+    recdim = Dimension(name="recdim")
+    nfdim, npoint = 7, 5
+    fdim = DefaultDimension(name="fdim", default_value=nfdim)
+    sf = CoordSlowSparseFunction(name="sf", grid=g, dimensions=(fdim,recdim), npoint=npoint, shape=(nfdim,npoint), dtype=T)
+    @test sf isa SparseFunction{T}
+    @test eltype(data(sf)) == T
+    @test size(data(sf)) == (nfdim, npoint)
+    @test size(coordinates_data(sf)) == (length(n), npoint)
+    vals = T[complex(i, -j) for i in 1:nfdim, j in 1:npoint]
+    data(sf) .= vals
+    @test data(sf) == vals
 end
 
 @testset "Sparse time function grid, n=$n, T=$T" for n in ((5,6),(5,6,7)), T in (Float32, Float64)
@@ -383,6 +428,15 @@ end
     @test eq7 == eq8
 end
 
+@testset "Eq, Inc and Injection from Py" begin
+    grid = Grid(shape=(5,6))
+    f = Devito.Function(name="f", grid=grid)
+    src = SparseFunction(name="src", grid=grid, npoint=1)
+    for term in (Eq(f, 1), Inc(f, 1), inject(src; field=f, expr=src))
+        @test convert(typeof(term), Py(term)) === term
+    end
+end
+
 @testset "Symbolic Min, Max, Size, and Spacing" begin
     x = SpaceDimension(name="x")
     y = SpaceDimension(name="y")
@@ -475,6 +529,24 @@ end
     end  
 end
 
+@testset "DevReal, DevImag, DevConj, T=$T" for T in (ComplexF32, ComplexF64)
+    # mixed re/im values expose sympy's purely-imaginary bug (sympy.re(f)→0, sympy.conjugate(f)→-f)
+    vals = T[-10+2im, -1-3im, 0, 1.5im, 2-0.5im, pi+pi*im, 10]
+    grid = Grid(shape=(length(vals),), dtype=real(T))
+    f = Devito.Function(name="f", grid=grid, dtype=T)
+    fre = Devito.Function(name="fre", grid=grid, dtype=real(T))
+    fim = Devito.Function(name="fim", grid=grid, dtype=real(T))
+    fconj = Devito.Function(name="fconj", grid=grid, dtype=T)
+    @test pyisinstance(DevReal(f), Devito.differentiable.Real)
+    @test pyisinstance(DevImag(f), Devito.differentiable.Imag)
+    @test pyisinstance(DevConj(f), Devito.differentiable.Conj)
+    data(f) .= vals
+    apply(Operator([Eq(fre, DevReal(f)), Eq(fim, DevImag(f)), Eq(fconj, DevConj(f))], name="DevComplexOp"))
+    @test data(fre) ≈ real.(vals)
+    @test data(fim) ≈ imag.(vals)
+    @test data(fconj) ≈ conj.(vals)
+end
+
 @testset "Unitary Minus" begin
     grid = Grid(shape=(11,), dtype=Float32)
     f = Devito.Function(name="f", grid=grid)
@@ -537,9 +609,24 @@ end
     end
 end
 
-@testset "PyObject(Dimension)" begin
+@testset "Py(Dimension)" begin
     x = SpaceDimension(name="x")
-    @test PyObject(x) === x.o
+    @test Py(x) === x.o
+end
+
+@testset "Equality and conversion between Devito objects and Py" begin
+    grid = Grid(shape=(5,6))
+    y, x = dimensions(grid)
+    f = Devito.Function(name="f", grid=grid)
+    op = Operator(Eq(f, 1), name="PyEqualityOp")
+    for obj in (x, grid, f, op)
+        @test obj == Py(obj)
+        @test Py(obj) == obj
+        @test convert(Py, obj) === Py(obj)
+    end
+    @test !(x == Py(y))
+    @test "f" == Py(f).name
+    @test !("g" == Py(f).name)
 end
 
 @testset "Multiply and Divide" begin
@@ -604,7 +691,7 @@ end
 @testset "Spacing Map" for T in (Float32,Float64)
     grid = Grid(shape=(5,6), dtype=T)
     smap = spacing_map(grid)
-    @test typeof(smap) == Dict{PyCall.PyObject, T}
+    @test typeof(smap) == Dict{Py, T}
     y,x = dimensions(grid)
     @test smap[spacing(y)] ≈ 1 / (size(grid)[1] - 1)
     @test smap[spacing(x)] ≈ 1 / (size(grid)[2] - 1)
@@ -705,12 +792,13 @@ end
         end
     end
     for _dim in (a,b,c,d,e,f)
-        @test typeof(dimension(PyObject(_dim))) == typeof(_dim)
-        @test dimension(PyObject(_dim)) === _dim
+        @test typeof(dimension(Py(_dim))) == typeof(_dim)
+        @test dimension(Py(_dim)) === _dim
+        @test convert(typeof(_dim), Py(_dim)) === _dim
     end
     # tests for ErrorExceptiosn
     grd = Grid(shape=(5,4))
-    @test_throws ErrorException("not implemented")  dimension(PyObject(grd))
+    @test_throws ErrorException("not implemented")  dimension(Py(grd))
 end
 
 @testset "Devito SubDimensions" begin
@@ -720,11 +808,12 @@ end
     dm = SubDimensionMiddle(name="dm", parent=d, thickness_left=2, thickness_right=3)
     for subdim in (dl,dr,dm)
         @test parent(subdim) == d
-        @test PyObject(subdim) == subdim.o
+        @test Py(subdim) == subdim.o
+        @test convert(typeof(subdim), Py(subdim)) === subdim
     end
-    @test (thickness(dl)[1].value, thickness(dl)[2].value) == (2, nothing)
-    @test (thickness(dr)[1].value, thickness(dr)[2].value) == (nothing, 3)
-    @test (thickness(dm)[1].value, thickness(dr)[2].value) == (2, 3)
+    @test (thickness(dl)[0].value, thickness(dl)[1].value) == (2, nothing)
+    @test (thickness(dr)[0].value, thickness(dr)[1].value) == (nothing, 3)
+    @test (thickness(dm)[0].value, thickness(dr)[1].value) == (2, 3)
 end
 
 @testset "Devito stepping dimension" begin
@@ -732,7 +821,7 @@ end
     f = TimeFunction(grid=grid,space_order=8,time_order=2,name="f")
     @test stepping_dim(grid) == time_dim(f)
     @test stepping_dim(grid) != time_dim(grid)
-    @test stepping_dim(grid).o.is_Stepping
+    @test pyconvert(Bool, stepping_dim(grid).o.is_Stepping)
 end
 
 @testset "Sparse Function data with halo npoint=$npoint" for npoint in (1,5)
@@ -877,6 +966,21 @@ end
     @test data(h1) ≈ data(h2)
     @test data(j1) ≈ data(j2)
     @test data(k1) ≈ data(k2)
+end
+
+@testset "Derivative with x0 Dict" begin
+    grid = Grid(shape=(6,7), extent=(5.0,6.0))
+    y, x = dimensions(grid)
+    f = Devito.Function(name="f", grid=grid, space_order=4)
+    g1 = Devito.Function(name="g1", grid=grid, space_order=4)
+    g2 = Devito.Function(name="g2", grid=grid, space_order=4)
+    g3 = Devito.Function(name="g3", grid=grid, space_order=4)
+    data(f) .= reshape(Float32.(1:length(data(f))) .^ 2, size(data(f)))
+    d = Derivative(f, x; x0=Dict(x => x + spacing(x)/2))
+    @test d == Devito.devito.Derivative(Py(f), Py(x); x0=pydict(Dict(Py(x) => Py(x + spacing(x)/2))))
+    apply(Operator([Eq(g1, d), Eq(g2, dx(f; x0=x + spacing(x)/2)), Eq(g3, Derivative(f, x))], name="DerivX0Op"))
+    @test data(g1) ≈ data(g2)
+    @test !(data(g1) ≈ data(g3))
 end
 
 @testset "Derivatives on Constants" begin
@@ -1138,7 +1242,7 @@ end
     @test name(op) == "op"
 end
 
-# jkw: had to switch to py"repr" to get string representation of PyObject
+# jkw: had to switch to pybuiltins.repr to get string representation of Py object
 # something must have changes somewhere as we can no longer directly compare like `g == evaluate(h)``
 @testset "subs" begin
     grid = Grid(shape=(5,5,5))
@@ -1154,8 +1258,8 @@ end
             g = f
             h = subs(h,stagdict1)
             g = .5 * (g + subs(g,stagdict2))
-            sg = py"repr"(g)
-            sh = py"repr"(evaluate(h))
+            sg = pyconvert(String, pybuiltins.repr(g))
+            sh = pyconvert(String, pybuiltins.repr(evaluate(h)))
             @show sg, sh, sg == sh
             @test sg == sh
         end
@@ -1195,13 +1299,13 @@ end
     @test name(op) == "Kernel"
 end
 
-@testset "operator PyObject convert" begin
+@testset "operator Py convert" begin
     grid = Grid(shape=(3,4))
     f = Devito.Function(name="f", grid=grid)
     op = Operator(Eq(f,1), name="ConvertOp")
-    @test typeof(convert(Operator, PyObject(op))) == Operator
-    @test  convert(Operator, PyObject(op)) === op
-    @test_throws ErrorException("PyObject is not an operator") convert(Operator, PyObject(f)) 
+    @test typeof(convert(Operator, Py(op))) == Operator
+    @test  convert(Operator, Py(op)) === op
+    @test_throws ErrorException("PyObject is not an operator") convert(Operator, Py(f)) 
 end
 
 @testset "in_range throws out of range error" begin
@@ -1250,38 +1354,38 @@ end
     @test size(u) == (shp...,value)
 end
 
-@testset "Generate Function from PyObject, n=$n" for n in ((3,4),(3,4,5))
+@testset "Generate Function from Py, n=$n" for n in ((3,4),(3,4,5))
     g = Grid(shape=n)
     f1 = Devito.Function(name="f1", grid=g)
-    f2 = Devito.Function(PyObject(f1))
+    f2 = Devito.Function(Py(f1))
     @test isequal(f1, f2)
     # try to make Functions from non-function objects
     u = TimeFunction(name="u", grid=g)
-    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(u))
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(Py(u))
     c = Constant(name="c")
-    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(c))
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(Py(c))
     s = SparseFunction(name="s", grid=g, npoint=5)
-    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(s))
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(Py(s))
     st = SparseTimeFunction(name="st", grid=g, npoint=5, nt=10)
-    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(st))
-    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(PyObject(1))
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(Py(st))
+    @test_throws ErrorException("PyObject is not a devito.Function") Devito.Function(Py(1))
 end
 
-@testset "Generate SparseTimeFunction from PyObject, n=$n" for n in ((3,4),(3,4,5))
+@testset "Generate SparseTimeFunction from Py, n=$n" for n in ((3,4),(3,4,5))
     g = Grid(shape=n)
     s1 = SparseTimeFunction(name="s1", grid=g, nt=10, npoint=5)
-    s2 = SparseTimeFunction(PyObject(s1))
+    s2 = SparseTimeFunction(Py(s1))
     @test isequal(s1, s2)
     # try to make Functions from non-function objects
     f = Devito.Function(name="f", grid=g)
-    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(f))
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(Py(f))
     u = TimeFunction(name="u", grid=g)
-    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(u))
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(Py(u))
     c = Constant(name="c")
-    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(c))
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(Py(c))
     s = SparseFunction(name="s", grid=g, npoint=5)
-    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(s))
-    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(PyObject(1))
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(Py(s))
+    @test_throws ErrorException("PyObject is not a devito.SparseTimeFunction") SparseTimeFunction(Py(1))
 end
 
 @testset "Indexed Data n=$n, T=$T, space_order=$so" for n in ((3,4), (3,4,5)), T in (Float32, Float64), so in (4,8)
@@ -1302,7 +1406,7 @@ end
     @test data(f)[(n[1:end-1] .- 2)...,:] ≈ 2 .* ones(T, n[end])
     data(f)[(n[1:end-1] .- 2)...,:] .= 0
     @test data(f) ≈ zeros(T, n...)
-    @test PyObject(fi) == fi.o
+    @test Py(fi) == fi.o
 end
 
 @testset "Function Inc, shape=$n" for n in ((4,5),(6,7,8),)
@@ -1442,7 +1546,109 @@ end
     x = SpaceDimension(name="x")
     @show typeof(x)
     @show typeof(x) <: Devito.AbstractDimension
-    @test PyObject(x) == x.o
+    @test Py(x) == x.o
+end
+
+@testset "Dimension reversal, Julia↔Python, ndim=$ndim" for ndim in (2,3)
+    # Grid shape: Julia convention is (slow..., fast), Python is (fast..., slow)
+    jl_shape = ntuple(i -> i+2, ndim)  # e.g. (3,4) or (3,4,5)
+    py_shape = reverse(jl_shape)
+
+    grid = Grid(shape=jl_shape)
+
+    # shape reversal
+    @test size(grid) == jl_shape
+    @test pyconvert(NTuple{ndim,Int}, grid.o.shape) == py_shape
+
+    # named dimensions: Julia returns reversed order
+    dimnames_jl = [pyconvert(String, d.o.name) for d in dimensions(grid)]
+    dimnames_py = [pyconvert(String, grid.o.dimensions[i].name) for i in 0:ndim-1]
+    @test dimnames_jl == reverse(dimnames_py)
+
+    # extent and origin reversal
+    jl_extent = ntuple(i -> 10.0*i, ndim)
+    jl_origin = ntuple(i -> Float64(i), ndim)
+    grid2 = Grid(shape=jl_shape, extent=jl_extent, origin=jl_origin, dtype=Float64)
+    @test extent(grid2) == jl_extent
+    @test origin(grid2) == jl_origin
+    @test pyconvert(NTuple{ndim,Float64}, grid2.o.extent) == reverse(jl_extent)
+    @test pyconvert(NTuple{ndim,Float64}, grid2.o.origin) == reverse(jl_origin)
+
+    # Function data indexing: writing at Julia corners maps to reversed Python corners
+    f = Devito.Function(name="f", grid=grid, dtype=Float32)
+    d = data(f)
+    d .= 0
+    d[ones(Int,ndim)...] = 1.0f0   # Julia first corner
+    d[jl_shape...] = 2.0f0         # Julia last corner
+    pydata = f.o.data
+    @test pyconvert(Float32, pydata.__getitem__(ntuple(_->0, ndim))) == 1.0f0
+    @test pyconvert(Float32, pydata.__getitem__(py_shape .- 1)) == 2.0f0
+
+    # halo reversal
+    so = 2
+    fh = Devito.Function(name="fh", grid=grid, space_order=so, dtype=Float32)
+    jl_halo = halo(fh)
+    py_halo = pyconvert(NTuple{ndim,Tuple{Int,Int}}, fh.o.halo)
+    @test jl_halo == reverse(py_halo)
+
+    # size_with_halo reversal
+    @test size_with_halo(fh) == reverse(pyconvert(NTuple{ndim,Int}, fh.o.shape_with_halo))
+
+    # localmask reversal
+    lm = Devito.localmask(fh)
+    for i in 1:ndim
+        py_idx = ndim - i  # reversed index into Python mask tuple
+        py_start = pyconvert(Int, fh.o._mask_domain[py_idx].start)
+        py_stop  = pyconvert(Int, fh.o._mask_domain[py_idx].stop)
+        @test lm[i] == (py_start+1):py_stop
+    end
+end
+
+@testset "Sparse coordinate ordering, ndim=$ndim" for ndim in (2,3)
+    jl_shape = ntuple(i -> 5+i, ndim)
+    grid = Grid(shape=jl_shape, dtype=Float32)
+    npoint = 3
+    sf = SparseFunction(name="sf", grid=grid, npoint=npoint)
+    coords = coordinates_data(sf)
+
+    # coordinates_data has size (ndim, npoint), with slow-to-fast (Python) ordering
+    @test size(coords) == (ndim, npoint)
+
+    # write coords and verify Python sees the same values (no transposition)
+    test_vals = Float32.(reshape(1:ndim*npoint, ndim, npoint))
+    coords .= test_vals
+    py_coords = sf.o.coordinates.data
+    for p in 1:npoint, d in 1:ndim
+        @test coords[d,p] ≈ pyconvert(Float32, py_coords.__getitem__((p-1, d-1)))
+    end
+end
+
+@testset "Operator, operator_timers" begin
+    grid = Grid(shape=(8,9), dtype=Float32)
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+    op = Operator([Eq(forward(u), u + 1.0f0)], name="TimerOp")
+    apply(op, time_M=3)
+    t = Devito.operator_timers(op)
+    @test t isa Dict{String,Any}
+    @test !isempty(t)   # an applied operator records section timers
+    # keys match the python profiler's py_timers (nothing dropped/added)
+    @test sort(collect(keys(t))) == sort([pyconvert(String, k) for k in op.o._profiler.py_timers])
+end
+
+@testset "Operator, operator_options" begin
+    grid = Grid(shape=(8,9), dtype=Float32)
+    u = TimeFunction(name="u", grid=grid, time_order=2, space_order=2)
+    op = Operator([Eq(forward(u), u + 1.0f0)], name="OptionOp")
+    o = Devito.operator_options(op)
+    @test o isa Dict{String,Any}
+    @test !isempty(o)
+    # the writeoperators call site does sort(collect(keys(...))) then indexes
+    @test sort(collect(keys(o))) isa Vector{String}
+    # keys match the python operator's _options (nothing dropped/added)
+    @test sort(collect(keys(o))) == sort([pyconvert(String, k) for k in op.o._options])
+    # opt=(mode, Dict) reaches devito with the Dict converted to a Python dict
+    op2 = Operator([Eq(forward(u), u + 1.0f0)], name="OptionDictOp", opt=("advanced", Dict("blocklevels" => 2)))
+    @test Devito.operator_options(op2)["blocklevels"] == 2
 end
 
 nothing

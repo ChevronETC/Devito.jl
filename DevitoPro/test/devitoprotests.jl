@@ -1,4 +1,12 @@
-using Devito, Logging, PyCall, Test
+using Devito, Logging, PythonCall, Test
+import PythonCall: pycopy!
+
+# Test-only: make `Py == Py` / `Py != Py` return a Julia Bool so `@test` accepts
+# them. The library intentionally does NOT define these (doing so pirates
+# PythonCall's methods and makes Devito non-precompilable); tests run in `Main`,
+# which isn't precompiled, so defining them here is safe.
+Base.:(==)(x::Py, y::Py) = pytruth(PythonCall.pyeq(x, y))
+Base.:(!=)(x::Py, y::Py) = !pytruth(PythonCall.pyeq(x, y))
 
 @testset "ABox Expanding Source" begin
     g = Grid(shape=(8,8), extent=(7.0,7.0))
@@ -42,13 +50,13 @@ end
     data(vp) .= 1.0
 
     # unset devitopro
-    copy!(Devito.devitopro, pyimport("devito"))
+    pycopy!(Devito.devitopro, pyimport("devito"))
     @test_throws ErrorException ABox(src, nothing, vp, -1)
     # reset devitopro 
     try
-        copy!(Devito.devitopro, pyimport("devitopro"))
+        pycopy!(Devito.devitopro, pyimport("devitopro"))
     catch e
-        copy!(Devito.devitopro, pyimport("devito"))
+        pycopy!(Devito.devitopro, pyimport("devito"))
     end
 end
 
@@ -243,16 +251,18 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
     @testset "CCall with printf" begin
         # CCall test written to use gcc
         carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
-        @pywith switchconfig(;compiler=get(ENV, "CC", carch)) begin
+        ctx = switchconfig(;compiler=get(ENV, "CC", carch))
+        ctx.__enter__()
+        try
             pf = CCall("printf", header="stdio.h")
             @test Devito.name(pf) == "printf"
             @test Devito.header(pf) == "stdio.h"
-            @test Devito.header_dirs(pf) == pf.o.header_dirs
-            @test Devito.libs(pf) == pf.o.libs
-            @test Devito.lib_dirs(pf) == pf.o.lib_dirs
+            @test Devito.header_dirs(pf) == String[]
+            @test Devito.libs(pf) == String[]
+            @test Devito.lib_dirs(pf) == String[]
             @test Devito.target(pf) == pf.o.target
             @test Devito.types(pf) == pf.o.types
-            @test PyObject(pf) == pf.o
+            @test Py(pf) == pf.o
             printingop = Operator([pf([""" "hello world!" """])])
             ccode(printingop, filename="helloworld.c")
             # read the program
@@ -269,18 +279,71 @@ if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
             end
             # remove the file
             rm("helloworld.c", force=true)
+        finally
+            ctx.__exit__(pybuiltins.None, pybuiltins.None, pybuiltins.None)
         end
     end
 
     @testset "CCall errors without devitopro" begin
         # unset devitopro
-        copy!(Devito.devitopro, pyimport("devito"))
+        pycopy!(Devito.devitopro, pyimport("devito"))
         @test_throws ErrorException CCall("printf", header="stdio.h")
         # reset devitopro 
         try
-            copy!(Devito.devitopro, pyimport("devitopro"))
+            pycopy!(Devito.devitopro, pyimport("devitopro"))
         catch e
-            copy!(Devito.devitopro, pyimport("devito"))
+            pycopy!(Devito.devitopro, pyimport("devito"))
+        end
+    end
+end
+
+# devitotuner autotuning smoke test (DevitoPro only). Mirrors devitopro's tests/test_tuner.py:
+# an operator is run under tuner_enabled and the sweep must record results to the output file.
+if get(ENV, "DEVITO_DECOUPLER", "0") != "1"
+    @testset "tuner_enabled autotuning" begin
+        carch = devito_arch in ["gcc", "clang"] ? devito_arch : "gcc"
+        ctx = switchconfig(; compiler=get(ENV, "CC", carch))
+        ctx.__enter__()
+        outfile = tempname() * ".json"
+        write(outfile, "{}")  # devitotuner updates an existing results file
+        ran = Ref(false)
+        try
+            grid = Grid(shape=(30, 30, 30), extent=(290.0, 290.0, 290.0), dtype=Float32)
+            u = TimeFunction(name="u", grid=grid, time_order=2, space_order=4)
+            data(u) .= 0
+            # small block-tileable stencil; tuner_enabled swallows the end-of-sweep DevitotunerAccomplished
+            Devito.tuner_enabled("TunerSmokeTest", outfile;
+                    options=Dict("timesteps_per_run" => 2, "blk_size_min" => 8,
+                                 "blk_size_max" => 16, "blk_size_step" => 8)) do
+                op = Operator([Eq(forward(u), 2 * u - backward(u) + laplacian(u))], name="TunerSmokeTest")
+                ran[] = true
+                apply(op, time_M=6)
+            end
+            @test ran[]
+            @test isfile(outfile)
+            content = pyimport("json").loads(read(outfile, String))
+            @test pyconvert(Bool, pybuiltins.isinstance(content, pybuiltins.dict))
+            @test pyconvert(Int, pybuiltins.len(content)) > 0
+        finally
+            ctx.__exit__(pybuiltins.None, pybuiltins.None, pybuiltins.None)
+            rm(outfile, force=true)
+        end
+    end
+
+    @testset "tuner_enabled signal handling" begin
+        outfile = tempname() * ".json"
+        write(outfile, "{}")
+        raise(exc) = pybuiltins.exec("raise e", pydict(Dict("e" => exc)))
+        try
+            # devitotuner's end-of-sweep signal and devito's CompilationError end the run quietly
+            @test Devito.tuner_enabled(() -> raise(Devito.devitotuner.exceptions.DevitotunerAccomplished()), "SignalOp", outfile) === nothing
+            @test Devito.tuner_enabled(() -> raise(Devito.devito.exceptions.CompilationError("skip")), "SignalOp", outfile) === nothing
+            # other errors propagate, and a normal run returns its value
+            @test_throws PythonCall.PyException Devito.tuner_enabled(() -> raise(pybuiltins.ValueError("boom")), "SignalOp", outfile)
+            @test_throws ErrorException Devito.tuner_enabled(() -> error("boom"), "SignalOp", outfile)
+            @test Devito.tuner_enabled(() -> 42, "SignalOp", outfile) == 42
+        finally
+            rm(outfile, force=true)
         end
     end
 end

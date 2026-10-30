@@ -18,8 +18,11 @@ git:
   1. fork the Devito.jl repository
   2. create an appropriately titled branch for your contribution
   3. if applicable, add a unit-test to ensure the functionality of your contribution
-  (see the `test` subfolder).
-  4. run `]test Devito` in the `test` folder
+  (see `DevitoOpen/test`, and `DevitoPro/test` for devitopro-only tests).
+  4. run the tests from a Julia project that has this repository's `Devito` and one backend
+  dev'd into it.  For example, from the repository root: `]activate --temp`,
+  `]dev ./Devito ./DevitoOpen`, `]test DevitoOpen` (or `./DevitoPro` and `]test DevitoPro`).
+  See the CondaPkg notes in the README to avoid rebuilding the conda environment on every run.
   5. make a pull-request
   6. have fun
 
