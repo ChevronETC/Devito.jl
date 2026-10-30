@@ -2,8 +2,3 @@
 Devito = "06ed14b1-0e40-4084-abdf-764a285f8c42"
 DevitoOpen = "352aed59-a538-47e5-8f62-806659e06dfc"
 PythonPlot = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
-
-# in-repo, unregistered: the code package + the open backend selector
-[sources]
-Devito = { path = "../../Devito" }
-DevitoOpen = { path = ".." }
