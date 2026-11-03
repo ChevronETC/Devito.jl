@@ -40,6 +40,20 @@ using Pkg; Pkg.add(["Devito", "DevitoPro"])
 ```
 As with `DevitoOpen`, this will install a Conda environment in the active Julia project.  Please note that the same Julia project or conda environment cannot contain both `DevitoPro` and `DevitoOpen`.
 
+If you subsequently update the contents of `/opt/devitopro`, then you will need to force a resolve for the project in a fresh Julia session:
+```julia
+using CondaPkg
+CondaPkg.resolve(force=true) # same as: pkg> conda resolve --force
+```
+Then, restart Julia.  To confirm the new version, run:
+```julia
+using CondaPkg
+```
+and from the Julia package prompt run:
+```
+]conda run python -c "import importlib.metadata as m; print(m.version('devitopro'), m.version('devito'))"
+```
+
 ## CondaPkg notes
 It is important to note that the installation of python-devito does take some time (minutes), and devitopro takes longer since it is compiled.  Therefore, it may be useful to share conda environments between Julia projects so that each Julia project does not need its own installation.  For example, to have the current project use a shared environment named `@devito-open` (stored in `~/.julia/conda_environments/devito-open`), do:
 ```
