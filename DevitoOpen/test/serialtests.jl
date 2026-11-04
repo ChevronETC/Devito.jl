@@ -1275,6 +1275,13 @@ end
     code = open(f->read(f, String),"/tmp/ccode.cc")
     @test typeof(code) == String
     @test code != ""
+    @test occursin("int ccode(", code)
+    printed = mktemp() do path, io
+        redirect_stdout(() -> ccode(op), io)
+        flush(io)
+        read(path, String)
+    end
+    @test printed == code
 end
 
 @testset "Operator default naming" begin
@@ -1407,6 +1414,15 @@ end
     data(f)[(n[1:end-1] .- 2)...,:] .= 0
     @test data(f) ≈ zeros(T, n...)
     @test Py(fi) == fi.o
+end
+
+@testset "Function and IndexedData getindex argument order" begin
+    g = Grid(shape=(4,5))
+    y, x = dimensions(g)
+    f = Devito.Function(name="f", grid=g)
+    @test string(f[y, x]) == "f[x, y]"
+    @test string(Py(indexed(f)[2, 3])) == "f[2, 1]"
+    @test string(Py(indexed(f)[2, x])) == "f[x, 1]"
 end
 
 @testset "Function Inc, shape=$n" for n in ((4,5),(6,7,8),)
