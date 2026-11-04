@@ -1,6 +1,5 @@
 Manifest.toml
-deps/build.log
-benchmark/tune.json
+DevitoOpen/benchmark/tune.json
 docs/build
 operator*.c
 *.cov

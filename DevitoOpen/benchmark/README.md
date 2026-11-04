@@ -3,7 +3,7 @@ We use [PkgBenchmark.jl](http://github.com/juliaCI/PkgBenchmark.jl) which can be
 installed using `Pkg.add("PkgBenchmark")`.  To run the benchmarks:
 ```julia
 using PkgBenchmark
-results=benchmarkpkg("Devito")
+results=benchmarkpkg("DevitoOpen")
 export_markdown("results.md", results)
 ```
 In order to compare the benchmarks against a different version:

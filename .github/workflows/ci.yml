@@ -1,27 +1,22 @@
 name: CI
 on:
   push:
-    branches: [master]
+    branches: ['**']  # every branch (incl. slashed names like sam/feature); '*' would miss those
     tags: ["*"]
   pull_request:
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.devitoversion }} - ${{ github.event_name }}
-    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.backend }} - Julia ${{ matrix.version }} - ${{ github.event_name }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         version:
           - lts
-          - 1 # automatically expands to the latest stable 1.x release of Julia
-        devitoversion:
-          - 'main'
-          - 'devitopro'
-          - ''
-        os:
-          - ubuntu-latest
-        arch:
-          - x64
+          - '1' # latest stable 1.x release of Julia
+        backend:
+          - DevitoOpen # open-source `devito`
+          - DevitoPro  # licensed `devitopro` (needs the DEVITOPRO secret)
 
     env:
       DEVITO_LANGUAGE: "openmp"
@@ -35,96 +30,71 @@ jobs:
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - uses: julia-actions/cache@v1
-      
-      - name: Setup MPI
+      - uses: julia-actions/cache@v2
+
+      # MPI.jl and the CondaPkg-built mpi4py both link this one system MPI (the decoupler
+      # requires Julia and Python to share a single MPI).
+      - name: Setup system MPI
         uses: mpi4py/setup-mpi@v1
         with:
           mpi: 'openmpi'
-      
-      - name: download miniconda manually
-        run: wget https://repo.anaconda.com/miniconda/Miniconda3-py312_24.5.0-0-Linux-x86_64.sh
 
-      - name: run install
-        run: bash Miniconda3-py312_24.5.0-0-Linux-x86_64.sh -b -p $HOME/miniconda
-
-      - name: run path export
+      # devitopro bundles devito as a submodule that pip can't fetch from a git+ URL, so
+      # DevitoPro/CondaPkg.toml installs it from a local recursive clone; it must be writable
+      # (devitopro builds in-tree). Requires the DEVITOPRO secret.
+      - name: Provision devitopro clone
+        if: matrix.backend == 'DevitoPro'
         run: |
-          echo "$HOME/miniconda/bin:" >> $GITHUB_PATH
-          echo "PYTHON=$HOME/miniconda/bin/python3" >> $GITHUB_ENV
-          echo "PYCALL_JL_RUNTIME_PYTHON=$HOME/miniconda/bin/python3" >> $GITHUB_ENV
-          echo "CONDA_EXE=$HOME/miniconda/bin/conda" >> $GITHUB_ENV
-
-      - name: run build for devito/devitopro
-        if: matrix.devitoversion == 'devitopro'
-        run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
+          sudo git clone --recurse-submodules --depth 1 "$DEVITO_PRO" /opt/devitopro
+          sudo chown -R "$(id -un)" /opt/devitopro
         env:
           DEVITO_PRO: ${{ secrets.DEVITOPRO }}
 
-      - name: run build for devito
-        if: ! matrix.devitoversion != 'devitopro'
-        run: julia --color=yes --project -e 'using Pkg; Pkg.build(verbose=true)'
-        env:
-          DEVITO_BRANCH: ${{ matrix.devitoversion }}
+      # Dev this checkout's packages into a scratch project; Julia 1.10 ignores [sources].
+      - name: Set up test environment
+        run: julia --color=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("${{ matrix.backend }}"))]); Pkg.add("MPIPreferences")'
 
-      - name: use system MPI
-        run: |
-          # https://juliaparallel.org/MPI.jl/latest/configuration/#Configuration-of-the-MPI.jl-testsuite
-          julia --project=test -e 'using Pkg; Pkg.instantiate(); Pkg.status(); using MPIPreferences; MPIPreferences.use_system_binary()'
+      # Writes the backend's test/LocalPreferences.toml, which Pkg.test copies into the test env.
+      - name: Configure system MPI for the test env
+        run: julia --project="$RUNNER_TEMP/testenv" -e 'using Pkg, MPIPreferences; Pkg.activate("${{ matrix.backend }}/test"); MPIPreferences.use_system_binary()'
 
-      # note Pkg.test docs indicate --inline=no can improve coverage
-      - name: run tests
-        run: |
-          julia --color=yes --check-bounds=yes --inline=no --project -e 'using Pkg; Pkg.test(coverage=true)'
-        env:
-          DEVITO_BRANCH: ${{ matrix.devitoversion }}
+      # coverage=true would only track the backend package, so track Devito's code instead.
+      - name: Run tests
+        run: julia --color=yes --check-bounds=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.test("${{ matrix.backend }}"; coverage="@" * abspath("Devito"))'
 
       - uses: julia-actions/julia-processcoverage@v1
+        with:
+          directories: Devito/src
 
       - uses: codecov/codecov-action@v5
         with:
-          file: lcov.info
+          files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
 
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    env:
+      DEVITO_LANGUAGE: "openmp"
+      DEVITO_ARCH: "gcc"
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
 
-      - name: install mpi
-        run: sudo apt-get update
-      - run: sudo apt-get install -y mpich
+      # `using Devito` during the build installs the open backend + mpi4py via CondaPkg;
+      # the mpi4py source build needs an MPI toolchain.
+      - name: Setup system MPI
+        uses: mpi4py/setup-mpi@v1
+        with:
+          mpi: 'openmpi'
 
-      - name: download miniconda manually
-        run: wget https://repo.anaconda.com/miniconda/Miniconda3-py312_24.5.0-0-Linux-x86_64.sh
+      - name: Instantiate docs
+        run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("DevitoOpen"))]); Pkg.instantiate()'
 
-      - name: run install
-        run: bash Miniconda3-py312_24.5.0-0-Linux-x86_64.sh -b -p ~/miniconda
-
-      - name: run path export
-        run: |
-          echo "$HOME/miniconda/bin:" >> $GITHUB_PATH
-          echo "PYTHON=$HOME/miniconda/bin/python3" >> $GITHUB_ENV
-          echo "PYCALL_JL_RUNTIME_PYTHON=$HOME/miniconda/bin/python3" >> $GITHUB_ENV
-          echo "CONDA_EXE=$HOME/miniconda/bin/conda" >> $GITHUB_ENV
-
-      - run: julia --color=yes --project -e 'using Pkg; Pkg.build()'
-
-      - name: Install dependencies
-        run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
-
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-
-      - run: julia --project=docs docs/make.jl
+      - name: Build and deploy docs
+        run: julia --color=yes --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

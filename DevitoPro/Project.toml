@@ -1,0 +1,7 @@
+name = "DevitoPro"
+uuid = "24f7ae41-b19a-40bf-8dec-89c8c9352093"
+authors = ["Sam Kaplan <Sam.Kaplan@chevron.com>"]
+version = "0.1.0"
+
+[compat]
+julia = "1.9"

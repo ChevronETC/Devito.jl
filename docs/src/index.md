@@ -4,6 +4,34 @@ This is a Julia API for Devito.  it provides a Julia API's for a sub-set of Devi
 supporting `Grid`'s, `Function`'s, `TimeFunction`'s and `SparseTimeFunction`'s for both their
 serial and domain decomposed MPI variants.
 
+## Choosing a backend: `DevitoOpen` vs `DevitoPro`
+
+`Devito.jl` provides the Julia API, but the numerical work runs on a Python backend. There are two mutually-exclusive backends, each shipped as a small companion package:
+
+| Companion package | Python backend | For |
+| --- | --- | --- |
+| `DevitoOpen` | open-source `devito` | everyone |
+| `DevitoPro` | licensed `devitopro` | DevitoPro license holders |
+
+**The backend is selected by which companion package is in your Julia project — not by a `using` statement.** Your code always just writes `using Devito`; whichever companion is present in the active project is the one that gets installed and used.
+
+```julia-repl
+# open-source backend
+pkg> add Devito DevitoOpen
+
+# licensed backend
+pkg> add Devito DevitoPro
+```
+
+Regardless of backend:
+
+```julia
+using Devito                 # always this — never `using DevitoOpen` / `using DevitoPro`
+# ...then use Devito.Grid, Devito.Function, Devito.TimeFunction, etc.
+```
+
+The companion packages carry no Julia API of their own; each simply contributes a `CondaPkg.toml` that tells [CondaPkg](https://github.com/JuliaPy/CondaPkg.jl) which Python package to install. When Python first starts, CondaPkg scans the active project's dependencies and installs the backend it finds there. **Add exactly one companion** — installing both would pull in two conflicting `devito` packages.
+
 ## Construction of a Devito stencil
 The procedure for constructing a stencil operator consists of five parts:
 

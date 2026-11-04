@@ -1,0 +1,5 @@
+# devitopro is installed from a local recursive clone because pip cannot fetch its
+# bundled devito submodule from a git+ URL. Provision the clone at /opt/devitopro
+# (see ../docs/python-dependency-management.md).
+[pip.deps]
+devitopro = { version = "@ file:///opt/devitopro", extras = ["extras"] }

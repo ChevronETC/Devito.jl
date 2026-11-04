@@ -9,7 +9,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.actor == 'JuliaTagBot'
     runs-on: ubuntu-latest
     steps:
-      - uses: JuliaRegistries/TagBot@v1
+      # Only Devito is tagged (DevitoOpen/DevitoPro stay untagged, as Makie.jl does for its subpackages).
+      # Unprefixed v* tags continue Devito's v1.x tags and are what the docs deploy on.
+      - name: Tag Devito
+        uses: JuliaRegistries/TagBot@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ssh: ${{ secrets.DOCUMENTER_KEY }}
+          subdir: Devito
+          tag_prefix: NO_PREFIX
