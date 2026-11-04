@@ -71,6 +71,18 @@ jobs:
           files: lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
 
+  # Skipped if any test job fails, so Codecov never reports partial coverage.
+  codecov:
+    name: Codecov report
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: codecov/codecov-action@v5
+        with:
+          run_command: send-notifications
+          token: ${{ secrets.CODECOV_TOKEN }}
+
   docs:
     name: Documentation
     runs-on: ubuntu-latest
