@@ -1,13 +1,4 @@
-[MPIPreferences]
-__clear__ = ["preloads_env_switch"]
-_format = "1.0"
-abi = "OpenMPI"
-binary = "system"
-cclibs = []
-libmpi = "libmpi"
-mpiexec = "mpiexec"
-preloads = []
-
+# MPIPreferences are machine-specific; set them in the project that runs Pkg.test (see runtests.jl).
 [CondaPkg]
 backend = "MicroMamba"
 pip_backend = "pip"

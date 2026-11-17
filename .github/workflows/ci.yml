@@ -24,20 +24,26 @@ jobs:
       OMP_NUM_THREADS: "2"
       DEVITO_AUTOPADDING: "0"
       RDMAV_FORK_SAFE: 1
+      # Match pip_backend in <backend>/test/LocalPreferences.toml for the configure-step resolve.
+      JULIA_CONDAPKG_PIP_BACKEND: "pip"
+      # Open MPI runtime settings that mpi4py/setup-mpi used to configure.
+      OMPI_MCA_btl: "tcp,self"
+      OMPI_MCA_mpi_yield_when_idle: "true"
+      OMPI_MCA_rmaps_base_oversubscribe: "true"
+      OMPI_MCA_btl_base_warn_component_unused: "false"
+      OMPI_MCA_btl_vader_single_copy_mechanism: "none"
+      # Conda's mpicc/mpicxx otherwise call Conda compilers that are not installed.
+      OMPI_CC: "gcc"
+      OMPI_CXX: "g++"
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set shared Conda environment
+        run: echo "JULIA_CONDAPKG_ENV=$RUNNER_TEMP/devito-conda" >> "$GITHUB_ENV"
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
       - uses: julia-actions/cache@v2
-
-      # MPI.jl and the CondaPkg-built mpi4py both link this one system MPI (the decoupler
-      # requires Julia and Python to share a single MPI).
-      - name: Setup system MPI
-        uses: mpi4py/setup-mpi@v1
-        with:
-          mpi: 'openmpi'
 
       # devitopro bundles devito as a submodule that pip can't fetch from a git+ URL, so
       # DevitoPro/CondaPkg.toml installs it from a local recursive clone; it must be writable
@@ -52,11 +58,11 @@ jobs:
 
       # Dev this checkout's packages into a scratch project; Julia 1.10 ignores [sources].
       - name: Set up test environment
-        run: julia --color=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("${{ matrix.backend }}"))]); Pkg.add("MPIPreferences")'
+        run: julia --color=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("${{ matrix.backend }}"))]); Pkg.add(["CondaPkg", "MPIPreferences"])'
 
-      # Writes the backend's test/LocalPreferences.toml, which Pkg.test copies into the test env.
-      - name: Configure system MPI for the test env
-        run: julia --project="$RUNNER_TEMP/testenv" -e 'using Pkg, MPIPreferences; Pkg.activate("${{ matrix.backend }}/test"); MPIPreferences.use_system_binary()'
+      # Pkg.test merges testenv's preferences into the test sandbox.
+      - name: Configure Conda MPI for the test env
+        run: julia --project="$RUNNER_TEMP/testenv" -e 'using CondaPkg, MPIPreferences; MPIPreferences.use_system_binary(; library_names=[CondaPkg.envdir("lib", "libmpi.so")], mpiexec=CondaPkg.envdir("bin", "mpiexec"))'
 
       # coverage=true would only track the backend package, so track Devito's code instead.
       - name: Run tests
@@ -82,13 +88,6 @@ jobs:
       - uses: julia-actions/setup-julia@v2
         with:
           version: '1'
-
-      # `using Devito` during the build installs the open backend + mpi4py via CondaPkg;
-      # the mpi4py source build needs an MPI toolchain.
-      - name: Setup system MPI
-        uses: mpi4py/setup-mpi@v1
-        with:
-          mpi: 'openmpi'
 
       - name: Instantiate docs
         run: julia --project=docs -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("DevitoOpen"))]); Pkg.instantiate()'

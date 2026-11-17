@@ -1,7 +1,10 @@
 using Devito, MPI
 
 @info """
-MPI implementation is set via test/LocalPreferences.toml (MPIPreferences.binary=\$(MPIPreferences.binary)).
+MPI.jl must load mpi4py's libmpi, the CondaPkg environment's Open MPI. Configure it once from the project
+that runs Pkg.test (which needs a shared CondaPkg env, see below):
+    using CondaPkg, MPIPreferences
+    MPIPreferences.use_system_binary(; library_names=[CondaPkg.envdir("lib", "libmpi.so")], mpiexec=CondaPkg.envdir("bin", "mpiexec"))
 CondaPkg settings come from test/LocalPreferences.toml plus the preferences of the project that runs
 Pkg.test; set env = "@<name>" there to reuse one conda environment across test runs.
 With a shared environment, wrap Pkg.test in withenv("JULIA_CONDAPKG_OFFLINE" => "yes") do ... end to skip
