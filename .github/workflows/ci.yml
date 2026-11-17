@@ -24,10 +24,11 @@ jobs:
       OMP_NUM_THREADS: "2"
       DEVITO_AUTOPADDING: "0"
       RDMAV_FORK_SAFE: 1
-      JULIA_CONDAPKG_ENV: ${{ runner.temp }}/devito-conda
 
     steps:
       - uses: actions/checkout@v4
+      - name: Set shared Conda environment
+        run: echo "JULIA_CONDAPKG_ENV=$RUNNER_TEMP/devito-conda" >> "$GITHUB_ENV"
       - uses: julia-actions/setup-julia@v2
         with:
           version: ${{ matrix.version }}
