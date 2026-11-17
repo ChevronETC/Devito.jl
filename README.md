@@ -58,7 +58,7 @@ and from the Julia package prompt run:
 It is important to note that the installation of python-devito does take some time (minutes), and devitopro takes longer since it is compiled.  Therefore, it may be useful to share conda environments between Julia projects so that each Julia project does not need its own installation.  For example, to have the current project use a shared environment named `@devito-open` (stored in `~/.julia/conda_environments/devito-open`), do:
 ```
 pkg> add CondaPkg, PreferenceTools
-julia> using CondaPkg PreferenceTools
+julia> using CondaPkg, PreferenceTools
 pkg> preference add CondaPkg env=@devito-open
 ```
 This writes `env = "@devito-open"` under `[CondaPkg]` in the project's `LocalPreferences.toml`.  There is no separate install step for the shared environment: the first time CondaPkg resolves in a project with this setting (on `using Devito`, or explicitly with `CondaPkg.resolve()`), it creates `~/.julia/conda_environments/devito-open` and installs into it the Python dependencies declared by the project's packages (their `CondaPkg.toml` files).  Later projects with the same setting re-use it, and CondaPkg only installs what they add.  To build it right away, restart Julia so that the new preference is read, and then do:
@@ -73,11 +73,33 @@ For `@devito-pro`, `/opt/devitopro` must be in place first.  A project's existin
 * Don't set `env` in your global environment (`~/.julia/environments/v1.x`).  It would apply to every project that doesn't set its own, including projects that use the other backend.
 * If a shared environment gets out of sync, run `CondaPkg.resolve(force=true)` from a project that uses it.
 
-Finally, it is important to note that even with a shared environment, a fresh Julia project will always re-run the conda and pip installs.  These normally download nothing, but pip always rebuilds and reinstalls packages installed from a local folder, which is how devitopro is installed.  For DevitoPro this rebuild can take many minutes.  This is, in particular, noticeable when running unit tests since each run of `Pkg.test` creates a new temporary Julia project (which uses the `env` preference of the project you run `Pkg.test` from).  In this case we can avoid the costly rebuild with CondaPkg's offline mode:
-```julia
-using Pkg
-withenv("JULIA_CONDAPKG_OFFLINE" => "yes") do
-    Pkg.test("DevitoPro")
-end
-```
-Offline mode only works with a shared environment; without one, the test project has no conda environment at all.  It also skips any changes to the Python dependencies, so after changing a `CondaPkg.toml` or updating `/opt/devitopro`, run `CondaPkg.resolve(force=true)` once from your project before testing offline again.
+## Running the unit tests
+The unit tests are in `DevitoOpen/test` and `DevitoPro/test`, and the `DevitoPro` tests also run the `DevitoOpen` suite.  CI follows the steps below; see `.github/workflows/ci.yml`, which also sets some Devito and Open MPI environment variables (for example, to allow more MPI ranks than cores).
+
+1. Create a Julia project for testing, with your checkout of the packages and with `CondaPkg` and `MPIPreferences` as direct dependencies:
+   ```
+   pkg> activate ~/devito-tests
+   pkg> dev path/to/Devito.jl/Devito path/to/Devito.jl/DevitoOpen
+   pkg> add CondaPkg, MPIPreferences
+   ```
+   To test the pro backend, use `DevitoPro` instead of `DevitoOpen`.
+2. Give the project a shared conda environment, for example `@devito-open` or `@devito-pro` (see [CondaPkg notes](#condapkg-notes)).  This is required: each `Pkg.test` run creates a new temporary project that uses the conda environment of the project you run it from, and step 3 needs that environment at a fixed path.
+3. In a fresh Julia session, point MPI.jl at the conda environment's Open MPI.  This is the library that `mpi4py` uses, and since Julia and Python run in the same process, they must share it:
+   ```julia
+   using CondaPkg, MPIPreferences
+   MPIPreferences.use_system_binary(;
+       library_names=[CondaPkg.envdir("lib", "libmpi.so")],
+       mpiexec=CondaPkg.envdir("bin", "mpiexec"),
+   )
+   ```
+   This creates the shared environment if needed and writes the MPI paths to your project's `LocalPreferences.toml`, and `Pkg.test` passes them on to the tests.  Do not add them to the `LocalPreferences.toml` files in `DevitoOpen/test` or `DevitoPro/test`: the paths are machine-specific, and `Pkg.test` gives those files priority over your project.  The tests stop with an error if Julia and Python load different MPI libraries.  The same setting is needed in any project that uses Devito with MPI.jl.
+4. Run the tests.  Conda's `mpicc` calls a conda compiler that is not installed, so point it at your system compilers.  Also use CondaPkg's offline mode: otherwise each `Pkg.test` run repeats the conda and pip installs, and although these normally download nothing, pip always rebuilds packages installed from a local folder, such as devitopro, which can take many minutes:
+   ```julia
+   using Pkg
+   withenv("OMPI_CC" => "gcc", "OMPI_CXX" => "g++", "JULIA_CONDAPKG_OFFLINE" => "yes") do
+       Pkg.test("DevitoOpen")  # or "DevitoPro"
+   end
+   ```
+   Offline mode also skips any changes to the Python dependencies, so after changing a `CondaPkg.toml` or updating `/opt/devitopro`, run `CondaPkg.resolve(force=true)` once from your test project before running the tests again.
+
+If `mpi4py` in your shared environment was installed by pip (older versions of Devito.jl built it against a system MPI), delete the environment (for example, `~/.julia/conda_environments/devito-open`) and let CondaPkg recreate it.

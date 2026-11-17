@@ -60,20 +60,9 @@ jobs:
       - name: Set up test environment
         run: julia --color=yes --project="$RUNNER_TEMP/testenv" -e 'using Pkg; Pkg.develop([PackageSpec(path=abspath("Devito")), PackageSpec(path=abspath("${{ matrix.backend }}"))]); Pkg.add(["CondaPkg", "MPIPreferences"])'
 
-      # Writes the backend's test/LocalPreferences.toml, which Pkg.test copies into the test env.
+      # Pkg.test merges testenv's preferences into the test sandbox.
       - name: Configure Conda MPI for the test env
-        run: |
-          julia --project="$RUNNER_TEMP/testenv" -e '
-            using Pkg, CondaPkg, MPIPreferences
-            prefix = CondaPkg.envdir()
-            library = joinpath(prefix, "lib", "libmpi.so")
-            launcher = joinpath(prefix, "bin", "mpiexec")
-            @assert isfile(library)
-            @assert isfile(launcher)
-            # Activate last: CondaPkg cannot resolve the manifest-less test project.
-            Pkg.activate("${{ matrix.backend }}/test")
-            MPIPreferences.use_system_binary(; library_names=[library], mpiexec=launcher)
-          '
+        run: julia --project="$RUNNER_TEMP/testenv" -e 'using CondaPkg, MPIPreferences; MPIPreferences.use_system_binary(; library_names=[CondaPkg.envdir("lib", "libmpi.so")], mpiexec=CondaPkg.envdir("bin", "mpiexec"))'
 
       # coverage=true would only track the backend package, so track Devito's code instead.
       - name: Run tests

@@ -3,7 +3,7 @@
 [deps]
 python = ">=3.10,<3.14"  # devito/devitopro require Python <3.14
 mpi4py = "<4.1.3"
-openmpi = ">=4.1.6,<4.2"
+openmpi = ">=4.1.6,<4.2"  # MPI.jl must use this same libmpi (see DevitoOpen/test/runtests.jl)
 
 [deps.mpi]
 version = ""
