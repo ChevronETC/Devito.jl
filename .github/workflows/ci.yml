@@ -24,6 +24,17 @@ jobs:
       OMP_NUM_THREADS: "2"
       DEVITO_AUTOPADDING: "0"
       RDMAV_FORK_SAFE: 1
+      # Match pip_backend in <backend>/test/LocalPreferences.toml for the configure-step resolve.
+      JULIA_CONDAPKG_PIP_BACKEND: "pip"
+      # Open MPI runtime settings that mpi4py/setup-mpi used to configure.
+      OMPI_MCA_btl: "tcp,self"
+      OMPI_MCA_mpi_yield_when_idle: "true"
+      OMPI_MCA_rmaps_base_oversubscribe: "true"
+      OMPI_MCA_btl_base_warn_component_unused: "false"
+      OMPI_MCA_btl_vader_single_copy_mechanism: "none"
+      # Conda's mpicc/mpicxx otherwise call Conda compilers that are not installed.
+      OMPI_CC: "gcc"
+      OMPI_CXX: "g++"
 
     steps:
       - uses: actions/checkout@v4
@@ -59,10 +70,9 @@ jobs:
             launcher = joinpath(prefix, "bin", "mpiexec")
             @assert isfile(library)
             @assert isfile(launcher)
+            # Activate last: CondaPkg cannot resolve the manifest-less test project.
             Pkg.activate("${{ matrix.backend }}/test")
-            CondaPkg.withenv() do
-              MPIPreferences.use_system_binary(; library_names=[library], mpiexec=launcher)
-            end
+            MPIPreferences.use_system_binary(; library_names=[library], mpiexec=launcher)
           '
 
       # coverage=true would only track the backend package, so track Devito's code instead.
