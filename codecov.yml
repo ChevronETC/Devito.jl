@@ -1,0 +1,4 @@
+codecov:
+  notify:
+    # report only when ci.yml's `codecov` job (after all test jobs upload) sends notifications
+    manual_trigger: true
