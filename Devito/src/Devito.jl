@@ -85,13 +85,9 @@ function __init__()
             end
         end
 
-        # Utilities. Need to both load and also add to PYTHONPATH
-        # so that spawned python subprocesses find it as well
-        ppath = get(ENV, "PYTHONPATH", "")
-        upath = join(split(@__DIR__, "/")[1:end-1], "/")
-        sys = pyimport("sys")
-        sys.path.insert(0, upath)
-        pycopy!(utils, pyimport("src"))
+        # On sys.path (not just imported): the decoupler hands sys.path to its worker processes
+        pyimport("sys").path.insert(0, joinpath(dirname(@__DIR__), "python"))
+        pycopy!(utils, pyimport("devitojl"))
 
     catch e
         if get(ENV, "JULIA_REGISTRYCI_AUTOMERGE", "false") == "true"
@@ -707,10 +703,8 @@ function TimeFunction(args...; lazy=false, allowpro=true, kwargs...)
     elseif ~has_devitopro() | !allowpro
         o = devito.TimeFunction(args...; _process_kwargs(reversedims(kwargs))...)
     else
-        # this is inelegant, TODO: find better way to handle layers.  
-        # Issue is that PyCall interpets the layers as tuple, eliminating key metadata.
-        # TODO: Generate MFE and submit as issue to PyCall
-        o = utils.serializedtimefunc(; _process_kwargs(Devito.reversedims(kwargs))...)
+        # serialized to disk by default; a `layers` kwarg overrides it (rightmost keyword wins)
+        o = devitopro.TimeFunction(; layers=enriched.Disk, _process_kwargs(reversedims(kwargs))...)
     end
     T = numpy_eltype(o)
     N = pyconvert(Int, pybuiltins.len(o.dimensions))
@@ -741,7 +735,7 @@ function serial2str(x::TimeFunction)
     return mypath
 end
 
-str2serial(y::String) = utils.str2path(y)
+str2serial(y::String) = pyimport("pathlib").Path(y)
 
 function convert_resort_array!(_y::Array{T,N}, y::Vector{T}, topology, decomposition) where {T,N}
     i = 1
@@ -1698,7 +1692,7 @@ sympy_or() = sympy.Or
 
 """Get symbolic representation for function index object"""
 function Base.getindex(x::Union{TimeFunction,Function},args...)
-   return utils.indexobj(x,reverse(args)...)
+   return pygetitem(Py(x), pytuple(reverse(args)))
 end
 
 # helper functions for mapping arguments to python
@@ -1706,7 +1700,7 @@ shiftarg(x::Int) = x-1
 shiftarg(x) = x
 
 function pygetindex(x::Py,args...)
-   return utils.indexobj(x,reverse(shiftarg.(args))...)
+   return pygetitem(x, pytuple(reverse(shiftarg.(args))))
 end
 
 struct IndexedData
@@ -1736,7 +1730,12 @@ Print the ccode associated with a devito operator.
 If filename is provided, writes ccode to disk using that filename
 """
 function ccode(x::Operator; filename="")
-   utils.ccode(x.o,filename)
+   code = pyconvert(String, pystr(x.o))
+   if filename == ""
+       println(code)
+   else
+       open(io -> println(io, code), filename, "w")
+   end
    return nothing
 end
 

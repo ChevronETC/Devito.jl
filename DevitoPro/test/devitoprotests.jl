@@ -412,6 +412,8 @@ end
     ser = Devito.str2serial(str)
     pathlib = pyimport("pathlib")
     py_path = pathlib.Path(str)
+    @test pyisinstance(ser, pathlib.Path)
+    @test ser == py_path
 end
 
 @testset "TimeFunction, lazy streaming" for n in ( (4,5), (4,5,6) )
@@ -425,6 +427,14 @@ end
     @test u3 !== nothing
     @test_throws ErrorException TimeFunction(ff.o)
     @test_logs (:warn, "Object doesn't have serialized path!") Devito.serial2str(u3)
+end
+
+@testset "TimeFunction layers default to Disk, override with layers kwarg" begin
+    g = Grid(shape=(4,5))
+    u1 = TimeFunction(name="u1", grid=g, save=3)
+    u2 = TimeFunction(name="u2", grid=g, save=3, layers=Devito.enriched.DiskHost)
+    @test pyis(u1.o.layers, Devito.enriched.Disk)
+    @test pyis(u2.o.layers, Devito.enriched.DiskHost)
 end
 
 # JKW: removing for now, not sure what is even being tested here
